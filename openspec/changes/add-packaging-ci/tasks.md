@@ -89,7 +89,7 @@
 ## 6. Documentation (design D8)
 
 - [ ] 6.1 Update `README.md`:
-  - *Getting started* first: download `Pisum.Transcribe_<version>_win-x64.zip` from GitHub Releases, extract it to a permanent folder (because **Start with Windows** stores the exe path), start `Pisum.Transcribe.exe`, and choose **More info** → **Run anyway** at the SmartScreen prompt. Include the sizes from 4.3. Nothing else needs to be installed: .NET and the Visual C++ runtime are in the zip, and a Vulkan GPU driver is optional.
+  - *Getting started* first: download `Pisum.Transcribe_<version>_win-x64.zip` from GitHub Releases, extract it to a permanent folder (because **Start with Windows** stores the exe path; after moving the folder, start the app once from its new place, which repairs the entry), start `Pisum.Transcribe.exe`, and choose **More info** → **Run anyway** at the SmartScreen prompt. Include the sizes from 4.3. Nothing else needs to be installed: .NET and the Visual C++ runtime are in the zip, and a Vulkan GPU driver is optional.
   - *Build from source* second, with the GitHub clone URL.
   - Issues on GitHub, and *Project status* updated: CI and zip releases exist, an installer, auto-update and signing don't yet.
 
