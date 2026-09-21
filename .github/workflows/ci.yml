@@ -1,0 +1,36 @@
+name: CI
+
+# Pull requests and pushes to main alike: main is unprotected and takes direct pushes, so a commit
+# can reach it without ever having been a pull request (design D1).
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: windows-latest
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Restore
+        run: dotnet restore Pisum.Transcribe.slnx
+
+      - name: Build
+        run: dotnet build Pisum.Transcribe.slnx --no-restore
+
+      # No filter, the same command as locally (design D7). The hardware tests are
+      # [Fact(Explicit = true)] and don't run without --explicit on, and a test that can't run on
+      # this runner skips itself with its reason in the output.
+      - name: Test
+        run: dotnet test Pisum.Transcribe.slnx
