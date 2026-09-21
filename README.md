@@ -18,23 +18,31 @@ Speech recognition runs on your computer with an NVIDIA Canary model and the [tr
 - Windows 10 or 11, x64
 - A microphone
 - A GPU with a Vulkan driver is optional. Without one, the model runs on the CPU.
-- 0.2 to 1.1 GB of disk space for a speech model
-
-To build from source, you need the [.NET SDK 10.0.400](https://dotnet.microsoft.com/download) or a later feature band that `global.json` allows.
+- 0.2 to 1.1 GB of disk space for a speech model, and about 230 MB for the app
 
 ## Getting started
 
-There is no installer yet. Build and start the app from source:
+There is no installer yet. The app comes as a zip that you extract and start:
 
-```sh
-git clone git@gitlab.pisum:pisum-projects/projects/whisper/transcribe.git
-cd transcribe
-dotnet run --project src/Pisum.Transcribe
-```
+1. Download `Pisum.Transcribe_<version>_win-x64.zip` from the [latest release](https://github.com/mschnecke/pisum-transcript/releases). The zip is about 94 MB.
+2. Extract it to a folder where it can stay, such as `%LOCALAPPDATA%\Programs`. The zip contains one folder, `Pisum Transcribe`, of about 230 MB. **Start with Windows** stores the path of the exe, so if you move the folder later, start the app once from its new place. That start updates the entry.
+3. Start `Pisum.Transcribe.exe` in that folder. The app isn't code-signed, so Windows SmartScreen may show **Windows protected your PC**. Choose **More info**, then **Run anyway**.
+
+Nothing else needs to be installed: the zip contains .NET and the Visual C++ runtime. A GPU with a Vulkan driver is optional.
 
 On the first start, the app opens the window **Download a speech model**. Choose a model and download it. The download is checked against its SHA-256 hash, and the model loads when it is complete. The tray tooltip shows **Ready (Vulkan)** or **Ready (CPU)** when you can dictate.
 
 Only one instance runs at a time. A second start waits up to 6 seconds for the first instance to exit and then exits itself.
+
+### Build from source
+
+You need the [.NET SDK 10.0.400](https://dotnet.microsoft.com/download) or a later feature band that `global.json` allows. Build and start the app:
+
+```sh
+git clone https://github.com/mschnecke/pisum-transcript.git
+cd pisum-transcript
+dotnet run --project src/Pisum.Transcribe
+```
 
 ## Usage
 
@@ -136,18 +144,18 @@ The app is a WPF app on the .NET Generic Host, with no main window. Each feature
 | `Dictation/` | The dictation workflow, overlay and notifications |
 | `SettingsWindow/` | Settings window |
 
-[CLAUDE.md](CLAUDE.md) describes the conventions for shutdown, the UI thread, settings, logging, code style and tests.
+[CLAUDE.md](CLAUDE.md) describes the conventions for shutdown, the UI thread, settings, logging, code style and tests. [packaging/README.md](packaging/README.md) describes how the zip is built and how a release is published.
 
 ### Planning
 
 - [docs/idea.md](docs/idea.md) describes the idea and the technology choices.
 - [docs/roadmap.md](docs/roadmap.md) lists the planned changes and what is deferred.
 - Changes are planned with [OpenSpec](https://github.com/Fission-AI/OpenSpec): the specs are in `openspec/specs/`, and the changes, open and archived, are in `openspec/changes/`.
-- Work is tracked in the [GitLab project](https://gitlab.com/pisum-projects/projects/whisper/transcribe).
+- Work is tracked in [GitHub issues](https://github.com/mschnecke/pisum-transcript/issues), and changes reach `main` through pull requests.
 
 ## Project status
 
-The v1 feature set on the roadmap is implemented. Packaging (installer, auto-update, code signing) and a CI pipeline are not done yet.
+The v1 feature set on the roadmap is implemented. GitHub Actions builds and tests every pull request and every push to `main`, and releases are published as a zip on [GitHub Releases](https://github.com/mschnecke/pisum-transcript/releases). An installer, auto-update and code signing are not done yet.
 
 ## Third-party notices
 
