@@ -545,7 +545,7 @@ SOFTWARE.
 
 - **Used for:** the C++ runtime that `transcribe.dll`, the `ggml*.dll` files and `onnxruntime.dll` need. The zip ships `vcruntime140.dll`, `vcruntime140_1.dll`, `msvcp140.dll` and `msvcp140_1.dll` next to `Pisum.Transcribe.exe`, so the app runs without the Visual C++ Redistributable installed.
 - **Source:** the Visual C++ Redistributable files of Visual Studio (`VC\Redist\MSVC\<version>\x64\Microsoft.VC14*.CRT`)
-- **License:** Copyright (c) Microsoft Corporation. Redistributed under the Microsoft Visual Studio license terms for Distributable Code, see https://learn.microsoft.com/visualstudio/releases/2022/redistribution.
+- **License:** Copyright (c) Microsoft Corporation. Redistributed under the license terms for Distributable Code of the Visual Studio version the files come from, which the release build log names. See https://learn.microsoft.com/visualstudio/releases/2026/redistribution for Visual Studio 2026 and https://learn.microsoft.com/visualstudio/releases/2022/redistribution for Visual Studio 2022.
 
 ## GNU Lesser General Public License, version 3
 
