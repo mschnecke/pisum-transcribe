@@ -14,7 +14,7 @@
   - If more than a few classes fail, stop and split the fixes into their own change, as `pisum-whisper` did with `ready-the-suite-for-ci`.
 
   Verify: the pull request's run is green, and each skipped test is listed as skipped with its reason in the run output. Locally, `dotnet test Pisum.Transcribe.slnx` passes and still runs those tests.
-- [ ] 1.3 Merge the pull request. Verify: the Actions tab shows a `ci.yml` run for the resulting push to `main`.
+- [x] 1.3 Merge the pull request. Verify: the Actions tab shows a `ci.yml` run for the resulting push to `main`.
 
 ## 2. One version (design D4)
 
@@ -63,7 +63,7 @@
   - The tray icon appears without a runtime prompt, and the tooltip then shows **Ready (CPU)** or **Ready (Vulkan)**.
   - The sandbox's `%LOCALAPPDATA%\Pisum Transcribe\logs\` shows `Pisum Transcribe 0.1.0-dev.1+<sha> starting` and "Voice activity detection is ready".
   - Note the SmartScreen dialog text for the README, if it appears.
-- [ ] 4.5 Add a step to `ci.yml` after the tests that runs `build-zip.ps1` with `VERSION: 0.1.0-ci.${{ github.run_number }}` and uploads `artifacts/*.zip` (`if-no-files-found: error`, `retention-days: 7`), as `pisum-whisper` does for its MSI. Verify: a pull request run is green and has the zip as a downloadable artifact. Its log shows the VC++ runtime copied from a Visual Studio `Microsoft.VC14*.CRT` folder, not `System32`, and the guard passing.
+- [x] 4.5 Add a step to `ci.yml` after the tests that runs `build-zip.ps1` with `VERSION: 0.1.0-ci.${{ github.run_number }}` and uploads `artifacts/*.zip` (`if-no-files-found: error`, `retention-days: 7`), as `pisum-whisper` does for its MSI. Verify: a pull request run is green and has the zip as a downloadable artifact. Its log shows the VC++ runtime copied from a Visual Studio `Microsoft.VC14*.CRT` folder, not `System32`, and the guard passing.
 
 ## 5. Release workflow (design D1, D4)
 
