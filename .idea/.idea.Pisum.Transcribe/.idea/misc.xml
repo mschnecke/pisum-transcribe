@@ -1,12 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
-  <component name="AIIgnoreSettings">
-    <option name="aiignore_manually_set" value="true" />
-  </component>
-  <component name="KubernetesApiProvider">{}</component>
-  <component name="VcsManagerConfiguration">
-    <option name="CHECK_NEW_TODO" value="false" />
-  </component>
+  <component name="KubernetesApiProvider"><![CDATA[{}]]></component>
   <component name="com.gitlab.msciachero.GitlabSettingsState">
     <option name="defaultBranch" value="develop" />
     <option name="useGraphQl" value="false" />
