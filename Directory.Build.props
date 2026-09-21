@@ -5,5 +5,12 @@
     <LangVersion>latest</LangVersion>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
+
+    <!-- The development default, and the record of the last version: `packaging/bump-version.sh`
+         reads it to work out the next one and rewrites it, so it is what the tag of the next
+         release will say. Every release still overrides it from that tag: `release.yml` strips
+         the `v` and `build-zip.ps1` passes -p:Version=<version> to publish, so the zip name, the
+         release and the version the app logs at start agree (design D4). -->
+    <Version>0.0.0</Version>
   </PropertyGroup>
 </Project>

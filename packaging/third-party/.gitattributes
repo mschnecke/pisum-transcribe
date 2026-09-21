@@ -1,0 +1,2 @@
+# Byte for byte as the package ships it (CRLF), so a hash against the NuGet cache matches.
+*.txt -text
