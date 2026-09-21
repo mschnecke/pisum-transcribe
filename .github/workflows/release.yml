@@ -112,6 +112,9 @@ jobs:
   build:
     name: Build
     needs: version
+    # Explicit, like `version`'s: a skipped job skips everything downstream of it, not only the jobs
+    # that name it, so on a tag push the skipped `bump` would skip this job and the release too.
+    if: ${{ !cancelled() && needs.version.result == 'success' }}
     runs-on: windows-latest
     env:
       VERSION: ${{ needs.version.outputs.version }}
@@ -144,8 +147,10 @@ jobs:
 
   release:
     name: Publish the release
-    # Only after the build: if it fails, this job never runs and nothing is published.
+    # Only after the build: if it fails, this job never runs and nothing is published. The condition
+    # is explicit for the same reason as `build`'s.
     needs: [version, build]
+    if: ${{ !cancelled() && needs.build.result == 'success' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
