@@ -67,7 +67,7 @@
 
 ## 5. Release workflow (design D1, D4)
 
-- [ ] 5.1 Add `.github/workflows/release.yml`, based on `pisum-whisper`'s:
+- [x] 5.1 Add `.github/workflows/release.yml`, based on `pisum-whisper`'s:
   - jobs `bump`, `version`, `build` and `release`, with the same triggers, inputs, `permissions: contents: write` and comments
   - no `chocolatey` or `homebrew` job and no matrix
   - `build` runs on `windows-latest`. It checks out the tag, runs `dotnet test Pisum.Transcribe.slnx -c Release` and then `build-zip.ps1`, and uploads the zip.
@@ -120,4 +120,4 @@
 
 ## 7. Wrap-up
 
-- [ ] 7.1 Run `openspec validate add-packaging-ci --strict` and `dotnet test Pisum.Transcribe.slnx`. Verify: both pass, and the last `ci.yml` run on the pull request is green, with the zip artifact.
+- [x] 7.1 Run `openspec validate add-packaging-ci --strict` and `dotnet test Pisum.Transcribe.slnx`. Verify: both pass, and the last `ci.yml` run on the pull request is green, with the zip artifact.
