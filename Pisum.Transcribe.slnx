@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="src/Pisum.Transcribe/Pisum.Transcribe.csproj" />
+  <Project Path="tests/Pisum.Transcribe.Tests/Pisum.Transcribe.Tests.csproj" />
+</Solution>

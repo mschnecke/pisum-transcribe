@@ -1,0 +1,35 @@
+<Project>
+    <PropertyGroup>
+        <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageVersion Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+        <PackageVersion Include="H.NotifyIcon.Wpf" Version="2.4.1" />
+        <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.12" />
+        <PackageVersion Include="Microsoft.Extensions.Http" Version="10.0.12" />
+        <!-- Exact pin: a unit test asserts the loaded runtime version, which must not be the Windows ML copy in System32. -->
+        <PackageVersion Include="Microsoft.ML.OnnxRuntime" Version="[1.30.0]" />
+        <PackageVersion Include="Microsoft.Windows.CsWin32" Version="0.3.333" />
+        <!-- Exact pin: NuGet lists an unrelated 22.0.0 that a floating range would pick up. -->
+        <PackageVersion Include="NAudio.Wasapi" Version="[3.1.0]" />
+        <PackageVersion Include="Serilog.Extensions.Hosting" Version="10.0.0" />
+        <PackageVersion Include="Serilog.Sinks.File" Version="7.0.0" />
+        <PackageVersion Include="SharpHook" Version="[8.0.0]" />
+        <!-- Exact pins: the wrapper binds one transcribe.cpp 0.x ABI. -->
+        <PackageVersion Include="TranscribeCppSharp" Version="[0.2.0]" />
+        <PackageVersion Include="TranscribeCppSharp.Native.win-x64" Version="[0.2.3]" />
+    </ItemGroup>
+
+    <ItemGroup Label="Tests">
+        <PackageVersion Include="FakeItEasy" Version="9.0.1" />
+        <PackageVersion Include="Microsoft.Extensions.TimeProvider.Testing" Version="10.10.0" />
+        <PackageVersion Include="SharpHook.Testing" Version="[8.0.0]" />
+        <PackageVersion Include="Shouldly" Version="4.3.0" />
+        <PackageVersion Include="xunit.v3" Version="4.0.1" />
+    </ItemGroup>
+
+    <ItemGroup Label="Tools">
+        <PackageVersion Include="Svg" Version="3.4.8" />
+    </ItemGroup>
+</Project>

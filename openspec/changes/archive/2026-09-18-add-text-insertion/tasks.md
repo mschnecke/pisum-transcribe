@@ -1,0 +1,33 @@
+## 1. Setup and settings
+
+- [x] 1.1 Add `Microsoft.Windows.CsWin32` 0.3.333 (PrivateAssets all) and `NativeMethods.txt` with the entries from design D3. Verify: `dotnet build` succeeds and the generated `PInvoke` members are available.
+- [x] 1.2 Add `TextInsertionSettings` (`Method=ClipboardPaste`, `RestoreClipboard=true`) and the `InsertionMethod` enum to `AppSettings`, and replace a `null` `textInsertion` section with its default in `JsonSettingsStore.Load()` (`AppSettings` rules). Verify: a settings round-trip unit test checks the defaults and camelCase enum values, and a file with `"textInsertion": null` loads the defaults.
+
+## 2. OS seams
+
+- [x] 2.1 Implement `ForegroundWindowTracker` (`CaptureForeground` with PID and elevation via the token check, a token that cannot be read, such as access denied → elevated; `IsForeground` compares handles). Verify: explicit `Hardware` tests capture the test's own WPF window with its handle and process ID on any machine, and as non-elevated on a machine with UAC on. The second test skips when the test process runs elevated, as on the target laptop. The manual check with an elevated `cmd.exe` window cannot be reproduced on the target laptop, where UAC is off (design Risks). The elevation decision is covered by the unit tests in 3.1.
+- [x] 2.2 Implement `WpfClipboardService` (design D4): a dedicated STA thread with its own `Dispatcher`, shut down with the host; a best-effort snapshot of all formats that records whether the content is sensitive (any of the three history-exclusion formats, with a history or cloud value that cannot be read counting as 0, unless `Pisum.Transcribe.Restored` is present); set text with or without the history-exclusion formats; restore with `CanIncludeInClipboardHistory` and `CanUploadToCloudClipboard` set to 0 and the `Pisum.Transcribe.Restored` format; the two marker formats `ExcludeClipboardContentFromMonitorProcessing` and `Pisum.Transcribe.Restored` carry 1 byte (D4); the sequence number via `GetClipboardSequenceNumber`; a busy clipboard → false after WPF's built-in retry, with no retry loop of its own. Verify: explicit `Hardware` tests, which read the formats back with plain Win32 calls as other processes see them, cover snapshot → set → restore round-tripping text exactly, the exclusion formats on the set data object, the two history formats and `Pisum.Transcribe.Restored`, without `ExcludeClipboardContentFromMonitorProcessing`, on the restored data object, a snapshot reporting content as sensitive for each of the three history-exclusion formats on its own, a snapshot of restored content reporting it as not sensitive, and `TrySetTextAsync` returning false after about 1 s while the test holds the clipboard open via Win32 `OpenClipboard`.
+- [x] 2.3 Implement `SharpHookKeyboardInput` (`SendPaste` as one `Sequence()`, `TypeText` with newline normalization and Enter between lines, `AreModifiersDown(includeControl)` via `GetAsyncKeyState`). Verify: a unit test of the line-splitting helper ("a\r\nb\nc" → ["a","b","c"]). Keystroke behavior is covered by 3.3.
+
+## 3. Insertion logic
+
+- [x] 3.1 Implement the `TextInserter` decision flow (design D1: foreground check → elevation check → clipboard preparation → modifier wait up to 2 s → final gate → keystrokes). Every fallback copies the transcript without the exclusion formats and without a restore, and a fallback whose copy fails returns `ClipboardUnavailable`, unless the clipboard still holds the transcript set for the paste. Verify: unit tests with fakes cover:
+  - each outcome: `TargetWindowChanged`, `TargetWindowElevated`, `ModifierKeysHeld` after 2 s, `ClipboardUnavailable` for a fallback while the clipboard is busy, and `Inserted` after modifiers release at 500 ms;
+  - a target with window handle 0 → `TargetWindowChanged`, even when the fake tracker reports it as foreground;
+  - the `settings` argument deciding the method and the restore, with no settings store involved;
+  - no keystrokes in the non-inserted cases;
+  - a held Ctrl not delaying a paste, but delaying typing;
+  - the foreground window changing during the modifier wait → `TargetWindowChanged`, with the transcript set again without the exclusion formats;
+  - the sequence number changing during the modifier wait → `TypeText` and no restore;
+  - the token cancelled during the modifier wait → the transcript set again without the exclusion formats, no keystrokes and no restore, then `OperationCanceledException`;
+  - a busy clipboard for the fallback after the transcript was set → the original reason, but `ClipboardUnavailable` when the user copied something during the wait.
+- [x] 3.2 Implement the paste path (snapshot if restore is enabled → set, with exclusion only when a restore is planned → modifier wait and final gate → `SendPaste` → wait 750 ms → restore only if the sequence number is unchanged and the snapshot is not sensitive; if the clipboard is busy during preparation, fall back to `TypeText`). Verify: unit tests cover:
+  - restore on an unchanged sequence number, and no restore when it changed;
+  - no restore for a sensitive snapshot;
+  - two pastes in a row, where the second snapshot holds the first restore's content, restoring the original text both times;
+  - no snapshot or restore with `RestoreClipboard=false`;
+  - `TrySetTextAsync` called with `excludeFromHistory: false` with `RestoreClipboard=false` and with a sensitive snapshot, and with `true` otherwise;
+  - a busy clipboard during preparation → `TypeText` called with outcome `Inserted`;
+  - a busy clipboard at restore time → outcome `Inserted` and a log entry.
+- [x] 3.3 Add an explicit UI test (Category `Hardware`) that opens a WPF window with a focused `TextBox` in the test process and inserts "Grüße aus Köln – 5 €" via paste and "Hallo\nWelt 👋" via typing (with `AcceptsReturn`), then asserts the TextBox contents and that the clipboard's prior text was restored. The test first checks that its window is the foreground window and fails with a clear message otherwise, because Windows may refuse to bring a test process's window to the front. The desktop hardware tests of 2.1, 2.2 and 3.3 run in one test collection with parallelization disabled, so they neither take the foreground from each other nor overwrite each other's clipboard. Verify: passes when run locally with explicit tests enabled, while nobody uses the keyboard or mouse.
+- [x] 3.4 Register the text insertion services (`services.AddTextInsertion()`). Verify: a unit test builds the service provider and resolves `ITextInserter` and `IForegroundWindowTracker`. Checks across real apps (Notepad, browser, Windows Terminal, elevated terminal, Win+V history) are part of the end-to-end verification in `add-dictation-workflow`.

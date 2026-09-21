@@ -1,0 +1,15 @@
+GetForegroundWindow
+GetWindowThreadProcessId
+OpenProcess
+OpenProcessToken
+GetTokenInformation
+TOKEN_ELEVATION
+CloseHandle
+GetAsyncKeyState
+GetClipboardSequenceNumber
+SetWindowLongPtr
+GetWindowLongPtr
+WINDOW_EX_STYLE
+MonitorFromWindow
+GetMonitorInfo
+GetDpiForMonitor
