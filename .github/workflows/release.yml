@@ -158,6 +158,20 @@ jobs:
           path: artifacts
           merge-multiple: true
 
+      # The MSI contains libuiohook (LGPL) and the WiX custom actions (MS-RL), whose licenses ask
+      # for their source to come with the binaries. So their source, at the commits
+      # THIRD-PARTY-NOTICES.md names, goes onto the same release as the MSI. A failed download
+      # fails the job before anything is published.
+      - name: Download the source of libuiohook and WiX
+        env:
+          LIBUIOHOOK_COMMIT: a41658fb2bef7503a3bcb305ab8bf849755fe906
+          WIX_COMMIT: b3f340393117094a75ea8ced77f2357e4aa095e7
+        run: |
+          curl -fsSL -o "artifacts/libuiohook-$LIBUIOHOOK_COMMIT.tar.gz" \
+            "https://github.com/TolikPylypchuk/libuiohook/archive/$LIBUIOHOOK_COMMIT.tar.gz"
+          curl -fsSL -o "artifacts/wix-$WIX_COMMIT.tar.gz" \
+            "https://github.com/wixtoolset/wix/archive/$WIX_COMMIT.tar.gz"
+
       - name: List what will be published
         run: ls -la artifacts
 
@@ -168,4 +182,7 @@ jobs:
           prerelease: ${{ needs.version.outputs.prerelease }}
           generate_release_notes: true
           fail_on_unmatched_files: true
-          files: artifacts/Pisum.Transcribe_${{ needs.version.outputs.version }}_win-x64.msi
+          files: |
+            artifacts/Pisum.Transcribe_${{ needs.version.outputs.version }}_win-x64.msi
+            artifacts/libuiohook-*.tar.gz
+            artifacts/wix-*.tar.gz

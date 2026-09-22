@@ -44,7 +44,7 @@
     <Property Id="ARPPRODUCTICON" Value="AppIcon.ico" />
     <Property Id="ARPNOMODIFY" Value="1" />
     <Property Id="ARPNOREPAIR" Value="1" />
-    <Property Id="ARPURLINFOABOUT" Value="https://github.com/mschnecke/pisum-transcript" />
+    <Property Id="ARPURLINFOABOUT" Value="https://github.com/mschnecke/pisum-transcribe" />
 
     <StandardDirectory Id="ProgramFiles64Folder">
       <Directory Id="INSTALLFOLDER" Name="Pisum Transcribe">

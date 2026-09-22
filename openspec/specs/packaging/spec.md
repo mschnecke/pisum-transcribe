@@ -91,6 +91,18 @@ The application folder that the installer creates SHALL contain the project's li
 - **WHEN** the package contains third-party code that runs while it is installed or uninstalled
 - **THEN** the third-party notices file contains that component's name and license text
 
+### Requirement: A release carries the source of its copyleft components
+Each release SHALL carry, next to the installer, the source code of every third-party component in the installer package whose license requires its source to be available to those who receive its binaries, such as libuiohook under the GNU LGPL and the WiX Toolset's custom actions under the Microsoft Reciprocal License. Each such component SHALL have one archive, which SHALL hold the source of the exact commit that the third-party notices file names for that component, and whose file name SHALL contain that commit. The third-party notices file SHALL say, for each such component, that the release carries its source. If a source archive can't be obtained, no release SHALL be published.
+
+#### Scenario: Source next to the installer
+- **WHEN** the assets of the release for version `0.2.0` are listed
+- **THEN** besides `Pisum.Transcribe_0.2.0_win-x64.msi`, they include one source archive for libuiohook and one for the WiX Toolset
+- **AND** each archive's file name contains the commit that the third-party notices file names for that component
+
+#### Scenario: A missing source archive publishes nothing
+- **WHEN** a version tag is pushed and a source archive can't be downloaded
+- **THEN** no release exists for that tag
+
 ### Requirement: One version per release
 A release SHALL carry one version, taken from its tag with the leading `v` removed. The release name, the installer file name and the version the application writes to its log at start SHALL all show that version. Windows' list of installed apps SHALL show that version without a pre-release suffix, because a Windows Installer version has no such part. The repository SHALL record the version of the most recent release, and a build that is not a release SHALL report that recorded version.
 

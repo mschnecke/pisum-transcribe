@@ -22,7 +22,7 @@ Speech recognition runs on your computer with an NVIDIA Canary model and the [tr
 
 ## Getting started
 
-1. Download `Pisum.Transcribe_<version>_win-x64.msi` from the [latest release](https://github.com/mschnecke/pisum-transcript/releases). It is about 72 MB.
+1. Download `Pisum.Transcribe_<version>_win-x64.msi` from the [latest release](https://github.com/mschnecke/pisum-transcribe/releases). It is about 72 MB.
 2. Open it. The installer isn't code-signed, so Windows SmartScreen may show **Windows protected your PC**. Choose **More info**, then **Run anyway**.
 
 The installer asks no questions and needs no administrator rights. It installs the app for your user into `%LOCALAPPDATA%\Programs\Pisum Transcribe\`, about 230 MB, and adds **Pisum Transcribe** to the Start Menu. Nothing else needs to be installed: the installer contains .NET and the Visual C++ runtime. A GPU with a Vulkan driver is optional.
@@ -50,8 +50,8 @@ Releases up to `0.1.0-rc.1` came as a zip. Exit the zip's app from its tray menu
 You need the [.NET SDK 10.0.400](https://dotnet.microsoft.com/download) or a later feature band that `global.json` allows. Build and start the app:
 
 ```sh
-git clone https://github.com/mschnecke/pisum-transcript.git
-cd pisum-transcript
+git clone https://github.com/mschnecke/pisum-transcribe.git
+cd pisum-transcribe
 dotnet run --project src/Pisum.Transcribe
 ```
 
@@ -167,12 +167,12 @@ The app is a WPF app on the .NET Generic Host, with no main window. Each feature
 - [docs/idea.md](docs/idea.md) describes the idea and the technology choices.
 - [docs/roadmap.md](docs/roadmap.md) lists the planned changes and what is deferred.
 - Changes are planned with [OpenSpec](https://github.com/Fission-AI/OpenSpec): the specs are in `openspec/specs/`, and the changes, open and archived, are in `openspec/changes/`.
-- Work is tracked in [GitHub issues](https://github.com/mschnecke/pisum-transcript/issues), and changes reach `main` through pull requests.
+- Work is tracked in [GitHub issues](https://github.com/mschnecke/pisum-transcribe/issues), and changes reach `main` through pull requests.
 
 ## Project status
 
-The v1 feature set on the roadmap is implemented. GitHub Actions builds, tests and packages every pull request and every push to `main`, and releases are published as an MSI installer on [GitHub Releases](https://github.com/mschnecke/pisum-transcript/releases). Automatic updates and code signing are not done yet.
+The v1 feature set on the roadmap is implemented. GitHub Actions builds, tests and packages every pull request and every push to `main`, and releases are published as an MSI installer on [GitHub Releases](https://github.com/mschnecke/pisum-transcribe/releases). Automatic updates and code signing are not done yet.
 
 ## Third-party notices
 
-[THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) lists the third-party components the app ships and their licenses.
+[THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) lists the third-party components the app ships and their licenses. Every release also carries the source of libuiohook (LGPL) and WiX (MS-RL), the two copyleft components in the MSI.

@@ -16,6 +16,8 @@
         <PackageVersion Include="NAudio.Wasapi" Version="[3.1.0]" />
         <PackageVersion Include="Serilog.Extensions.Hosting" Version="10.0.0" />
         <PackageVersion Include="Serilog.Sinks.File" Version="7.0.0" />
+        <!-- When the pin changes, update the libuiohook commit, the one SharpHook's tag points its submodule at,
+             in THIRD-PARTY-NOTICES.md and .github/workflows/release.yml. -->
         <PackageVersion Include="SharpHook" Version="[8.0.0]" />
         <!-- Exact pins: the wrapper binds one transcribe.cpp 0.x ABI. -->
         <PackageVersion Include="TranscribeCppSharp" Version="[0.2.0]" />

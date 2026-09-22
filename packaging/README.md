@@ -10,6 +10,9 @@ Everything that turns a build into a release. Nothing here is compiled into the 
 | `windows/assert-native-dependencies.ps1` | The guard: fails when a library in a folder imports a Visual C++ runtime file that the folder doesn't contain |
 | `windows/.gitignore` | Keeps `windows/publish/`, where `build-msi.ps1` assembles the app folder, untracked |
 | `third-party/onnxruntime-ThirdPartyNotices.txt` | ONNX Runtime's notices for the components it bundles, installed as `ThirdPartyNotices-OnnxRuntime.txt` |
+| `third-party/dotnet-runtime-THIRD-PARTY-NOTICES.txt` | The .NET runtime's notices for the components it bundles, installed as `ThirdPartyNotices-DotNet.txt` |
+| `third-party/dotnet-wpf-THIRD-PARTY-NOTICES.txt` | WPF's notices, installed as `ThirdPartyNotices-Wpf.txt` |
+| `third-party/dotnet-winforms-THIRD-PARTY-NOTICES.txt` | Windows Forms' notices, installed as `ThirdPartyNotices-WinForms.txt`. The Windows Desktop runtime's shared libraries, such as `System.Drawing.Common.dll`, come from its repository |
 
 WiX itself is pinned in `.config/dotnet-tools.json` at the repository root (see [The pins](#the-pins)).
 
@@ -28,12 +31,12 @@ Each script takes one argument. A person runs the same command as the workflows,
 1. It publishes `src/Pisum.Transcribe` self-contained and ReadyToRun into `windows/publish/Pisum Transcribe/`, with the version passed as `-p:Version`. It isn't single-file and isn't trimmed (design D2 of `add-packaging-ci`).
 2. It deletes the `*.lib` import libraries, which nothing loads at run time.
 3. It writes the project's `LICENSE` over the one from the transcribe.cpp native package. That package ships three license files, which NuGet flattens into one `LICENSE`. `dotnet publish` refuses that (NETSDK1152), so the script passes `-p:ErrorOnDuplicatePublishOutputFiles=false`. The three texts are in `THIRD-PARTY-NOTICES.md`.
-4. It copies `THIRD-PARTY-NOTICES.md` and ONNX Runtime's notices into the folder.
+4. It copies `THIRD-PARTY-NOTICES.md` and the notices of ONNX Runtime, .NET, WPF and Windows Forms into the folder.
 5. It copies the Visual C++ runtime files that the payload imports (see below).
 6. It runs the guard on the folder.
 7. It restores WiX, builds `windows/Pisum.Transcribe.wxs` from the folder into the MSI, and validates the MSI (see [The MSI](#the-msi)).
 
-The MSI is about 72 MB. It installs about 230 MB in 468 files, most of it `ggml-vulkan.dll`, `onnxruntime.dll` and the .NET and WPF runtime. `Pisum.Transcribe.pdb` is installed too, so a logged stack trace has line numbers. Building the MSI takes about a minute after publishing, and validating it a few seconds.
+The MSI is about 72 MB. It installs about 230 MB in 471 files, most of it `ggml-vulkan.dll`, `onnxruntime.dll` and the .NET and WPF runtime. `Pisum.Transcribe.pdb` is installed too, so a logged stack trace has line numbers. Building the MSI takes about a minute after publishing, and validating it a few seconds.
 
 ## Versions
 
@@ -89,12 +92,14 @@ The app, not the MSI, owns "Start with Windows": the value `Pisum Transcribe` un
 
 - **`wix`** is pinned exactly in the local tool manifest `.config/dotnet-tools.json`. `build-msi.ps1` runs `dotnet tool restore`, so WiX needs no global install.
 - **`WixToolset.Util.wixext`**, the extension the custom actions come from, gets the same version: the script reads it from the manifest and adds the extension to WiX's per-user cache (`wix extension add -g`), so the two can't drift apart.
-- **Moving to a new WiX version:** `dotnet tool update wix --version <x.y.z>`, then build and validate. Update the WiX Toolset section of `THIRD-PARTY-NOTICES.md` (its tag and license text) and re-read the terms below.
+- **Moving to a new WiX version:** `dotnet tool update wix --version <x.y.z>`, then build and validate. Update the WiX Toolset section of `THIRD-PARTY-NOTICES.md` (its tag, commit and license text) and the WiX commit in `.github/workflows/release.yml` (see [Releasing](#releasing)), and re-read the terms below.
 - **WiX's maintenance fee:** WiX's binaries come under the Open Source Maintenance Fee agreement, `OSMFEULA.txt` in the `wix` package. Its fee applies only to users that generate revenue with WiX, and this project doesn't. The source, including the custom action DLL embedded in the MSI, is under the MS-RL, whose notice is in `THIRD-PARTY-NOTICES.md`.
 
 ## Releasing
 
 There are two ways to start a release, and both end the same way. The **Release** workflow (`.github/workflows/release.yml`) runs the tests from the tagged commit, builds the MSI, and publishes it on GitHub Releases with generated release notes. If a test or the build fails, nothing is published. A version with a suffix, such as `0.2.0-rc.1`, is published as a pre-release.
+
+Next to the MSI, every release carries the source of the two copyleft components in it, downloaded from GitHub by the release job: `libuiohook-<commit>.tar.gz` (LGPL, inside `uiohook.dll`) and `wix-<commit>.tar.gz` (MS-RL, the custom action DLL embedded in the MSI). Their licenses ask for the source to come with the binaries, and a copy on the same release doesn't depend on the upstream repositories staying online. The commits are the ones `THIRD-PARTY-NOTICES.md` names; a new SharpHook or WiX version changes both places.
 
 - **By hand:** start **Release** in the Actions tab, or with `gh`:
 
@@ -159,6 +164,18 @@ The guard knows only the Visual C++ runtime family, and the development machine 
 3. Copy the MSI into the sandbox and open it. The app starts when the installation finishes. Download Canary 180M Flash (208 MB) in the setup window.
 4. Check that the tray icon appears without a prompt to install a runtime, that the tooltip shows **Ready (CPU)** or **Ready (Vulkan)**, and that `%LOCALAPPDATA%\Pisum Transcribe\logs\` has `Pisum Transcribe <version>+<sha> starting` and "Voice activity detection is ready".
 
-## ONNX Runtime notices
+## Notices of bundled components
 
-`third-party/onnxruntime-ThirdPartyNotices.txt` is a byte-for-byte copy of the `ThirdPartyNotices.txt` in the `Microsoft.ML.OnnxRuntime` package, and `third-party/.gitattributes` keeps its line endings. It belongs to the exact version pinned in `Directory.Packages.props`. When that pin changes, copy the new package's file over it, for example from `%NUGET_PACKAGES%\microsoft.ml.onnxruntime\<version>\ThirdPartyNotices.txt`.
+The files in `third-party/` are byte-for-byte copies of the notices that ONNX Runtime and .NET publish for the components they bundle, and `third-party/.gitattributes` keeps their line endings. Each belongs to one version, so refresh it when that version changes:
+
+- **`onnxruntime-ThirdPartyNotices.txt`** is the `ThirdPartyNotices.txt` in the `Microsoft.ML.OnnxRuntime` package, of the exact version pinned in `Directory.Packages.props`. When that pin changes, copy the new package's file over it, for example from `%NUGET_PACKAGES%\microsoft.ml.onnxruntime\<version>\ThirdPartyNotices.txt`.
+- **`dotnet-runtime-THIRD-PARTY-NOTICES.txt`** is the `THIRD-PARTY-NOTICES.TXT` in the `Microsoft.NETCore.App.Runtime.win-x64` package, of the runtime version that a self-contained publish ships. The SDK pinned in `global.json` decides that version; `Pisum.Transcribe.deps.json` in the publish folder names it (`runtimepack.Microsoft.NETCore.App.Runtime.win-x64/<version>`). When it changes, copy the file from `%NUGET_PACKAGES%\microsoft.netcore.app.runtime.win-x64\<version>\THIRD-PARTY-NOTICES.TXT`.
+- **`dotnet-wpf-THIRD-PARTY-NOTICES.txt`** and **`dotnet-winforms-THIRD-PARTY-NOTICES.txt`** are the `THIRD-PARTY-NOTICES.TXT` of dotnet/wpf and dotnet/winforms at the tag of the same runtime version. The `Microsoft.WindowsDesktop.App.Runtime.win-x64` package has no notices file, so they come from GitHub:
+
+  ```sh
+  # Git Bash, whose redirection keeps the bytes as GitHub serves them
+  gh api -H 'Accept: application/vnd.github.raw' 'repos/dotnet/wpf/contents/THIRD-PARTY-NOTICES.TXT?ref=v<version>' > packaging/third-party/dotnet-wpf-THIRD-PARTY-NOTICES.txt
+  gh api -H 'Accept: application/vnd.github.raw' 'repos/dotnet/winforms/contents/THIRD-PARTY-NOTICES.TXT?ref=v<version>' > packaging/third-party/dotnet-winforms-THIRD-PARTY-NOTICES.txt
+  ```
+
+After a refresh, update the versions in the .NET or ONNX Runtime section of `THIRD-PARTY-NOTICES.md`.
