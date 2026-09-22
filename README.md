@@ -22,17 +22,28 @@ Speech recognition runs on your computer with an NVIDIA Canary model and the [tr
 
 ## Getting started
 
-There is no installer yet. The app comes as a zip that you extract and start:
+1. Download `Pisum.Transcribe_<version>_win-x64.msi` from the [latest release](https://github.com/mschnecke/pisum-transcript/releases). It is about 72 MB.
+2. Open it. The installer isn't code-signed, so Windows SmartScreen may show **Windows protected your PC**. Choose **More info**, then **Run anyway**.
 
-1. Download `Pisum.Transcribe_<version>_win-x64.zip` from the [latest release](https://github.com/mschnecke/pisum-transcript/releases). The zip is about 94 MB.
-2. Extract it to a folder where it can stay, such as `%LOCALAPPDATA%\Programs`. The zip contains one folder, `Pisum Transcribe`, of about 230 MB. **Start with Windows** stores the path of the exe, so if you move the folder later, start the app once from its new place. That start updates the entry.
-3. Start `Pisum.Transcribe.exe` in that folder. The app isn't code-signed, so Windows SmartScreen may show **Windows protected your PC**. Choose **More info**, then **Run anyway**.
+The installer asks no questions and needs no administrator rights. It installs the app for your user into `%LOCALAPPDATA%\Programs\Pisum Transcribe\`, about 230 MB, and adds **Pisum Transcribe** to the Start Menu. Nothing else needs to be installed: the installer contains .NET and the Visual C++ runtime. A GPU with a Vulkan driver is optional.
 
-Nothing else needs to be installed: the zip contains .NET and the Visual C++ runtime. A GPU with a Vulkan driver is optional.
-
-On the first start, the app opens the window **Download a speech model**. Choose a model and download it. The download is checked against its SHA-256 hash, and the model loads when it is complete. The tray tooltip shows **Ready (Vulkan)** or **Ready (CPU)** when you can dictate.
+The app starts when the installation finishes. On the first start, it opens the window **Download a speech model**. Choose a model and download it. The download is checked against its SHA-256 hash, and the model loads when it is complete. The tray tooltip shows **Ready (Vulkan)** or **Ready (CPU)** when you can dictate.
 
 Only one instance runs at a time. A second start waits up to 6 seconds for the first instance to exit and then exits itself.
+
+### Upgrading
+
+Open the MSI of a newer release. If the app is running, Windows Installer says **The following applications should be closed before continuing the install** and lists `Pisum.Transcribe`. Choose **OK**, and it closes the app. The new version starts when the upgrade finishes. Your settings, speech models, logs and **Start with Windows** stay as they are.
+
+A final release installs over its release candidates, such as `0.1.0` over `0.1.0-rc.2`. An older release doesn't install over a newer one: the installer says **A newer version of Pisum Transcribe is already installed**. To go back, uninstall first.
+
+### Uninstalling
+
+Uninstall **Pisum Transcribe** in Windows Settings under **Apps** > **Installed apps**. This removes the program, its Start Menu entry and its **Start with Windows** entry. It keeps `%LOCALAPPDATA%\Pisum Transcribe\` with your settings, speech models and logs, so a new installation picks them up again. Delete that folder to remove them too.
+
+### Coming from the zip
+
+Releases up to `0.1.0-rc.1` came as a zip. Exit the zip's app from its tray menu, install the MSI, and then delete the extracted `Pisum Transcribe` folder. The installed app uses the same settings and models. On its first start, it points an existing **Start with Windows** entry to itself.
 
 ### Build from source
 
@@ -144,7 +155,7 @@ The app is a WPF app on the .NET Generic Host, with no main window. Each feature
 | `Dictation/` | The dictation workflow, overlay and notifications |
 | `SettingsWindow/` | Settings window |
 
-[CLAUDE.md](CLAUDE.md) describes the conventions for shutdown, the UI thread, settings, logging, code style and tests. [packaging/README.md](packaging/README.md) describes how the zip is built and how a release is published.
+[CLAUDE.md](CLAUDE.md) describes the conventions for shutdown, the UI thread, settings, logging, code style and tests. [packaging/README.md](packaging/README.md) describes how the MSI is built and how a release is published.
 
 ### Planning
 
@@ -155,7 +166,7 @@ The app is a WPF app on the .NET Generic Host, with no main window. Each feature
 
 ## Project status
 
-The v1 feature set on the roadmap is implemented. GitHub Actions builds and tests every pull request and every push to `main`, and releases are published as a zip on [GitHub Releases](https://github.com/mschnecke/pisum-transcript/releases). An installer, auto-update and code signing are not done yet.
+The v1 feature set on the roadmap is implemented. GitHub Actions builds, tests and packages every pull request and every push to `main`, and releases are published as an MSI installer on [GitHub Releases](https://github.com/mschnecke/pisum-transcript/releases). Automatic updates and code signing are not done yet.
 
 ## Third-party notices
 

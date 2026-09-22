@@ -1,18 +1,21 @@
 #!/usr/bin/env pwsh
 <#
 .SYNOPSIS
-    Builds the release zip.
+    Builds the release MSI.
 
 .DESCRIPTION
-    Publishes win-x64 self-contained and zips the 'Pisum Transcribe' folder into
-    artifacts\Pisum.Transcribe_<version>_win-x64.zip. The one command that turns a clean checkout
-    into the release zip - the same command a person and both workflows run (design D3).
+    Publishes win-x64 self-contained into a 'Pisum Transcribe' folder, then builds Pisum.Transcribe.wxs
+    from it into artifacts\Pisum.Transcribe_<version>_win-x64.msi and validates the MSI. The one
+    command that turns a clean checkout into the release MSI - the same command a person and both
+    workflows run (design D3).
 
-    Needs PowerShell 7. On a machine without Visual Studio, the Visual C++ runtime is copied from
+    Needs PowerShell 7. WiX comes from the local tool manifest (.config/dotnet-tools.json) and needs
+    no separate install. On a machine without Visual Studio, the Visual C++ runtime is copied from
     System32 with a warning; in CI ($env:CI is 'true') that is an error.
 
 .PARAMETER Version
-    The release version, without a leading 'v'. May carry a pre-release suffix (0.1.0-rc.1).
+    The release version, without a leading 'v'. May carry a pre-release suffix (0.1.0-rc.1). The file
+    name keeps it, and the MSI's ProductVersion, which has no pre-release part, doesn't.
 #>
 param(
     [Parameter(Mandatory = $true)]
@@ -29,10 +32,10 @@ $guard = Join-Path $scriptDir 'assert-native-dependencies.ps1'
 $publishDir = Join-Path $scriptDir 'publish'
 $appDir = Join-Path $publishDir 'Pisum Transcribe'
 $outputDir = Join-Path $root 'artifacts'
-$zip = Join-Path $outputDir "Pisum.Transcribe_${Version}_win-x64.zip"
+$msi = Join-Path $outputDir "Pisum.Transcribe_${Version}_win-x64.msi"
 
 if (Test-Path $publishDir) { Remove-Item -Recurse -Force $publishDir }
-if (Test-Path $zip) { Remove-Item -Force $zip }
+if (Test-Path $msi) { Remove-Item -Force $msi }
 New-Item -ItemType Directory -Force -Path $outputDir | Out-Null
 
 # 1. Self-contained and ReadyToRun; not single-file and not trimmed (design D2). The native
@@ -81,9 +84,9 @@ if (Test-Path $vswhere) {
 }
 if (-not $sourceDirs) {
     # A published release takes the files from a redist folder, which the Visual Studio license
-    # terms cover for redistribution. System32 is for a zip a person builds to try out.
+    # terms cover for redistribution. System32 is for an MSI a person builds to try out.
     if ($env:CI -eq 'true') { throw 'No Visual Studio Microsoft.VC14*.CRT folder found. A release must not take the Visual C++ runtime from System32.' }
-    Write-Warning "No Visual Studio Microsoft.VC14*.CRT folder found. Copying the Visual C++ runtime from System32; don't publish this zip."
+    Write-Warning "No Visual Studio Microsoft.VC14*.CRT folder found. Copying the Visual C++ runtime from System32; don't publish this MSI."
     $sourceDirs = @(Join-Path $env:WINDIR 'System32')
 }
 Write-Host "Visual C++ runtime source: $($sourceDirs[0])"
@@ -106,12 +109,40 @@ while ($missing = @(& $guard -Path $appDir -ListMissing 6>$null)) {
 & $guard -Path $appDir
 if ($LASTEXITCODE -ne 0) { throw "$guard failed with exit code $LASTEXITCODE" }
 
-# 7. The folder itself, not its contents, so extracting gives one 'Pisum Transcribe' folder.
-Add-Type -AssemblyName System.IO.Compression.FileSystem
-[System.IO.Compression.ZipFile]::CreateFromDirectory($appDir, $zip, [System.IO.Compression.CompressionLevel]::Optimal, $true)
+# 7. The MSI. Windows Installer's ProductVersion has no pre-release part, so it gets the numeric core
+# of the version. WiX is pinned in the local tool manifest, and its Util extension, which the custom
+# actions come from, is pinned to the same version from there. dotnet tool finds the manifest from
+# the current directory, hence the Push-Location.
+$msiVersion = ($Version -split '-')[0]
+$wixVersion = (Get-Content -Raw (Join-Path $root '.config' 'dotnet-tools.json') | ConvertFrom-Json).tools.wix.version
+$utilExtension = "WixToolset.Util.wixext/$wixVersion"
+Push-Location $root
+try {
+    dotnet tool restore
+    if ($LASTEXITCODE -ne 0) { throw "dotnet tool restore failed with exit code $LASTEXITCODE" }
+
+    dotnet wix extension add -g $utilExtension
+    if ($LASTEXITCODE -ne 0) { throw "wix extension add failed with exit code $LASTEXITCODE" }
+
+    dotnet wix build (Join-Path $scriptDir 'Pisum.Transcribe.wxs') `
+        -arch x64 `
+        -ext $utilExtension `
+        -d "Version=$msiVersion" `
+        -d "PublishDir=$appDir" `
+        -d "IconFile=$(Join-Path $root 'src' 'Pisum.Transcribe' 'Tray' 'TrayIcon.ico')" `
+        -out $msi
+    if ($LASTEXITCODE -ne 0) { throw "wix build failed with exit code $LASTEXITCODE" }
+
+    # ICE validation, which wix build doesn't run. -wx fails on any warning except ICE61, which warns
+    # about the same-version upgrades that let a final release replace its release candidates.
+    dotnet wix msi validate -sice ICE61 -wx $msi
+    if ($LASTEXITCODE -ne 0) { throw "wix msi validate failed with exit code $LASTEXITCODE" }
+} finally {
+    Pop-Location
+}
 
 $payload = Get-ChildItem -Recurse -File $appDir | Measure-Object -Property Length -Sum
-Write-Host "Created: $zip"
-Write-Host "  Version:  $Version"
+Write-Host "Created: $msi"
+Write-Host "  Version:  $Version (MSI ProductVersion $msiVersion)"
 Write-Host "  Payload:  $([math]::Round($payload.Sum / 1MB, 1)) MB in $($payload.Count) files"
-Write-Host "  Zip size: $([math]::Round((Get-Item $zip).Length / 1MB, 1)) MB"
+Write-Host "  MSI size: $([math]::Round((Get-Item $msi).Length / 1MB, 1)) MB"

@@ -1,6 +1,6 @@
 # Third-party notices
 
-Pisum Transcribe ships the following third-party components. The release zip contains this file next to `Pisum.Transcribe.exe`, together with `ThirdPartyNotices-OnnxRuntime.txt`, ONNX Runtime's own notices for the components it bundles.
+Pisum Transcribe ships the following third-party components. The installer puts this file into the program folder next to `Pisum.Transcribe.exe`, together with `ThirdPartyNotices-OnnxRuntime.txt`, ONNX Runtime's own notices for the components it bundles.
 
 ## Silero VAD
 
@@ -511,7 +511,7 @@ third-party archives.
 
 ## .NET
 
-- **Used for:** the runtime the app runs on. The zip is self-contained, so it ships the .NET runtime (`Microsoft.NETCore.App` 10.0.12), the Windows Desktop runtime with WPF (`Microsoft.WindowsDesktop.App` 10.0.12), and the `Microsoft.Extensions.*` 10.0.12 and `System.Numerics.Tensors` 9.0.0 packages.
+- **Used for:** the runtime the app runs on. The installer is self-contained, so it ships the .NET runtime (`Microsoft.NETCore.App` 10.0.12), the Windows Desktop runtime with WPF (`Microsoft.WindowsDesktop.App` 10.0.12), and the `Microsoft.Extensions.*` 10.0.12 and `System.Numerics.Tensors` 9.0.0 packages.
 - **Source:** https://github.com/dotnet/runtime, https://github.com/dotnet/wpf and https://github.com/dotnet/winforms, tag v10.0.12
 - **License:** MIT. The .NET runtime and the Windows Desktop runtime include components under other licenses. Their notices are in https://github.com/dotnet/runtime/blob/v10.0.12/THIRD-PARTY-NOTICES.TXT, https://github.com/dotnet/wpf/blob/v10.0.12/THIRD-PARTY-NOTICES.TXT and https://github.com/dotnet/winforms/blob/v10.0.12/THIRD-PARTY-NOTICES.TXT.
 
@@ -543,9 +543,46 @@ SOFTWARE.
 
 ## Microsoft Visual C++ runtime
 
-- **Used for:** the C++ runtime that `transcribe.dll`, the `ggml*.dll` files and `onnxruntime.dll` need. The zip ships `vcruntime140.dll`, `vcruntime140_1.dll`, `msvcp140.dll` and `msvcp140_1.dll` next to `Pisum.Transcribe.exe`, so the app runs without the Visual C++ Redistributable installed.
+- **Used for:** the C++ runtime that `transcribe.dll`, the `ggml*.dll` files and `onnxruntime.dll` need. The installer ships `vcruntime140.dll`, `vcruntime140_1.dll`, `msvcp140.dll` and `msvcp140_1.dll` next to `Pisum.Transcribe.exe`, so the app runs without the Visual C++ Redistributable installed.
 - **Source:** the Visual C++ Redistributable files of Visual Studio (`VC\Redist\MSVC\<version>\x64\Microsoft.VC14*.CRT`)
 - **License:** Copyright (c) Microsoft Corporation. Redistributed under the license terms for Distributable Code of the Visual Studio version the files come from, which the release build log names. See https://learn.microsoft.com/visualstudio/releases/2026/redistribution for Visual Studio 2026 and https://learn.microsoft.com/visualstudio/releases/2022/redistribution for Visual Studio 2022.
+
+## WiX Toolset
+
+- **Used for:** the installer's custom actions. The MSI embeds `Wix4UtilCA_X64`, the custom action DLL of the WiX Util extension 6.0.2. It runs only while the MSI is installed, where it starts the app when the installation finishes, and while it's uninstalled, where it removes the "Start with Windows" entry. It isn't copied into the program folder.
+- **Source:** https://github.com/wixtoolset/wix, tag v6.0.2, commit `b3f340393117094a75ea8ced77f2357e4aa095e7`. The custom actions are in `src/ext/Util/ca`, and the libraries they are built with are in `src/libs`.
+- **License:** Microsoft Reciprocal License (MS-RL)
+
+```
+Copyright (c) .NET Foundation and contributors.
+This software is released under the Microsoft Reciprocal License (MS-RL) (the "License"); you may not use the software except in compliance with the License.
+
+The text of the Microsoft Reciprocal License (MS-RL) can be found online at:
+ http://opensource.org/licenses/ms-rl
+
+
+Microsoft Reciprocal License (MS-RL)
+
+This license governs use of the accompanying software. If you use the software, you accept this license. If you do not accept the license, do not use the software.
+
+1. Definitions
+ The terms "reproduce," "reproduction," "derivative works," and "distribution" have the same meaning here as under U.S. copyright law.
+ A "contribution" is the original software, or any additions or changes to the software.
+ A "contributor" is any person that distributes its contribution under this license.
+ "Licensed patents" are a contributor's patent claims that read directly on its contribution.
+
+2. Grant of Rights
+ (A) Copyright Grant- Subject to the terms of this license, including the license conditions and limitations in section 3, each contributor grants you a non-exclusive, worldwide, royalty-free copyright license to reproduce its contribution, prepare derivative works of its contribution, and distribute its contribution or any derivative works that you create.
+ (B) Patent Grant- Subject to the terms of this license, including the license conditions and limitations in section 3, each contributor grants you a non-exclusive, worldwide, royalty-free license under its licensed patents to make, have made, use, sell, offer for sale, import, and/or otherwise dispose of its contribution in the software or derivative works of the contribution in the software.
+
+3. Conditions and Limitations
+ (A) Reciprocal Grants- For any file you distribute that contains code from the software (in source code or binary format), you must provide recipients the source code to that file along with a copy of this license, which license will govern that file. You may license other files that are entirely your own work and do not contain code from the software under any terms you choose.
+ (B) No Trademark License- This license does not grant you rights to use any contributors' name, logo, or trademarks.
+ (C) If you bring a patent claim against any contributor over patents that you claim are infringed by the software, your patent license from such contributor to the software ends automatically.
+ (D) If you distribute any portion of the software, you must retain all copyright, patent, trademark, and attribution notices that are present in the software.
+ (E) If you distribute any portion of the software in source code form, you may do so only under this license by including a complete copy of this license with your distribution. If you distribute any portion of the software in compiled or object code form, you may only do so under a license that complies with this license.
+ (F) The software is licensed "as-is." You bear the risk of using it. The contributors give no express warranties, guarantees or conditions. You may have additional consumer rights under your local laws which this license cannot change. To the extent permitted under your local laws, the contributors exclude the implied warranties of merchantability, fitness for a particular purpose and non-infringement.
+```
 
 ## GNU Lesser General Public License, version 3
 

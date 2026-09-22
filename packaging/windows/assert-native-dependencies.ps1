@@ -25,7 +25,7 @@
 
 .PARAMETER ListMissing
     Writes the names of the missing runtime files to the pipeline and succeeds, instead of failing.
-    build-zip.ps1 uses it to find the files to copy with the same scan that later checks them.
+    build-msi.ps1 uses it to find the files to copy with the same scan that later checks them.
 #>
 param(
     [Parameter(Mandatory = $true)]

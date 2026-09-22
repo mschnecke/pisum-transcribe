@@ -30,8 +30,9 @@ src/Pisum.Transcribe/            WPF tray app (WinExe, net10.0-windows, win-x64)
   SettingsWindow/                Settings dialog and section view models, SettingsApplier (live apply), autostart
 tests/Pisum.Transcribe.Tests/    xunit v3 on Microsoft.Testing.Platform, Shouldly, FakeItEasy, FakeTimeProvider; folders mirror src
 tools/generate-tray-icon.cs      Renders Tray/TrayIcon.svg into TrayIcon.ico (a .NET file-based app)
-.github/workflows/               ci.yml (build, test and zip on every PR and push to main), release.yml (bump, tag, test, publish the zip)
-packaging/                       bump-version.sh, windows/build-zip.ps1 and its guard assert-native-dependencies.ps1, third-party/ (ONNX Runtime notices); see packaging/README.md
+.github/workflows/               ci.yml (build, test and MSI on every PR and push to main), release.yml (bump, tag, test, publish the MSI)
+.config/dotnet-tools.json        Local tool manifest that pins WiX (`wix`), restored by build-msi.ps1
+packaging/                       bump-version.sh, windows/build-msi.ps1 with the MSI's WiX source Pisum.Transcribe.wxs and the guard assert-native-dependencies.ps1, third-party/ (ONNX Runtime notices); see packaging/README.md
 ```
 
 ## Architecture and conventions
@@ -68,12 +69,12 @@ dotnet test Pisum.Transcribe.slnx --filter-trait "Category=Hardware" --explicit 
 dotnet run --project src/Pisum.Transcribe                                             # start the tray app
 dotnet run tools/generate-tray-icon.cs                                                # rebuild TrayIcon.ico after editing TrayIcon.svg
 dotnet sln Pisum.Transcribe.slnx add <path/to/Project.csproj>                        # register a new project
-./packaging/windows/build-zip.ps1 -Version 0.1.0-dev.1                               # the release zip, into artifacts\ (PowerShell 7)
+./packaging/windows/build-msi.ps1 -Version 0.1.0-dev.1                               # the release MSI, built and validated, into artifacts\ (PowerShell 7)
 ./packaging/bump-version.sh patch                                                    # write the next version into Directory.Build.props (Git Bash)
 gh workflow run release.yml -f bump=patch                                            # start a release: bump, commit, tag and publish
 ```
 
-`Directory.Build.props` records the last released version, and a release takes its version from the tag. Both ways to release, and the zip's contents, are in `packaging/README.md`.
+`Directory.Build.props` records the last released version, and a release takes its version from the tag. Both ways to release, and how the MSI installs, upgrades and uninstalls, are in `packaging/README.md`.
 
 Add every new project to `Pisum.Transcribe.slnx`, or the solution-level build and test commands will skip it.
 

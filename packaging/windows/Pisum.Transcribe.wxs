@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The MSI, for WiX v6 (design D1-D3, D9). build-msi.ps1 publishes the payload, then builds this file
+  with the version and two source paths as preprocessor variables:
+
+    Version     the numeric core of the release version; ProductVersion has no pre-release part
+    PublishDir  the published 'Pisum Transcribe' folder
+    IconFile    src/Pisum.Transcribe/Tray/TrayIcon.ico
+
+  PublishDir and IconFile are absolute, because WiX doesn't resolve them against this file. It
+  resolves a SourceFile against the current directory, and a <Files> pattern against the current
+  directory plus the enclosing Directory/@Name chain.
+-->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+
+  <!-- Dual-purpose: ALLUSERS=2 and MSIINSTALLPERUSER=1, so opening the package installs for the
+       current user without elevation, and Windows Installer redirects ProgramFiles64Folder to
+       %LOCALAPPDATA%\Programs\ (design D1). Only the per-user install is supported. -->
+  <Package
+      Name="Pisum Transcribe"
+      Manufacturer="Michael Schnecke"
+      Version="$(var.Version)"
+      UpgradeCode="EF187CD9-B51E-45F3-B48D-F6AE9BFC8A1E"
+      Scope="perUserOrMachine"
+      Compressed="yes">
+
+    <!-- A same-version upgrade is how 0.1.0 replaces 0.1.0-rc.2: both are 0.1.0 to Windows
+         Installer. ICE61 warns about it, and build-msi.ps1 suppresses exactly that warning.
+
+         The schedule must stay the default, afterInstallValidate, which removes the old product
+         completely before installing the new one. The app's file versions don't carry the
+         pre-release suffix (Pisum.Transcribe.dll is 0.1.0.0 for 0.1.0-rc.2 and 0.1.0 alike), and
+         the native DLLs have no version at all. Windows Installer doesn't replace a file with one
+         of the same version, so with a later schedule 0.1.0 would keep rc.2's binaries (design
+         D2). -->
+    <MajorUpgrade
+        AllowSameVersionUpgrades="yes"
+        DowngradeErrorMessage="A newer version of Pisum Transcribe is already installed." />
+    <MediaTemplate EmbedCab="yes" />
+
+    <!-- The installed-apps entry: an icon, and no Modify or Repair, because there is nothing to
+         choose. -->
+    <Icon Id="AppIcon.ico" SourceFile="$(var.IconFile)" />
+    <Property Id="ARPPRODUCTICON" Value="AppIcon.ico" />
+    <Property Id="ARPNOMODIFY" Value="1" />
+    <Property Id="ARPNOREPAIR" Value="1" />
+    <Property Id="ARPURLINFOABOUT" Value="https://github.com/mschnecke/pisum-transcript" />
+
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="Pisum Transcribe">
+        <Files Include="$(var.PublishDir)\**" />
+      </Directory>
+    </StandardDirectory>
+
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Component Id="StartMenuShortcut">
+        <Shortcut
+            Id="AppShortcut"
+            Name="Pisum Transcribe"
+            Description="Push-to-talk dictation"
+            Target="[INSTALLFOLDER]Pisum.Transcribe.exe"
+            WorkingDirectory="INSTALLFOLDER"
+            Icon="AppIcon.ico" />
+        <!-- A shortcut can't be a key path. HKCU, not HKMU: validation counts the Start Menu as
+             per-user data, and ICE57 refuses a key path that may be per-machine next to it. -->
+        <RegistryValue
+            Root="HKCU"
+            Key="Software\Pisum\Transcribe"
+            Name="StartMenuShortcut"
+            Type="integer"
+            Value="1"
+            KeyPath="yes" />
+      </Component>
+    </StandardDirectory>
+
+    <!-- A real uninstall removes the "Start with Windows" entry, and the value Task Manager writes
+         when it disables that entry (design D3). The removal half of an upgrade doesn't. The app,
+         not the MSI, owns the values, so they are deleted by name; reg.exe exits with 1 when a
+         value doesn't exist, and a failed cleanup must never block the uninstall. -->
+    <SetProperty
+        Id="RemoveStartupRun"
+        Before="RemoveStartupRun"
+        Sequence="execute"
+        Value="&quot;[System64Folder]reg.exe&quot; delete &quot;HKCU\Software\Microsoft\Windows\CurrentVersion\Run&quot; /v &quot;Pisum Transcribe&quot; /f" />
+    <SetProperty
+        Id="RemoveStartupApproved"
+        Before="RemoveStartupApproved"
+        Sequence="execute"
+        Value="&quot;[System64Folder]reg.exe&quot; delete &quot;HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run&quot; /v &quot;Pisum Transcribe&quot; /f" />
+    <CustomAction
+        Id="RemoveStartupRun"
+        BinaryRef="Wix4UtilCA_X64"
+        DllEntry="WixQuietExec64"
+        Execute="deferred"
+        Impersonate="yes"
+        Return="ignore" />
+    <CustomAction
+        Id="RemoveStartupApproved"
+        BinaryRef="Wix4UtilCA_X64"
+        DllEntry="WixQuietExec64"
+        Execute="deferred"
+        Impersonate="yes"
+        Return="ignore" />
+
+    <!-- A tray app shows nothing after a plain install, and an upgrade has closed the running one,
+         so an interactive install starts the app when it finishes (design D9). UILevel is 5 when
+         the package is opened, and 2 or 3 for /qn and /passive, which don't start it. A failed
+         start doesn't fail the finished install. -->
+    <SetProperty
+        Id="WixShellExecTarget"
+        Before="StartApp"
+        Sequence="execute"
+        Value="[INSTALLFOLDER]Pisum.Transcribe.exe" />
+    <CustomAction
+        Id="StartApp"
+        BinaryRef="Wix4UtilCA_X64"
+        DllEntry="WixShellExec"
+        Execute="immediate"
+        Return="ignore" />
+
+    <InstallExecuteSequence>
+      <Custom
+          Action="RemoveStartupRun"
+          Before="InstallFinalize"
+          Condition="REMOVE=&quot;ALL&quot; AND NOT UPGRADINGPRODUCTCODE" />
+      <Custom
+          Action="RemoveStartupApproved"
+          Before="InstallFinalize"
+          Condition="REMOVE=&quot;ALL&quot; AND NOT UPGRADINGPRODUCTCODE" />
+      <Custom
+          Action="StartApp"
+          After="InstallFinalize"
+          Condition="UILevel = 5 AND NOT Installed AND NOT REMOVE" />
+    </InstallExecuteSequence>
+
+  </Package>
+</Wix>
