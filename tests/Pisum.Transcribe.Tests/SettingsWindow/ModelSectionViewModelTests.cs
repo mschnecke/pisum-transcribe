@@ -337,7 +337,7 @@ public sealed class ModelSectionViewModelTests : IDisposable
             {
                 _deleteConfirmations.Add(model);
                 return _confirmDelete;
-            }, action => action());
+            }, new InlineUiDispatcher());
     }
 
     private void RaiseEngineStatus(TranscriberStatus status)

@@ -142,6 +142,7 @@ Moved to `show-windows-notifications`: WinRT toasts behind `INotifier`, and the 
 ### D6: Package references
 
 - **`UseWPF` goes.** The target framework stays `net10.0-windows10.0.19041.0`, from `show-windows-notifications`, and `RuntimeIdentifier` stays `win-x64`.
+- **`global using System.Windows`** goes from `GlobalUsing.cs` with `UseWPF`. Without WPF it imports nothing the app needs. `extract-ui-seams` kept it, because the compiler finds every WPF type here anyway.
 - **The Avalonia packages** are `Avalonia`, `Avalonia.Win32`, `Avalonia.Skia`, the HarfBuzz text shaping package and `Avalonia.Themes.Fluent`. They are pinned centrally in `Directory.Packages.props`. The app configures the Win32 backend and Skia explicitly instead of `UsePlatformDetect`. That keeps the X11 and macOS backends out of the MSI.
 - **Build telemetry:** Avalonia's build telemetry (`Avalonia.BuildServices`) is turned off for local builds and CI, because the project sends nothing it doesn't need to. The spike confirms the opt-out.
 - **Package pins:**
@@ -155,6 +156,8 @@ Moved to `show-windows-notifications`: WinRT toasts behind `INotifier`, and the 
 ### D7: UI thread and application lifetime
 
 - **`IUiDispatcher`** (from `extract-ui-seams`) gets `AvaloniaUiDispatcher` over `Avalonia.Threading.Dispatcher.UIThread`, and the WPF implementation goes. No caller changes.
+  - `InvokeAsync` maps to `Dispatcher.UIThread.InvokeAsync`, not `Post`. `Post` sends an exception to the dispatcher's `UnhandledException`, and `ShutdownCoordinator` would end the app. The contract keeps it in the returned task (`extract-ui-seams` D1).
+  - It gets `WpfUiDispatcher`'s three tests, run through `HeadlessUnitTestSession.Dispatch` (the T1 fallback): the action runs on the UI thread, after the current operation, and an exception faults the task without reaching `UnhandledException`.
 - **`Program.Main`:**
   - The single-instance guard and the bootstrap logger stay where they are.
   - `App.Run` becomes `AppBuilder.Configure<App>()…StartWithClassicDesktopLifetime(args, ShutdownMode.OnExplicitShutdown)`.

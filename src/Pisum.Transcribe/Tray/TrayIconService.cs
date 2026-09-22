@@ -1,6 +1,7 @@
 using System.Drawing;
 using System.Windows.Controls;
 using H.NotifyIcon;
+using Pisum.Transcribe.Dictation;
 
 namespace Pisum.Transcribe.Tray;
 
@@ -12,6 +13,7 @@ internal sealed class TrayIconService : ITrayIconService
     private const string ProductName = "Pisum Transcribe";
     private const string IconResourceName = "Pisum.Transcribe.Tray.TrayIcon.ico";
 
+    private readonly DictationIcons _icons;
     private readonly TaskbarIcon _taskbarIcon;
     private readonly ContextMenu _contextMenu = new();
     private readonly MenuItem _exitItem = new() {Header = "Exit"};
@@ -21,8 +23,10 @@ internal sealed class TrayIconService : ITrayIconService
     /// <summary>
     /// Initializes a new instance with the app icon and a context menu with <b>Exit</b>. The icon is not shown yet.
     /// </summary>
-    public TrayIconService()
+    /// <param name="icons">The icons of the statuses.</param>
+    public TrayIconService(DictationIcons icons)
     {
+        _icons = icons;
         _exitItem.Click += (_, _) => ExitRequested?.Invoke(this, EventArgs.Empty);
         _contextMenu.Items.Add(_exitItem);
 
@@ -82,15 +86,20 @@ internal sealed class TrayIconService : ITrayIconService
     }
 
     /// <inheritdoc />
-    public void SetStatus(Icon icon, string toolTip)
+    public void SetStatus(TrayStatus status, string toolTip)
     {
         // H.NotifyIcon disposes the icon it replaces and the icon it holds when it is disposed, so it gets a copy.
-        _taskbarIcon.Icon = (Icon) icon.Clone();
+        _taskbarIcon.Icon = (Icon) IconFor(status, _icons).Clone();
         _taskbarIcon.ToolTipText = toolTip;
     }
 
-    /// <inheritdoc />
-    public void ShowNotification(string title, string message)
+    /// <summary>
+    /// Shows a notification as a balloon tip from the tray icon, for <see cref="TrayBalloonNotifier"/>. Call it on the
+    /// UI thread.
+    /// </summary>
+    /// <param name="title">The notification title.</param>
+    /// <param name="message">The notification text.</param>
+    internal void ShowNotification(string title, string message)
     {
         _taskbarIcon.ShowNotification(title, message);
     }
@@ -99,6 +108,24 @@ internal sealed class TrayIconService : ITrayIconService
     public void Remove()
     {
         _taskbarIcon.Dispose();
+    }
+
+    /// <summary>
+    /// The icon of a status.
+    /// </summary>
+    /// <param name="status">The status.</param>
+    /// <param name="icons">The icons of the statuses.</param>
+    /// <returns>One of <paramref name="icons"/>, which the caller must not dispose.</returns>
+    internal static Icon IconFor(TrayStatus status, DictationIcons icons)
+    {
+        return status switch
+        {
+            TrayStatus.Ready => icons.Ready,
+            TrayStatus.Recording => icons.Recording,
+            TrayStatus.Transcribing => icons.Transcribing,
+            TrayStatus.Unavailable => icons.Unavailable,
+            _ => throw new ArgumentOutOfRangeException(nameof(status), status, null),
+        };
     }
 
     /// <summary>

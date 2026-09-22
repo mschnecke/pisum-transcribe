@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Pisum.Transcribe.Hosting;
+using Pisum.Transcribe.Notifications;
 using Pisum.Transcribe.Settings;
 using Pisum.Transcribe.Tray;
 using Serilog;
@@ -40,6 +41,7 @@ internal sealed partial class App
             host,
             host.Services.GetRequiredService<IHostApplicationLifetime>(),
             trayIcon,
+            host.Services.GetRequiredService<INotifier>(),
             TimeProvider.System,
             Shutdown,
             ExitProcess,

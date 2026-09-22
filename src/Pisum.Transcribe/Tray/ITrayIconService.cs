@@ -1,5 +1,3 @@
-using System.Drawing;
-
 namespace Pisum.Transcribe.Tray;
 
 /// <summary>
@@ -47,18 +45,11 @@ internal interface ITrayIconService
     void AddMenuItem(Func<string> header, Action onClick, Func<bool>? isVisible = null);
 
     /// <summary>
-    /// Changes the icon and its tooltip.
+    /// Changes the icon to the one of a status, and its tooltip.
     /// </summary>
-    /// <param name="icon">The new icon. The tray shows a copy, so the caller keeps ownership of it.</param>
+    /// <param name="status">The status the icon shows.</param>
     /// <param name="toolTip">The new tooltip.</param>
-    void SetStatus(Icon icon, string toolTip);
-
-    /// <summary>
-    /// Shows a notification from the tray icon.
-    /// </summary>
-    /// <param name="title">The notification title.</param>
-    /// <param name="message">The notification text.</param>
-    void ShowNotification(string title, string message);
+    void SetStatus(TrayStatus status, string toolTip);
 
     /// <summary>
     /// Removes the icon from the notification area. Later calls have no effect.

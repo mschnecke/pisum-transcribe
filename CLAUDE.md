@@ -18,8 +18,9 @@ src/Pisum.Transcribe/            WPF tray app (WinExe, net10.0-windows, win-x64)
   Program.cs                     Entry point: single-instance guard, bootstrap logger, App.Run
   App.xaml(.cs)                  Builds and starts the host, creates ShutdownCoordinator, handles the end of the Windows session
   NativeMethods.txt              Win32 functions that CsWin32 generates into Windows.Win32.PInvoke
-  Hosting/                       AppHost, AppPaths, SingleInstanceGuard, ShutdownCoordinator, DispatcherWait, logging setup
-  Tray/                          ITrayIconService (menu items, status icon, notifications), TrayIconService (H.NotifyIcon), TrayIcon.svg (the app icon) and the TrayIcon.ico generated from it
+  Hosting/                       AppHost, AppPaths, SingleInstanceGuard, ShutdownCoordinator, DispatcherWait, IUiDispatcher (WpfUiDispatcher), logging setup
+  Tray/                          ITrayIconService (menu items, TrayStatus icon), TrayIconService (H.NotifyIcon), TrayBalloonNotifier, TrayIcon.svg (the app icon) and the TrayIcon.ico generated from it
+  Notifications/                 INotifier, which shows a notification from any thread
   Settings/                      AppSettings and its section records, ISettingsStore, JsonSettingsStore
   SpeechModels/                  ModelCatalog, IModelStore/ModelStore (download, verify), setup window, tray item
   Transcription/                 ITranscriber, TranscribeCppTranscriber (worker, fallback), native seam and adapter, hosted service
@@ -39,10 +40,12 @@ packaging/                       bump-version.sh, windows/build-msi.ps1 with the
 ## Architecture and conventions
 
 - **Feature folders:** each folder is its own namespace (`Pisum.Transcribe.<Feature>`). A feature registers its services with one `services.Add<Feature>()` extension method, called from `AppHost.Create`. Background work runs as an `IHostedService` or `BackgroundService`.
+- **Platform folders:** code that is Windows-only and stays Windows-only goes into a `Windows/` subfolder of its feature folder (later `MacOS/` the same way), and keeps the feature's namespace. The folder marks the platform, not a namespace. Each platform folder needs an entry in the project's `.csproj.DotSettings` (`src/Pisum.Transcribe/Pisum.Transcribe.csproj.DotSettings`, `tests/Pisum.Transcribe.Tests/Pisum.Transcribe.Tests.csproj.DotSettings`) that marks it as not a namespace provider, or Rider flags the namespace.
 - **Dictation flow:** `DictationController` connects the features. A hotkey press starts `IAudioRecorder` and captures the foreground window. On release, `IVoiceActivityDetector` trims the silence, `ITranscriber` transcribes, and `ITextInserter` inserts the text into the captured window. Hotkey and recorder events are queued in one channel, and one loop owns the state. `IDictationFeedback` drives the overlay, the tray icon and notifications.
 - **Tray menu:** a feature adds its menu item with `ITrayIconService.AddMenuItem(header, onClick, isVisible)` (see `ModelSetupHostedService`, `DictationFeedback`, `SettingsWindowService`).
 - **Shutdown:** `ShutdownCoordinator` is the only code that ends the app. Don't call `Application.Shutdown` or `Environment.Exit`, or stop the host, anywhere else. A service must stop within `HostOptions.ShutdownTimeout` (4 s). After 4.5 s a watchdog ends the process with `TerminateProcess`, so don't rely on `AppDomain.ProcessExit` for cleanup. The end of the Windows session (sign-out, shutdown or restart) reaches `ShutdownCoordinator` through `App.OnSessionEnding`, which waits for the shutdown while the UI thread keeps processing messages (`DispatcherWait`). Never cancel `SessionEnding`, because that vetoes the sign-out.
-- **UI thread:** services that touch WPF or the tray icon marshal to `Application.Current.Dispatcher`. Never block the UI thread while waiting for async work.
+- **UI thread:** services that touch WPF or the tray icon marshal through `IUiDispatcher.InvokeAsync`, which queues the action, also on the UI thread, and keeps an exception in the returned task. Only `AppHost` reads `Application.Current`. Never block the UI thread while waiting for async work.
+- **Notifications:** show them with `INotifier.Show(title, message)`, which may be called from any thread and moves to the thread it needs itself.
 - **Data:** all per-user data lives under `%LOCALAPPDATA%\Pisum Transcribe\` (see `AppPaths`): `settings.json`, `logs\` and `models\`. Nothing roams, and nothing leaves the machine.
 - **Settings:** add a feature's section to `AppSettings` and follow the shape rules in its XML doc. `ISettingsStore.Changed` is raised after a save. `SettingsApplier` applies hotkey, model and backend changes at once. Every other setting is read at the start of each dictation. A new setting must be read that way, get a case in `SettingsApplier`, or be read by its own service before each use, as `UpdateCheckService` reads "Check for updates automatically" before each update check.
 - **Logging:** use `ILogger<T>`. Serilog writes a daily rolling file and keeps 7 files. Never log transcript text or audio data, only lengths, durations and status codes.
@@ -54,7 +57,7 @@ packaging/                       bump-version.sh, windows/build-msi.ps1 with the
   - WPF windows, the clipboard and the tray icon need an STA thread, so those tests run their body on a new STA thread (see `SettingsDialogTests`, `TextInsertion/TestWindow`).
   - Tests that use the real desktop (the clipboard, the foreground window or simulated keys) go in `[Collection(DesktopCollection.Name)]`, which runs them one at a time.
   - Hardware tests call `Assert.SkipWhen` when an asset is missing. The transcription tests use the models installed in `%LOCALAPPDATA%\Pisum Transcribe\models\` and read WAV files (16 kHz mono) from `PISUM_TRANSCRIBE_TEST_AUDIO` (German) and `PISUM_TRANSCRIBE_TEST_AUDIO_EN` (English).
-  - Shared helpers are at the test project root: `TempDirectory`, `CapturingLogger`, `FakeHttpMessageHandler`.
+  - Shared helpers are at the test project root: `TempDirectory`, `CapturingLogger`, `FakeHttpMessageHandler`, and `InlineUiDispatcher`, which runs the action at once for service tests.
 
 ## Commands
 

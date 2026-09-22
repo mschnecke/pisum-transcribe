@@ -1,6 +1,6 @@
-using System.Drawing;
 using Microsoft.Extensions.Time.Testing;
 using Pisum.Transcribe.Dictation;
+using Pisum.Transcribe.Notifications;
 using Pisum.Transcribe.TextInsertion;
 using Pisum.Transcribe.Transcription;
 using Pisum.Transcribe.Tray;
@@ -10,28 +10,28 @@ namespace Pisum.Transcribe.Tests.Dictation;
 [Trait(Traits.Category, Traits.Categories.Unit)]
 public sealed class DictationFeedbackTests
 {
-    private static readonly DictationIcons Icons = new();
     private static readonly InsertionTarget Target = new(0x1234, 42, false);
 
     private readonly ITrayIconService _trayIcon = A.Fake<ITrayIconService>();
+    private readonly INotifier _notifier = A.Fake<INotifier>();
     private readonly ITranscriber _transcriber = A.Fake<ITranscriber>();
     private readonly IRecordingOverlay _overlay = A.Fake<IRecordingOverlay>();
     private readonly FakeTimeProvider _time = new();
-    private readonly List<(Icon Icon, string ToolTip)> _statuses = [];
+    private readonly List<(TrayStatus Status, string ToolTip)> _statuses = [];
     private readonly DictationFeedback _sut;
 
     public DictationFeedbackTests()
     {
         A.CallTo(() => _transcriber.Status).Returns(TranscriberStatus.Ready);
         A.CallTo(() => _transcriber.ActiveBackend).Returns("Vulkan");
-        A.CallTo(() => _trayIcon.SetStatus(A<Icon>._, A<string>._))
-            .Invokes((Icon icon, string toolTip) => _statuses.Add((icon, toolTip)));
-        _sut = new DictationFeedback(_trayIcon, _transcriber, Icons, _time, () => _overlay, action => action());
+        A.CallTo(() => _trayIcon.SetStatus(A<TrayStatus>._, A<string>._))
+            .Invokes((TrayStatus status, string toolTip) => _statuses.Add((status, toolTip)));
+        _sut = new DictationFeedback(_trayIcon, _notifier, new InlineUiDispatcher(), _transcriber, _time, () => _overlay);
     }
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
-    private (Icon Icon, string ToolTip) Status => _statuses[^1];
+    private (TrayStatus Status, string ToolTip) Status => _statuses[^1];
 
     [Fact]
     public async Task StartAsync_EngineReady_ShowsReadyIconWithBackend()
@@ -40,7 +40,7 @@ public sealed class DictationFeedbackTests
         await _sut.StartAsync(Ct);
 
         // Assert
-        Status.ShouldBe((Icons.Ready, "Pisum Transcribe – Ready (Vulkan)"));
+        Status.ShouldBe((TrayStatus.Ready, "Pisum Transcribe – Ready (Vulkan)"));
     }
 
     [Fact]
@@ -54,7 +54,7 @@ public sealed class DictationFeedbackTests
         await _sut.StartAsync(Ct);
 
         // Assert
-        Status.ShouldBe((Icons.Unavailable, "Pisum Transcribe – Loading model…"));
+        Status.ShouldBe((TrayStatus.Unavailable, "Pisum Transcribe – Loading model…"));
     }
 
     [Fact]
@@ -68,7 +68,7 @@ public sealed class DictationFeedbackTests
         await _sut.StartAsync(Ct);
 
         // Assert
-        Status.ShouldBe((Icons.Unavailable, "Pisum Transcribe – No model installed"));
+        Status.ShouldBe((TrayStatus.Unavailable, "Pisum Transcribe – No model installed"));
     }
 
     [Fact]
@@ -82,7 +82,7 @@ public sealed class DictationFeedbackTests
 
         // Assert
         A.CallTo(() => _overlay.ShowStarting(Target.WindowHandle)).MustHaveHappenedOnceExactly();
-        Status.ShouldBe((Icons.Ready, "Pisum Transcribe – Ready (Vulkan)"));
+        Status.ShouldBe((TrayStatus.Ready, "Pisum Transcribe – Ready (Vulkan)"));
     }
 
     [Fact]
@@ -96,7 +96,7 @@ public sealed class DictationFeedbackTests
         _sut.ShowRecording();
 
         // Assert
-        Status.ShouldBe((Icons.Recording, "Pisum Transcribe – Recording…"));
+        Status.ShouldBe((TrayStatus.Recording, "Pisum Transcribe – Recording…"));
         A.CallTo(() => _overlay.ShowRecording()).MustHaveHappenedOnceExactly();
     }
 
@@ -112,7 +112,7 @@ public sealed class DictationFeedbackTests
         _sut.ShowTranscribing();
 
         // Assert
-        Status.ShouldBe((Icons.Transcribing, "Pisum Transcribe – Transcribing…"));
+        Status.ShouldBe((TrayStatus.Transcribing, "Pisum Transcribe – Transcribing…"));
         A.CallTo(() => _overlay.ShowTranscribing()).MustHaveHappenedOnceExactly();
     }
 
@@ -132,7 +132,7 @@ public sealed class DictationFeedbackTests
 
         // Assert
         duringRecording.ShouldNotContain("Ready (CPU)");
-        Status.ShouldBe((Icons.Ready, "Pisum Transcribe – Ready (CPU)"));
+        Status.ShouldBe((TrayStatus.Ready, "Pisum Transcribe – Ready (CPU)"));
         A.CallTo(() => _overlay.Hide()).MustHaveHappenedOnceExactly();
     }
 
@@ -155,9 +155,9 @@ public sealed class DictationFeedbackTests
         _transcriber.StatusChanged += Raise.With(_transcriber, TranscriberStatus.Ready);
 
         // Assert
-        duringDictation.ShouldBe((Icons.Transcribing, "Pisum Transcribe – Transcribing…"));
-        afterDictation.ShouldBe((Icons.Unavailable, "Pisum Transcribe – Loading model…"));
-        Status.ShouldBe((Icons.Ready, "Pisum Transcribe – Ready (CPU)"));
+        duringDictation.ShouldBe((TrayStatus.Transcribing, "Pisum Transcribe – Transcribing…"));
+        afterDictation.ShouldBe((TrayStatus.Unavailable, "Pisum Transcribe – Loading model…"));
+        Status.ShouldBe((TrayStatus.Ready, "Pisum Transcribe – Ready (CPU)"));
     }
 
     [Fact]
@@ -179,9 +179,9 @@ public sealed class DictationFeedbackTests
         _sut.ShowIdle();
 
         // Assert
-        whileLoading.ShouldBe((Icons.Transcribing, "Pisum Transcribe – Transcribing…"));
-        whileReady.ShouldBe((Icons.Transcribing, "Pisum Transcribe – Transcribing…"));
-        Status.ShouldBe((Icons.Ready, "Pisum Transcribe – Ready (CPU)"));
+        whileLoading.ShouldBe((TrayStatus.Transcribing, "Pisum Transcribe – Transcribing…"));
+        whileReady.ShouldBe((TrayStatus.Transcribing, "Pisum Transcribe – Transcribing…"));
+        Status.ShouldBe((TrayStatus.Ready, "Pisum Transcribe – Ready (CPU)"));
     }
 
     [Fact]
@@ -194,8 +194,8 @@ public sealed class DictationFeedbackTests
         _transcriber.StatusChanged += Raise.With(_transcriber, TranscriberStatus.Loading);
 
         // Assert
-        Status.ShouldBe((Icons.Unavailable, "Pisum Transcribe – Loading model…"));
-        A.CallTo(() => _trayIcon.ShowNotification(A<string>._, A<string>._)).MustNotHaveHappened();
+        Status.ShouldBe((TrayStatus.Unavailable, "Pisum Transcribe – Loading model…"));
+        A.CallTo(() => _notifier.Show(A<string>._, A<string>._)).MustNotHaveHappened();
     }
 
     [Theory]
@@ -212,8 +212,8 @@ public sealed class DictationFeedbackTests
         _transcriber.StatusChanged += Raise.With(_transcriber, TranscriberStatus.Ready);
 
         // Assert
-        Status.ShouldBe((Icons.Ready, expectedToolTip));
-        A.CallTo(() => _trayIcon.ShowNotification(A<string>._, A<string>._)).MustNotHaveHappened();
+        Status.ShouldBe((TrayStatus.Ready, expectedToolTip));
+        A.CallTo(() => _notifier.Show(A<string>._, A<string>._)).MustNotHaveHappened();
     }
 
     [Fact]
@@ -226,7 +226,7 @@ public sealed class DictationFeedbackTests
         _transcriber.StatusChanged += Raise.With(_transcriber, TranscriberStatus.Failed);
 
         // Assert
-        Status.ShouldBe((Icons.Unavailable, "Pisum Transcribe – Model failed to load"));
+        Status.ShouldBe((TrayStatus.Unavailable, "Pisum Transcribe – Model failed to load"));
     }
 
     [Fact]
@@ -246,7 +246,7 @@ public sealed class DictationFeedbackTests
         _sut.ShowIdle();
 
         // Assert
-        _statuses.Select(status => status.Icon).Distinct().Count().ShouldBe(4);
+        _statuses.Select(status => status.Status).Distinct().Count().ShouldBe(4);
         _statuses.ShouldAllBe(status => status.ToolTip.Contains("Pisum Transcribe"));
     }
 
@@ -351,7 +351,7 @@ public sealed class DictationFeedbackTests
         _sut.Notify("Recording failed", "The microphone is muted.");
 
         // Assert
-        A.CallTo(() => _trayIcon.ShowNotification("Recording failed", "The microphone is muted."))
+        A.CallTo(() => _notifier.Show("Recording failed", "The microphone is muted."))
             .MustHaveHappenedOnceExactly();
     }
 

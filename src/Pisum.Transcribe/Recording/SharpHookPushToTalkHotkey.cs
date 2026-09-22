@@ -1,8 +1,8 @@
 using System.Runtime.InteropServices;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Pisum.Transcribe.Notifications;
 using Pisum.Transcribe.Settings;
-using Pisum.Transcribe.Tray;
 using SharpHook;
 using SharpHook.Data;
 
@@ -45,11 +45,10 @@ internal sealed class SharpHookPushToTalkHotkey : IPushToTalkHotkey, IHostedServ
 
     private readonly IGlobalHook _hook;
     private readonly ISettingsStore _settingsStore;
-    private readonly ITrayIconService _trayIcon;
+    private readonly INotifier _notifier;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<SharpHookPushToTalkHotkey> _logger;
     private readonly Func<int, bool> _isKeyDown;
-    private readonly Action<Action> _invokeOnUiThread;
 
     // Guards the detector, the held keys and the timer. Hook handlers and the timer run on different threads, and signals
     // are raised inside the lock, so consumers see them in order.
@@ -65,31 +64,26 @@ internal sealed class SharpHookPushToTalkHotkey : IPushToTalkHotkey, IHostedServ
     /// </summary>
     /// <param name="hook">The global hook, not yet running. Disposed on stop.</param>
     /// <param name="settingsStore">The settings store, already loaded.</param>
-    /// <param name="trayIcon">The tray icon, for the notification when the hook cannot run.</param>
+    /// <param name="notifier">Shows the notification when the hook cannot run.</param>
     /// <param name="timeProvider">The time provider for the missed-release check.</param>
     /// <param name="logger">The logger.</param>
     /// <param name="isKeyDown">
     /// Reads whether a key is down by its Windows virtual-key code, for tests. <see langword="null"/> uses
     /// <c>GetAsyncKeyState</c>.
     /// </param>
-    /// <param name="invokeOnUiThread">
-    /// Queues an action on the UI thread, for tests. <see langword="null"/> uses the WPF dispatcher.
-    /// </param>
     public SharpHookPushToTalkHotkey(IGlobalHook hook,
                                      ISettingsStore settingsStore,
-                                     ITrayIconService trayIcon,
+                                     INotifier notifier,
                                      TimeProvider timeProvider,
                                      ILogger<SharpHookPushToTalkHotkey> logger,
-                                     Func<int, bool>? isKeyDown = null,
-                                     Action<Action>? invokeOnUiThread = null)
+                                     Func<int, bool>? isKeyDown = null)
     {
         _hook = hook;
         _settingsStore = settingsStore;
-        _trayIcon = trayIcon;
+        _notifier = notifier;
         _timeProvider = timeProvider;
         _logger = logger;
         _isKeyDown = isKeyDown ?? IsKeyDown;
-        _invokeOnUiThread = invokeOnUiThread ?? (action => Application.Current.Dispatcher.InvokeAsync(action));
     }
 
     /// <inheritdoc />
@@ -204,7 +198,7 @@ internal sealed class SharpHookPushToTalkHotkey : IPushToTalkHotkey, IHostedServ
             }
 
             _logger.LogError(exception, "The keyboard hook could not run, push-to-talk is unavailable");
-            _invokeOnUiThread(() => _trayIcon.ShowNotification(UnavailableTitle, UnavailableMessage));
+            _notifier.Show(UnavailableTitle, UnavailableMessage);
         }
     }
 

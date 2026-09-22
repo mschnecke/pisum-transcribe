@@ -2,6 +2,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Time.Testing;
 using Pisum.Transcribe.Hosting;
+using Pisum.Transcribe.Notifications;
 using Pisum.Transcribe.Tray;
 
 namespace Pisum.Transcribe.Tests.Hosting;
@@ -14,6 +15,7 @@ public sealed class ShutdownCoordinatorTests : IDisposable
     private readonly IHost _host = A.Fake<IHost>();
     private readonly IHostApplicationLifetime _lifetime = A.Fake<IHostApplicationLifetime>();
     private readonly ITrayIconService _trayIcon = A.Fake<ITrayIconService>();
+    private readonly INotifier _notifier = A.Fake<INotifier>();
     private readonly CancellationTokenSource _applicationStopping = new();
     private readonly FakeTimeProvider _timeProvider = new();
     private readonly List<int> _applicationShutdowns = [];
@@ -33,6 +35,7 @@ public sealed class ShutdownCoordinatorTests : IDisposable
             _host,
             _lifetime,
             _trayIcon,
+            _notifier,
             _timeProvider,
             exitCode =>
             {
@@ -59,7 +62,7 @@ public sealed class ShutdownCoordinatorTests : IDisposable
         A.CallTo(() => _trayIcon.Remove()).MustHaveHappenedOnceExactly()
             .Then(A.CallTo(() => _host.StopAsync(A<CancellationToken>._)).MustHaveHappenedOnceExactly())
             .Then(A.CallTo(() => _host.Dispose()).MustHaveHappenedOnceExactly());
-        A.CallTo(() => _trayIcon.ShowNotification(A<string>._, A<string>._)).MustNotHaveHappened();
+        A.CallTo(() => _notifier.Show(A<string>._, A<string>._)).MustNotHaveHappened();
     }
 
     [Fact]
@@ -74,7 +77,7 @@ public sealed class ShutdownCoordinatorTests : IDisposable
         A.CallTo(() => _trayIcon.Remove()).MustHaveHappenedOnceExactly()
             .Then(A.CallTo(() => _host.StopAsync(A<CancellationToken>._)).MustHaveHappenedOnceExactly())
             .Then(A.CallTo(() => _host.Dispose()).MustHaveHappenedOnceExactly());
-        A.CallTo(() => _trayIcon.ShowNotification(A<string>._, A<string>._)).MustNotHaveHappened();
+        A.CallTo(() => _notifier.Show(A<string>._, A<string>._)).MustNotHaveHappened();
         _logger.Entries.ShouldContain(entry =>
             entry.Level == LogLevel.Information
             && entry.Properties.Any(property => property.Key == "{OriginalFormat}"
@@ -97,7 +100,7 @@ public sealed class ShutdownCoordinatorTests : IDisposable
         // Assert
         removedBeforeDuration.ShouldBeFalse();
         _applicationShutdowns.ShouldBe([1]);
-        A.CallTo(() => _trayIcon.ShowNotification(A<string>._, A<string>._)).MustHaveHappenedOnceExactly()
+        A.CallTo(() => _notifier.Show(A<string>._, A<string>._)).MustHaveHappenedOnceExactly()
             .Then(A.CallTo(() => _host.StopAsync(A<CancellationToken>._)).MustHaveHappenedOnceExactly())
             .Then(A.CallTo(() => _trayIcon.Remove()).MustHaveHappenedOnceExactly());
     }
@@ -130,7 +133,7 @@ public sealed class ShutdownCoordinatorTests : IDisposable
 
         // Assert
         (await AdvanceTimeUntilApplicationShutdownAsync()).ShouldBe(1);
-        A.CallTo(() => _trayIcon.ShowNotification(A<string>._, A<string>._)).MustHaveHappenedOnceExactly();
+        A.CallTo(() => _notifier.Show(A<string>._, A<string>._)).MustHaveHappenedOnceExactly();
     }
 
     [Fact]
@@ -160,8 +163,8 @@ public sealed class ShutdownCoordinatorTests : IDisposable
         var timeProvider = A.Fake<TimeProvider>();
         A.CallTo(() => timeProvider.CreateTimer(A<TimerCallback>._, A<object?>._, A<TimeSpan>._, A<TimeSpan>._))
             .Throws(exception);
-        var sut = new ShutdownCoordinator(_host, _lifetime, _trayIcon, timeProvider, _applicationShutdowns.Add,
-            _processExits.Add, _logger);
+        var sut = new ShutdownCoordinator(_host, _lifetime, _trayIcon, _notifier, timeProvider,
+            _applicationShutdowns.Add, _processExits.Add, _logger);
 
         // Act
         await sut.RequestShutdownAsync(ShutdownReason.SessionEnd)
@@ -177,8 +180,8 @@ public sealed class ShutdownCoordinatorTests : IDisposable
     {
         // Arrange
         var exception = new InvalidOperationException();
-        var sut = new ShutdownCoordinator(_host, _lifetime, _trayIcon, _timeProvider, _ => throw exception,
-            _processExits.Add, _logger);
+        var sut = new ShutdownCoordinator(_host, _lifetime, _trayIcon, _notifier, _timeProvider,
+            _ => throw exception, _processExits.Add, _logger);
 
         // Act
         await sut.RequestShutdownAsync(ShutdownReason.SessionEnd)

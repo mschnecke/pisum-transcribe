@@ -1,6 +1,7 @@
 using System.Net.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Pisum.Transcribe.Notifications;
 using Pisum.Transcribe.Settings;
 using Pisum.Transcribe.Tests.SettingsWindow;
 using Pisum.Transcribe.Tray;
@@ -22,13 +23,14 @@ public sealed class UpdateCheckServiceGitHubTests
         services.AddUpdates();
         await using var provider = services.BuildServiceProvider();
         var trayIcon = A.Fake<ITrayIconService>();
+        var notifier = A.Fake<INotifier>();
         Func<string>? header = null;
         A.CallTo(() => trayIcon.AddMenuItem(A<Func<string>>._, A<Action>._, A<Func<bool>?>._))
             .Invokes((Func<string> itemHeader, Action _, Func<bool>? _) => header = itemHeader);
         var logger = new CapturingLogger<UpdateCheckService>();
         using var sut = new UpdateCheckService(provider.GetRequiredService<IHttpClientFactory>(),
-            new FakeSettingsStore(new AppSettings()), trayIcon, TimeProvider.System, logger,
-            Timeout.InfiniteTimeSpan, "0.0.1", _ => { }, action => action());
+            new FakeSettingsStore(new AppSettings()), trayIcon, notifier, new InlineUiDispatcher(), TimeProvider.System,
+            logger, Timeout.InfiniteTimeSpan, "0.0.1", _ => { });
         await sut.StartAsync(TestContext.Current.CancellationToken);
 
         try
@@ -38,7 +40,7 @@ public sealed class UpdateCheckServiceGitHubTests
 
             // Assert
             logger.Entries.ShouldNotContain(entry => entry.Level >= LogLevel.Warning);
-            A.CallTo(() => trayIcon.ShowNotification(A<string>._, A<string>._)).MustHaveHappenedOnceExactly();
+            A.CallTo(() => notifier.Show(A<string>._, A<string>._)).MustHaveHappenedOnceExactly();
             header.ShouldNotBeNull()().ShouldMatch(@"^Pisum Transcribe \d+\.\d+\.\d+ is available…$");
         }
         finally

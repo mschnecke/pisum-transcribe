@@ -4,7 +4,7 @@ Pisum Transcribe is to ship on macOS as a public release next to Windows. `move-
 
 ## What Changes
 
-- **A macOS build of the app** for Apple silicon, macOS 14 or later. The project gains a second target framework next to the Windows one. Windows-only code stays out of it through the `Windows/` folders from `move-windows-shell-to-avalonia`.
+- **A macOS build of the app** for Apple silicon, macOS 14 or later. The project gains a second target framework next to the Windows one. Windows-only code stays out of it through the `Windows/` folders from `extract-ui-seams`.
 - **Menu bar app:**
   - The app runs as an agent: no Dock icon, no main window, no entry in the app switcher.
   - Its icon sits in the menu bar as a monochrome template image, which follows light and dark mode.

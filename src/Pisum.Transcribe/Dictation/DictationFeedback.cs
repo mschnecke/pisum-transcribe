@@ -1,4 +1,6 @@
 using Microsoft.Extensions.Hosting;
+using Pisum.Transcribe.Hosting;
+using Pisum.Transcribe.Notifications;
 using Pisum.Transcribe.TextInsertion;
 using Pisum.Transcribe.Transcription;
 using Pisum.Transcribe.Tray;
@@ -27,11 +29,11 @@ internal sealed class DictationFeedback : IDictationFeedback, IHostedService
     public static readonly TimeSpan MessageDuration = TimeSpan.FromSeconds(1.5);
 
     private readonly ITrayIconService _trayIcon;
+    private readonly INotifier _notifier;
+    private readonly IUiDispatcher _uiDispatcher;
     private readonly ITranscriber _transcriber;
-    private readonly DictationIcons _icons;
     private readonly TimeProvider _timeProvider;
     private readonly Func<IRecordingOverlay> _createOverlay;
-    private readonly Action<Action> _invokeOnUiThread;
 
     // Only touched on the UI thread. _messageTimer is set while a short message is shown; _messageId tells an elapsed
     // timer of a replaced or ended message to do nothing.
@@ -46,29 +48,27 @@ internal sealed class DictationFeedback : IDictationFeedback, IHostedService
     /// Initializes a new instance.
     /// </summary>
     /// <param name="trayIcon">The tray icon.</param>
+    /// <param name="notifier">Shows the notifications.</param>
+    /// <param name="uiDispatcher">Reaches the UI thread.</param>
     /// <param name="transcriber">The transcription engine, whose status the tray shows between dictations.</param>
-    /// <param name="icons">The state icons.</param>
     /// <param name="timeProvider">The time provider for short overlay messages.</param>
     /// <param name="createOverlay">
     /// Creates the overlay on the UI thread, for tests. <see langword="null"/> creates a
     /// <see cref="RecordingOverlayWindow"/>.
     /// </param>
-    /// <param name="invokeOnUiThread">
-    /// Queues an action on the UI thread, for tests. <see langword="null"/> uses the WPF dispatcher.
-    /// </param>
     public DictationFeedback(ITrayIconService trayIcon,
+                             INotifier notifier,
+                             IUiDispatcher uiDispatcher,
                              ITranscriber transcriber,
-                             DictationIcons icons,
                              TimeProvider timeProvider,
-                             Func<IRecordingOverlay>? createOverlay = null,
-                             Action<Action>? invokeOnUiThread = null)
+                             Func<IRecordingOverlay>? createOverlay = null)
     {
         _trayIcon = trayIcon;
+        _notifier = notifier;
+        _uiDispatcher = uiDispatcher;
         _transcriber = transcriber;
-        _icons = icons;
         _timeProvider = timeProvider;
         _createOverlay = createOverlay ?? (() => new RecordingOverlayWindow());
-        _invokeOnUiThread = invokeOnUiThread ?? (action => Application.Current.Dispatcher.InvokeAsync(action));
     }
 
     private enum Phase
@@ -87,7 +87,7 @@ internal sealed class DictationFeedback : IDictationFeedback, IHostedService
     public Task StartAsync(CancellationToken cancellationToken)
     {
         _transcriber.StatusChanged += OnStatusChanged;
-        _invokeOnUiThread(() =>
+        _ = _uiDispatcher.InvokeAsync(() =>
         {
             // Created now, so the first press shows the overlay without delay.
             _ = Overlay;
@@ -107,7 +107,7 @@ internal sealed class DictationFeedback : IDictationFeedback, IHostedService
     public Task StopAsync(CancellationToken cancellationToken)
     {
         _transcriber.StatusChanged -= OnStatusChanged;
-        _invokeOnUiThread(() =>
+        _ = _uiDispatcher.InvokeAsync(() =>
         {
             // Runs after the Show* calls that the controller queued before it stopped.
             EndMessage();
@@ -119,7 +119,7 @@ internal sealed class DictationFeedback : IDictationFeedback, IHostedService
     /// <inheritdoc />
     public void ShowStarting(InsertionTarget target)
     {
-        _invokeOnUiThread(() =>
+        _ = _uiDispatcher.InvokeAsync(() =>
         {
             EndMessage();
             Overlay.ShowStarting(target.WindowHandle);
@@ -129,7 +129,7 @@ internal sealed class DictationFeedback : IDictationFeedback, IHostedService
     /// <inheritdoc />
     public void ShowRecording()
     {
-        _invokeOnUiThread(() =>
+        _ = _uiDispatcher.InvokeAsync(() =>
         {
             EndMessage();
             SetPhase(Phase.Recording);
@@ -140,7 +140,7 @@ internal sealed class DictationFeedback : IDictationFeedback, IHostedService
     /// <inheritdoc />
     public void ShowTranscribing()
     {
-        _invokeOnUiThread(() =>
+        _ = _uiDispatcher.InvokeAsync(() =>
         {
             EndMessage();
             SetPhase(Phase.Transcribing);
@@ -151,19 +151,19 @@ internal sealed class DictationFeedback : IDictationFeedback, IHostedService
     /// <inheritdoc />
     public void ShowBusy()
     {
-        _invokeOnUiThread(() => ShowMessage(DictationMessages.OverlayBusy));
+        _ = _uiDispatcher.InvokeAsync(() => ShowMessage(DictationMessages.OverlayBusy));
     }
 
     /// <inheritdoc />
     public void ShowNoSpeech()
     {
-        _invokeOnUiThread(() => ShowMessage(DictationMessages.OverlayNoSpeech));
+        _ = _uiDispatcher.InvokeAsync(() => ShowMessage(DictationMessages.OverlayNoSpeech));
     }
 
     /// <inheritdoc />
     public void ShowIdle()
     {
-        _invokeOnUiThread(() =>
+        _ = _uiDispatcher.InvokeAsync(() =>
         {
             SetPhase(Phase.Idle);
 
@@ -178,14 +178,14 @@ internal sealed class DictationFeedback : IDictationFeedback, IHostedService
     /// <inheritdoc />
     public void Notify(string title, string message)
     {
-        _invokeOnUiThread(() => _trayIcon.ShowNotification(title, message));
+        _notifier.Show(title, message);
     }
 
     private void OnStatusChanged(object? sender, TranscriberStatus status)
     {
         // Read on the thread that changed the status, so the value belongs to this change.
         var backend = _transcriber.ActiveBackend;
-        _invokeOnUiThread(() =>
+        _ = _uiDispatcher.InvokeAsync(() =>
         {
             _status = status;
             _backend = backend;
@@ -201,19 +201,19 @@ internal sealed class DictationFeedback : IDictationFeedback, IHostedService
 
     private void Render()
     {
-        var (icon, state) = _phase switch
+        var (trayStatus, state) = _phase switch
         {
-            Phase.Recording => (_icons.Recording, DictationMessages.RecordingState),
-            Phase.Transcribing => (_icons.Transcribing, DictationMessages.TranscribingState),
+            Phase.Recording => (TrayStatus.Recording, DictationMessages.RecordingState),
+            Phase.Transcribing => (TrayStatus.Transcribing, DictationMessages.TranscribingState),
             _ => _status switch
             {
-                TranscriberStatus.Ready => (_icons.Ready, DictationMessages.ReadyState(_backend)),
-                TranscriberStatus.Loading => (_icons.Unavailable, DictationMessages.LoadingState),
-                TranscriberStatus.Failed => (_icons.Unavailable, DictationMessages.FailedState),
-                _ => (_icons.Unavailable, DictationMessages.NoModelState),
+                TranscriberStatus.Ready => (TrayStatus.Ready, DictationMessages.ReadyState(_backend)),
+                TranscriberStatus.Loading => (TrayStatus.Unavailable, DictationMessages.LoadingState),
+                TranscriberStatus.Failed => (TrayStatus.Unavailable, DictationMessages.FailedState),
+                _ => (TrayStatus.Unavailable, DictationMessages.NoModelState),
             },
         };
-        _trayIcon.SetStatus(icon, DictationMessages.ToolTip(state));
+        _trayIcon.SetStatus(trayStatus, DictationMessages.ToolTip(state));
     }
 
     private void ShowMessage(string text)
@@ -221,8 +221,8 @@ internal sealed class DictationFeedback : IDictationFeedback, IHostedService
         EndMessage();
         var messageId = _messageId;
         Overlay.ShowMessage(text);
-        _messageTimer = _timeProvider.CreateTimer(_ => _invokeOnUiThread(() => OnMessageElapsed(messageId)), null,
-            MessageDuration, Timeout.InfiniteTimeSpan);
+        _messageTimer = _timeProvider.CreateTimer(_ => _uiDispatcher.InvokeAsync(() => OnMessageElapsed(messageId)),
+            null, MessageDuration, Timeout.InfiniteTimeSpan);
     }
 
     private void OnMessageElapsed(int messageId)

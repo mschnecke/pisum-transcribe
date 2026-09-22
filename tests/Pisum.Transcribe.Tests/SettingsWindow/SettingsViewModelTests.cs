@@ -428,7 +428,7 @@ public sealed class SettingsViewModelTests
     private SettingsViewModel CreateSut(FakeSettingsStore? settingsStore = null)
     {
         return new SettingsViewModel(settingsStore ?? _settingsStore, _startupRegistration, _modelStore, _transcriber,
-            _hotkey, _lifetime, _ => true, NullLogger<SettingsViewModel>.Instance, action => action());
+            _hotkey, _lifetime, _ => true, NullLogger<SettingsViewModel>.Instance, new InlineUiDispatcher());
     }
 
     private void RecordHotkey(SettingsViewModel sut, params KeyCode[] keys)
