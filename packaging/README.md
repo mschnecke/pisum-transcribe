@@ -64,7 +64,7 @@ The package is dual-purpose (`Scope="perUserOrMachine"`), which Microsoft calls 
 - **The shortcut's key path is `HKCU\Software\Pisum\Transcribe`.** `HKMU` fails ICE57, because validation counts the Start Menu as per-user data.
 - **Only the per-user install is supported and tested.** A per-machine install (`ALLUSERS=1`) isn't.
 
-The spike on 2026-09-22 installed the package by opening it: Windows Installer registered it per user (`AssignmentType` 0), and put the files into `%LOCALAPPDATA%\Programs\Pisum Transcribe\` and the shortcut into `%APPDATA%\Microsoft\Windows\Start Menu\Programs\`.
+The spike on 2026-09-22 installed the package by opening it: Windows Installer registered it per user (`AssignmentType` 0), and put the files into `%LOCALAPPDATA%\Programs\Pisum Transcribe\` and the shortcut into `%APPDATA%\Microsoft\Windows\Start Menu\Programs\`. On a VM with UAC on, opening the `0.1.0-rc.2` MSI as a user without an elevated session showed no UAC prompt, and Task Manager showed the app it started with **Elevated** set to **No**. So the dual-purpose package needs no fallback to `Scope="perUser"`.
 
 **Starting the app.** A tray app shows nothing after a plain install, so an interactive install starts the app when it finishes: a `WixShellExec` custom action after `InstallFinalize` runs `[INSTALLFOLDER]Pisum.Transcribe.exe` as the user who opened the package. Its condition is `UILevel = 5 AND NOT Installed AND NOT REMOVE`. Opening the package gives `UILevel` 5, even though it has no dialogs of its own. `msiexec /qn` and `/passive`, as a package manager runs them, give 2 and 3 and don't start the app. A failed start doesn't fail the install.
 
