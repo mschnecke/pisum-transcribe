@@ -20,7 +20,7 @@
 
   If a UAC prompt appears, switch to D1's fallback: `Scope="perUser"`, `LocalAppDataFolder\Programs\Pisum Transcribe`, validation with `-sice ICE38 -sice ICE64 -sice ICE91` as well. Write the switch into design D1, and repeat this task. If the app doesn't start, or starts elevated or as another user, stop: D9's fallback drops the start and changes the spec, so it needs your decision first.
 
-  Spike on 2026-09-22: UAC is off on the development machine (`EnableLUA` is 0), so every process there, Explorer included, runs with the full administrator token, and the first and third checks can't be proven on it. Everything else passed: a per-user install (`AssignmentType` 0), the files, the app starting after the install as the signed-in user with Explorer's token, the shortcut, and the installed-apps entry at `0.1.0` with its icon. By decision, the UAC checks move to 6.1 and 6.2, on a machine with UAC on. This task is done when they pass there.
+  Spike on 2026-09-22: UAC is off on the development machine (`EnableLUA` is 0), so every process there, Explorer included, runs with the full administrator token, and the first and third checks can't be proven on it. Everything else passed: a per-user install (`AssignmentType` 0), the files, the app starting after the install as the signed-in user with Explorer's token, the shortcut, and the installed-apps entry at `0.1.0` with its icon. By decision, the UAC checks move to 6.2, on a machine with UAC on. This task is done when they pass there.
 - [x] 1.4 Upgrade and uninstall spike (design D2–D4). In the installed app, turn on "Start with Windows". Build two more MSIs from the same payload: one with `-d Version=0.1.1` and one with `-d Version=0.0.9`. Verify:
   - **Upgrade while running:** installing `0.1.1` while the app runs shows a "files in use" prompt; record its text for the README. Closing applications ends the app, and the log shows the end-of-session shutdown. No reboot is asked for. The new version starts when the upgrade finishes, and its log shows the version. Settings → Apps shows one entry, at `0.1.1`. "Start with Windows" is still on and points at the same exe.
   - **Same-version upgrade:** reinstalling a rebuilt `0.1.1` MSI replaces the installed copy.
@@ -75,7 +75,7 @@
 - [ ] 5.2 Update `packaging/README.md`:
   - `build-msi.ps1` and `Pisum.Transcribe.wxs`
   - the validation and why ICE61 is suppressed
-  - the dual-purpose package, including D1's outcome from the spike (the UAC outcome comes from 6.1 or 6.2)
+  - the dual-purpose package, including D1's outcome from the spike (the UAC outcome comes from 6.2)
   - same-version upgrades, why the `afterInstallValidate` schedule must stay, and that going back from a release candidate to an older stable release means uninstalling first
   - the uninstall cleanup
   - the tool manifest and the extension pin
@@ -97,13 +97,17 @@
 
 ## 6. Release (design Migration Plan)
 
-- [ ] 6.1 Before the merge, rehearse the tag path on the branch: `git tag v0.1.0-rc.2` at the branch head, then push it. Verify:
+- [x] 6.1 Before the merge, rehearse the tag path on the branch: `git tag v0.1.0-rc.2` at the branch head, then push it. Verify:
   - the run skips `bump` and publishes **Pisum Transcribe v0.1.0-rc.2**, marked as a pre-release, with `Pisum.Transcribe_0.1.0-rc.2_win-x64.msi` and no zip
-  - the downloaded MSI installs and starts the app. On a machine with UAC on, as a user without an elevated session, the install shows no UAC prompt, and Task Manager shows the started app with "Elevated: No" (the checks left from 1.3). The development machine has UAC off and can't prove this.
+  - the downloaded MSI installs on this machine and starts the app
   - the app logs `0.1.0-rc.2+<sha>`, and Settings → Apps shows `0.1.0`
 
   Then delete the rehearsal with `gh release delete v0.1.0-rc.2 --cleanup-tag --yes`, so 6.3 can use the version. Verify: `gh release list` and `git ls-remote --tags origin` show no `v0.1.0-rc.2`.
+
+  Rehearsed on 2026-09-22 from `4ac1cd3` (run 35697102544): all checks passed, and the app logged `0.1.0-rc.2+4ac1cd3…`. The MSI is kept for 6.2 as `artifacts\Pisum.Transcribe_0.1.0-rc.2_win-x64.msi`, SHA-256 `39C9D5C3B7F88EC652E8AE108114A129326680208372CA9846A91089AC00B14D`.
 - [ ] 6.2 Prove the MSI from 6.1 on a clean machine, meaning Windows Sandbox or a VM without .NET and without the Visual C++ Redistributable (spec: "Start on a clean machine", "Engine and silence trimming load on a clean machine"). Check the precondition first: `Test-Path C:\Windows\System32\vcruntime140.dll` is `False`. Verify: the MSI installs and starts the app without a runtime prompt, and after downloading Canary 180M Flash the tooltip shows **Ready (CPU)** or **Ready (Vulkan)**. The log shows the version and "Voice activity detection is ready".
+
+  Also, on a machine with UAC on (this one, if its UAC is on), open the MSI as a user without an elevated session. Verify: no UAC prompt appears, and Task Manager shows the started app with "Elevated: No". These are the checks left from 1.3; the development machine has UAC off and can't prove them.
 - [ ] 6.3 **After the merge:** start **Release** by hand with the exact version `0.1.0-rc.2` (`gh workflow run release.yml -f version=0.1.0-rc.2`). Verify: `main` gets "Bump the version to 0.1.0-rc.2", `v0.1.0-rc.2` exists, and the pre-release carries the MSI. The final `0.1.0` is a separate step.
 
 ## 7. Wrap-up
