@@ -17,7 +17,8 @@
 ## 3. The tray
 
 - [ ] 3.1 `TrayIconService` loads the ICOs from the resources and maps `TrayStatus` and the taskbar mode to them. Delete `DictationIcons` and `DictationIconsTests`, and remove its registration from `DictationServiceCollectionExtensions` (design D3). Verify:
-  - A new STA test `TrayIconServiceTests.SetStatus_EachStatusAndMode_ShowsMatchingIcon` passes for the four statuses in both modes.
+  - `IconFor` from `extract-ui-seams` maps the status and the taskbar mode to the loaded icons. A new test `TrayIconServiceTests.IconFor_EachStatusAndMode_ReturnsMatchingIcon` passes for the four statuses in both modes, and replaces `IconFor_EachStatus_ReturnsItsIcon`.
+  - The two copy tests from `extract-ui-seams` keep guarding that H.NotifyIcon, which disposes the icon it replaces, never disposes an icon the tray shows again: `SetStatus_StatusShownAgainAfterAnother_DoesNotThrow` stays, and `Remove_AfterSetStatus_LeavesDictationIconsUsable` is rewritten for the loaded icons.
   - `grep -rn "System.Drawing.Drawing2D\|GetHicon" src/Pisum.Transcribe` finds nothing.
 - [ ] 3.2 Read the taskbar mode from `SystemUsesLightTheme` under `HKCU\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize`, with a missing value as dark. Watch the key with `RegNotifyChangeKeyValue` through CsWin32 on a background thread, and apply the current status again through `IUiDispatcher` (design D2). Put the registry reads behind a small interface, so the tests can fake it. Verify that these new tests pass:
   - `TaskbarMode_ValueOne_IsLight`

@@ -4,6 +4,10 @@ See proposal.md, Why. It's one of the five Windows changes before the macOS port
 
 Current state:
 - **Callers:** notifications come from `DictationFeedback`, `TranscriberHostedService`, `SharpHookPushToTalkHotkey`, `UpdateCheckService` and `ShutdownCoordinator`. None of them handles a click.
+- **From `extract-ui-seams` (its D3):**
+  - `INotifier.Show` may be called from any thread. The balloon notifier queues itself on the UI thread.
+  - `AddTray()` registers the balloon notifier as the `INotifier`. The `Notifications/` folder holds only `INotifier` and has no `Add` method.
+  - After an error, `ShutdownCoordinator` keeps the tray icon for `ErrorNotificationDuration` (3 s) after the notification, because removing the icon dismisses the balloon. No spec asks for the wait.
 - **The target framework** is `net10.0-windows`, which has no WinRT projections.
 - **The MSI** creates a Start Menu shortcut. On uninstall it removes the startup entry with two quiet `reg.exe` custom actions, whose condition is `REMOVE="ALL" AND NOT UPGRADINGPRODUCTCODE` (`add-msi-installer` D3).
 - **Avalonia 12.1** has no API for OS notifications. `WindowNotificationManager` shows notifications inside a window only (checked in its API docs).
@@ -52,8 +56,14 @@ Current state:
 The first task, before the spec deltas are written: show a toast from the unpackaged exe with only the registry AUMID, on Windows 10 22H2 and Windows 11.
 - **Pass:** it shows with the name "Pisum Transcribe" and its icon, and the app is listed in the notification settings.
 - **Fail:** D2's fallback, the AUMID on the Start Menu shortcut. The `packaging` delta then names the shortcut instead of the registration.
+- **Also checked:** a toast shown right before the process ends still appears. D4 relies on that.
 
 This was check W4 of the Avalonia spike, but it doesn't depend on Avalonia, so it moved here.
+
+### D4: The registration of services and the error exit
+
+- **`AddNotifications()`:** the `Notifications/` folder gets its `Add` method. It registers `ToastNotifier` as the `INotifier` and the AUMID registration at startup. The `INotifier` registration leaves `AddTray()`, and `TrayBalloonNotifier` goes.
+- **`ErrorNotificationDuration` goes:** the wait kept the tray icon so that the balloon stayed visible. A toast stays in the notification center after the process ends (D3 checks that), so the error exit no longer waits 3 s. `ShutdownCoordinatorTests` lose the wait and keep the order: the notification, then stopping the host.
 
 ## Risks / Trade-offs
 
@@ -65,7 +75,7 @@ This was check W4 of the Avalonia spike, but it doesn't depend on Avalonia, so i
 ## Migration Plan
 
 1. D3, then the spec deltas.
-2. `ToastNotifier` and the registration, switched in the registration of services. `TrayBalloonNotifier` goes.
+2. `ToastNotifier` and the registration, in `AddNotifications()` (D4). `TrayBalloonNotifier` and `ErrorNotificationDuration` go.
 3. The MSI's uninstall removal. CI validates the MSI.
 4. A check by hand: every notification the specs name, installed and with `dotnet run`, and an upgrade and an uninstall.
 

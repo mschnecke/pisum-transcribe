@@ -32,6 +32,7 @@ The spec deltas are written after the first task, which checks that a toast show
   - a new `ToastNotifier : INotifier` and the registration at startup
   - `Pisum.Transcribe.csproj` (the target framework)
   - `TrayBalloonNotifier` goes
+  - `ShutdownCoordinator`: `ErrorNotificationDuration` goes, so the error exit no longer waits 3 s (design D4)
 - **Packaging:** `Pisum.Transcribe.wxs` gets an uninstall-only removal of the registration, with the same kind of quiet custom action as the startup entry. `TrayIcon.png` from `add-monochrome-tray-icons` ships next to the exe for the registration's icon. Without that change, the tool renders it here.
 - **Tests:** the toast content and the registration values, against fakes. Showing a real toast is a `Hardware` test.
 - **Docs:** `README.md` names the minimum Windows version.
