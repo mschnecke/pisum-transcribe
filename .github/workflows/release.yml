@@ -1,6 +1,6 @@
 name: Release
 
-# Two ways in and one path out. Pushing a version tag publishes a release carrying the zip; running
+# Two ways in and one path out. Pushing a version tag publishes a release carrying the MSI; running
 # the workflow by hand bumps the version first, commits it, pushes the tag, and then does exactly
 # the same thing (design D1).
 #
@@ -134,14 +134,14 @@ jobs:
       - name: Test
         run: dotnet test Pisum.Transcribe.slnx -c Release
 
-      - name: Build the zip
-        run: ./packaging/windows/build-zip.ps1 -Version $env:VERSION
+      - name: Build the MSI
+        run: ./packaging/windows/build-msi.ps1 -Version $env:VERSION
         shell: pwsh
 
       - uses: actions/upload-artifact@v4
         with:
-          name: zip
-          path: artifacts/*.zip
+          name: msi
+          path: artifacts/*.msi
           if-no-files-found: error
           retention-days: 7
 
@@ -168,4 +168,4 @@ jobs:
           prerelease: ${{ needs.version.outputs.prerelease }}
           generate_release_notes: true
           fail_on_unmatched_files: true
-          files: artifacts/Pisum.Transcribe_${{ needs.version.outputs.version }}_win-x64.zip
+          files: artifacts/Pisum.Transcribe_${{ needs.version.outputs.version }}_win-x64.msi

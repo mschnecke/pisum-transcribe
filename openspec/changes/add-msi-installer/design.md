@@ -52,7 +52,7 @@ StandardDirectory ProgramFiles64Folder        -> %LOCALAPPDATA%\Programs\  (per 
     <Files Include="$(var.PublishDir)\**" />    468 files, one component each
 StandardDirectory ProgramMenuFolder           -> the user's Start Menu
   Component: Shortcut "Pisum Transcribe" -> [INSTALLFOLDER]Pisum.Transcribe.exe
-             RegistryValue HKMU\Software\Pisum\Transcribe  (key path; HKCU per user)
+             RegistryValue HKCU\Software\Pisum\Transcribe  (key path; HKMU fails ICE57)
 ```
 
 - **Package:** Manufacturer "Michael Schnecke", as in `pisum-whisper`. A new fixed `UpgradeCode` that never changes. A new `ProductCode` for every build, which is the WiX default.
