@@ -5,7 +5,7 @@
   - `Scope="perUserOrMachine"`, with `INSTALLFOLDER` "Pisum Transcribe" under `ProgramFiles64Folder`, harvested with `<Files Include="$(var.PublishDir)\**" />`
   - the Start Menu shortcut, with an `HKMU\Software\Pisum\Transcribe` key path
   - the installed-apps icon and properties
-  - `<MajorUpgrade AllowSameVersionUpgrades="yes" …>` with the downgrade message, and `<MediaTemplate EmbedCab="yes" />`
+  - `<MajorUpgrade AllowSameVersionUpgrades="yes" …>` with the downgrade message and the default schedule, and `<MediaTemplate EmbedCab="yes" />`. A comment next to `<MajorUpgrade>` explains why the schedule must stay `afterInstallValidate`: the app's file versions don't carry the pre-release suffix (design D2).
   - the two `WixQuietExec64` custom actions for the `Run` and `StartupApproved\Run` values, with `REMOVE="ALL" AND NOT UPGRADINGPRODUCTCODE` and `Return="ignore"`
   - the `WixShellExec` custom action that starts the app after `InstallFinalize`, with `WixShellExecTarget` set to `[INSTALLFOLDER]Pisum.Transcribe.exe` and the condition `UILevel = 5 AND NOT Installed AND NOT REMOVE` (design D9)
   - a header comment on why `PublishDir` and `IconFile` are absolute `-d` values (design D1)
@@ -74,7 +74,7 @@
   - `build-msi.ps1` and `Pisum.Transcribe.wxs`
   - the validation and why ICE61 is suppressed
   - the dual-purpose package, including D1's outcome from the spike
-  - same-version upgrades
+  - same-version upgrades, why the `afterInstallValidate` schedule must stay, and that going back from a release candidate to an older stable release means uninstalling first
   - the uninstall cleanup
   - the tool manifest and the extension pin
   - WiX's maintenance-fee terms

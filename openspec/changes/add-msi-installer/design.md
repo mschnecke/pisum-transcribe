@@ -75,6 +75,8 @@ StandardDirectory ProgramMenuFolder           -> the user's Start Menu
   - The price is that `0.1.0-rc.3` would also replace an installed `0.1.0`. That's acceptable: pre-releases are for rehearsing.
   - ICE61 warns about this, and `-sice ICE61` suppresses exactly that one warning.
 - **The default schedule (`afterInstallValidate`)** removes the old product completely before it installs the new one. So which component holds which file doesn't have to match between versions, and `<Files>` may harvest a different payload each time.
+- **The schedule must stay `afterInstallValidate`, because file versions don't carry the suffix.** The SDK gives `Pisum.Transcribe.dll` and `.exe` the file version `0.1.0.0` for `0.1.0-rc.1` and for `0.1.0` alike (checked on the released `v0.1.0-rc.1` payload). `transcribe.dll` and the `ggml*.dll` files have no version resource. Windows Installer doesn't replace a file with another of the same version. With a later schedule such as `afterInstallExecute`, installing `0.1.0` over `0.1.0-rc.2` would keep rc.2's binaries, and the app would still log `0.1.0-rc.2`. A comment next to `<MajorUpgrade>` in the `.wxs` says so.
+- **Going back from a release candidate to an older stable release means uninstalling first.** `0.1.1-rc.1` → `0.1.0` is a downgrade to Windows Installer and is refused. `packaging/README.md` says so.
 - **Data survives an upgrade** because the MSI never owns the data folder or the `Run` value. The install folder stays the same, so the `Run` value keeps pointing at the right exe.
 
 ### D3: Uninstall removes the startup entry with two quiet custom actions
