@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Hosting;
+using Pisum.Transcribe.Notifications;
 using Pisum.Transcribe.Settings;
 using Pisum.Transcribe.SpeechModels;
-using Pisum.Transcribe.Tray;
 
 namespace Pisum.Transcribe.Transcription;
 
@@ -19,8 +19,7 @@ internal sealed class TranscriberHostedService : IHostedService
     private readonly ITranscriber _transcriber;
     private readonly IModelStore _modelStore;
     private readonly ISettingsStore _settingsStore;
-    private readonly ITrayIconService _trayIcon;
-    private readonly Action<Action> _invokeOnUiThread;
+    private readonly INotifier _notifier;
 
     /// <summary>
     /// Initializes a new instance.
@@ -28,21 +27,16 @@ internal sealed class TranscriberHostedService : IHostedService
     /// <param name="transcriber">The transcription engine.</param>
     /// <param name="modelStore">The model store.</param>
     /// <param name="settingsStore">The settings store, already loaded.</param>
-    /// <param name="trayIcon">The tray icon.</param>
-    /// <param name="invokeOnUiThread">
-    /// Queues an action on the UI thread, for tests. <see langword="null"/> uses the WPF dispatcher.
-    /// </param>
+    /// <param name="notifier">Shows the notification after a failure.</param>
     public TranscriberHostedService(ITranscriber transcriber,
                                     IModelStore modelStore,
                                     ISettingsStore settingsStore,
-                                    ITrayIconService trayIcon,
-                                    Action<Action>? invokeOnUiThread = null)
+                                    INotifier notifier)
     {
         _transcriber = transcriber;
         _modelStore = modelStore;
         _settingsStore = settingsStore;
-        _trayIcon = trayIcon;
-        _invokeOnUiThread = invokeOnUiThread ?? (action => Application.Current.Dispatcher.InvokeAsync(action));
+        _notifier = notifier;
     }
 
     /// <inheritdoc />
@@ -103,8 +97,6 @@ internal sealed class TranscriberHostedService : IHostedService
         }
 
         // Read on the thread that changed the status, so the value belongs to this change.
-        var failureMessage = _transcriber.FailureMessage;
-        _invokeOnUiThread(() =>
-            _trayIcon.ShowNotification(FailedTitle, failureMessage ?? TranscribeCppTranscriber.LoadFailedMessage));
+        _notifier.Show(FailedTitle, _transcriber.FailureMessage ?? TranscribeCppTranscriber.LoadFailedMessage);
     }
 }

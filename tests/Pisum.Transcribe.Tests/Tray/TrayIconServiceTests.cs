@@ -1,6 +1,6 @@
-using System.Drawing;
 using System.Runtime.ExceptionServices;
 using System.Windows.Controls;
+using Pisum.Transcribe.Dictation;
 using Pisum.Transcribe.Tray;
 
 namespace Pisum.Transcribe.Tests.Tray;
@@ -9,19 +9,35 @@ namespace Pisum.Transcribe.Tests.Tray;
 public sealed class TrayIconServiceTests
 {
     [Fact]
-    public void SetStatus_IconShownAgainAfterAnother_DoesNotThrow()
+    public void IconFor_EachStatus_ReturnsItsIcon()
+    {
+        // Arrange
+        var icons = new DictationIcons();
+
+        // Act
+        var iconsByStatus = Enum.GetValues<TrayStatus>()
+            .ToDictionary(status => status, status => TrayIconService.IconFor(status, icons));
+
+        // Assert
+        iconsByStatus.Count.ShouldBe(4);
+        iconsByStatus[TrayStatus.Ready].ShouldBeSameAs(icons.Ready);
+        iconsByStatus[TrayStatus.Recording].ShouldBeSameAs(icons.Recording);
+        iconsByStatus[TrayStatus.Transcribing].ShouldBeSameAs(icons.Transcribing);
+        iconsByStatus[TrayStatus.Unavailable].ShouldBeSameAs(icons.Unavailable);
+    }
+
+    [Fact]
+    public void SetStatus_StatusShownAgainAfterAnother_DoesNotThrow()
     {
         RunOnStaThread(() =>
         {
             // Arrange
-            using var ready = (Icon) SystemIcons.Application.Clone();
-            using var recording = (Icon) SystemIcons.Information.Clone();
-            var sut = new TrayIconService();
-            sut.SetStatus(ready, "Pisum Transcribe – Ready (CPU)");
-            sut.SetStatus(recording, "Pisum Transcribe – Recording…");
+            var sut = new TrayIconService(new DictationIcons());
+            sut.SetStatus(TrayStatus.Ready, "Pisum Transcribe – Ready (CPU)");
+            sut.SetStatus(TrayStatus.Recording, "Pisum Transcribe – Recording…");
 
             // Act
-            var exception = Record.Exception(() => sut.SetStatus(ready, "Pisum Transcribe – Ready (CPU)"));
+            var exception = Record.Exception(() => sut.SetStatus(TrayStatus.Ready, "Pisum Transcribe – Ready (CPU)"));
 
             // Assert
             exception.ShouldBeNull();
@@ -30,20 +46,20 @@ public sealed class TrayIconServiceTests
     }
 
     [Fact]
-    public void Remove_AfterSetStatus_LeavesCallerIconUsable()
+    public void Remove_AfterSetStatus_LeavesDictationIconsUsable()
     {
         RunOnStaThread(() =>
         {
             // Arrange
-            using var ready = (Icon) SystemIcons.Application.Clone();
-            var sut = new TrayIconService();
-            sut.SetStatus(ready, "Pisum Transcribe – Ready (CPU)");
+            var icons = new DictationIcons();
+            var sut = new TrayIconService(icons);
+            sut.SetStatus(TrayStatus.Ready, "Pisum Transcribe – Ready (CPU)");
 
             // Act
             sut.Remove();
 
             // Assert
-            Should.NotThrow(() => ready.Handle);
+            Should.NotThrow(() => icons.Ready.Handle);
         });
     }
 
@@ -54,7 +70,7 @@ public sealed class TrayIconServiceTests
         {
             // Arrange
             var header = "A";
-            var sut = new TrayIconService();
+            var sut = new TrayIconService(new DictationIcons());
             sut.AddMenuItem(() => header, () => { });
             var item = (MenuItem) sut.ContextMenu.Items[0];
 

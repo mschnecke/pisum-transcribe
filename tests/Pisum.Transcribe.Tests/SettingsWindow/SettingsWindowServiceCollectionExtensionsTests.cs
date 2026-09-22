@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Pisum.Transcribe.Hosting;
 using Pisum.Transcribe.Recording;
 using Pisum.Transcribe.Settings;
 using Pisum.Transcribe.SettingsWindow;
@@ -19,6 +20,7 @@ public sealed class SettingsWindowServiceCollectionExtensionsTests
         await using var provider = new ServiceCollection()
             .AddLogging()
             .AddSingleton(A.Fake<ITrayIconService>())
+            .AddSingleton(A.Fake<IUiDispatcher>())
             .AddSingleton(A.Fake<IHostApplicationLifetime>())
             .AddSingleton(A.Fake<ISettingsStore>())
             .AddSingleton(A.Fake<IPushToTalkHotkey>())

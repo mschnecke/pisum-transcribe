@@ -1,4 +1,5 @@
 using CommunityToolkit.Mvvm.ComponentModel;
+using Pisum.Transcribe.Hosting;
 using Pisum.Transcribe.Settings;
 using Pisum.Transcribe.SpeechModels;
 using Pisum.Transcribe.Transcription;
@@ -28,7 +29,7 @@ internal sealed partial class ModelSectionViewModel : ObservableObject
     private readonly IModelStore _modelStore;
     private readonly ITranscriber _transcriber;
     private readonly CancellationToken _applicationStopping;
-    private readonly Action<Action> _invokeOnUiThread;
+    private readonly IUiDispatcher _uiDispatcher;
     private string _savedModelId;
     private bool _isEngineLoading;
 
@@ -40,18 +41,18 @@ internal sealed partial class ModelSectionViewModel : ObservableObject
     /// <param name="transcriber">The transcription engine, whose status the section shows.</param>
     /// <param name="applicationStopping">Cancelled when the application stops; closing then asks nothing.</param>
     /// <param name="confirmDelete">Asks the user whether to delete a model.</param>
-    /// <param name="invokeOnUiThread">Queues an action on the UI thread.</param>
+    /// <param name="uiDispatcher">Reaches the UI thread.</param>
     public ModelSectionViewModel(AppSettings settings,
                                  IModelStore modelStore,
                                  ITranscriber transcriber,
                                  CancellationToken applicationStopping,
                                  Func<SpeechModel, bool> confirmDelete,
-                                 Action<Action> invokeOnUiThread)
+                                 IUiDispatcher uiDispatcher)
     {
         _modelStore = modelStore;
         _transcriber = transcriber;
         _applicationStopping = applicationStopping;
-        _invokeOnUiThread = invokeOnUiThread;
+        _uiDispatcher = uiDispatcher;
         _savedModelId = ModelCatalog.Resolve(settings.Model.SelectedModelId).Id;
         SelectedModelId = _savedModelId;
         Backend = settings.Transcription.Backend;
@@ -235,7 +236,7 @@ internal sealed partial class ModelSectionViewModel : ObservableObject
         // Read on the thread that changed the status, so the values belong to this change.
         var backend = _transcriber.ActiveBackend;
         var failureMessage = _transcriber.FailureMessage;
-        _invokeOnUiThread(() => ShowEngineStatus(status, backend, failureMessage));
+        _ = _uiDispatcher.InvokeAsync(() => ShowEngineStatus(status, backend, failureMessage));
     }
 
     private void ShowEngineStatus(TranscriberStatus status, string? backend, string? failureMessage)
@@ -253,6 +254,7 @@ internal sealed partial class ModelSectionViewModel : ObservableObject
 
     private void OnModelInstalled(object? sender, SpeechModel model)
     {
-        _invokeOnUiThread(() => Items.SingleOrDefault(item => item.Model.Id == model.Id)?.RefreshInstalled());
+        _ = _uiDispatcher.InvokeAsync(() =>
+            Items.SingleOrDefault(item => item.Model.Id == model.Id)?.RefreshInstalled());
     }
 }

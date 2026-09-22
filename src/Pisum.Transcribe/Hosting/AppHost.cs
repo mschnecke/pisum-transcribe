@@ -21,6 +21,7 @@ internal static class AppHost
 {
     /// <summary>
     /// Creates the host. Each feature registers its services with one <c>services.Add&lt;Feature&gt;()</c> call here.
+    /// Call it on the UI thread.
     /// </summary>
     /// <param name="paths">The application data folders.</param>
     /// <returns>The host, not yet started.</returns>
@@ -37,6 +38,7 @@ internal static class AppHost
         });
         builder.Services.AddSerilog((_, configuration) => configuration.WriteToAppLog(paths));
         builder.Services.AddSingleton(paths);
+        builder.Services.AddSingleton<IUiDispatcher>(new WpfUiDispatcher(Application.Current.Dispatcher));
 
         builder.Services.AddTray();
         builder.Services.AddSettings();

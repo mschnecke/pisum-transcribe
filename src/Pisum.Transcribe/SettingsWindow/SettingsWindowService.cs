@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Pisum.Transcribe.Hosting;
 using Pisum.Transcribe.Recording;
 using Pisum.Transcribe.Settings;
 using Pisum.Transcribe.SpeechModels;
@@ -20,6 +21,7 @@ internal sealed class SettingsWindowService : IHostedService
     public const string MenuItemHeader = "Settings…";
 
     private readonly ITrayIconService _trayIcon;
+    private readonly IUiDispatcher _uiDispatcher;
     private readonly ISettingsStore _settingsStore;
     private readonly IStartupRegistration _startupRegistration;
     private readonly IModelStore _modelStore;
@@ -35,6 +37,7 @@ internal sealed class SettingsWindowService : IHostedService
     /// Initializes a new instance.
     /// </summary>
     /// <param name="trayIcon">The tray icon.</param>
+    /// <param name="uiDispatcher">Reaches the UI thread.</param>
     /// <param name="settingsStore">The settings store.</param>
     /// <param name="startupRegistration">Starts the application at sign-in.</param>
     /// <param name="modelStore">The model store.</param>
@@ -43,6 +46,7 @@ internal sealed class SettingsWindowService : IHostedService
     /// <param name="lifetime">The application lifetime.</param>
     /// <param name="viewModelLogger">The logger of the settings view model.</param>
     public SettingsWindowService(ITrayIconService trayIcon,
+                                 IUiDispatcher uiDispatcher,
                                  ISettingsStore settingsStore,
                                  IStartupRegistration startupRegistration,
                                  IModelStore modelStore,
@@ -52,6 +56,7 @@ internal sealed class SettingsWindowService : IHostedService
                                  ILogger<SettingsViewModel> viewModelLogger)
     {
         _trayIcon = trayIcon;
+        _uiDispatcher = uiDispatcher;
         _settingsStore = settingsStore;
         _startupRegistration = startupRegistration;
         _modelStore = modelStore;
@@ -64,11 +69,11 @@ internal sealed class SettingsWindowService : IHostedService
     /// <inheritdoc />
     public Task StartAsync(CancellationToken cancellationToken)
     {
-        return Application.Current.Dispatcher.InvokeAsync(() =>
+        return _uiDispatcher.InvokeAsync(() =>
         {
             _trayIcon.AddMenuItem(MenuItemHeader, ShowDialog);
             _trayIcon.DoubleClicked += OnDoubleClicked;
-        }).Task;
+        });
     }
 
     /// <inheritdoc />
@@ -89,7 +94,7 @@ internal sealed class SettingsWindowService : IHostedService
         {
             SettingsDialog? dialog = null;
             var viewModel = new SettingsViewModel(_settingsStore, _startupRegistration, _modelStore, _transcriber,
-                _hotkey, _lifetime, model => dialog!.ConfirmDelete(model), _viewModelLogger);
+                _hotkey, _lifetime, model => dialog!.ConfirmDelete(model), _viewModelLogger, _uiDispatcher);
             dialog = new SettingsDialog(viewModel);
             dialog.Closed += (_, _) => _dialog = null;
             _dialog = dialog;

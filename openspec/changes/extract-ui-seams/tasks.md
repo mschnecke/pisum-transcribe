@@ -1,6 +1,6 @@
 ## 1. UI dispatcher
 
-- [ ] 1.1 Add `Hosting/IUiDispatcher` with one member, `Task InvokeAsync(Action action)` (design D1). Its XML doc states the contract:
+- [x] 1.1 Add `Hosting/IUiDispatcher` with one member, `Task InvokeAsync(Action action)` (design D1). Its XML doc states the contract:
   - The action is queued on the UI thread, also when the caller is on it.
   - An exception thrown by the action faults the returned task and never reaches the dispatcher's unhandled-exception handler.
 
@@ -11,13 +11,13 @@
 
 ## 2. Notifications
 
-- [ ] 2.1 Add `INotifier` with `Show(string title, string message)` in a new `Notifications/` feature folder (namespace `Pisum.Transcribe.Notifications`). Its XML doc says that `Show` may be called from any thread and returns without waiting (design D3). Then:
+- [x] 2.1 Add `INotifier` with `Show(string title, string message)` in a new `Notifications/` feature folder (namespace `Pisum.Transcribe.Notifications`). Its XML doc says that `Show` may be called from any thread and returns without waiting (design D3). Then:
   - Add `Tray/TrayBalloonNotifier`, which takes `IUiDispatcher` and `TrayIconService` and queues the balloon with `InvokeAsync`.
   - `ShowNotification` leaves `ITrayIconService` and stays on `TrayIconService` as an internal method.
   - `AddTray()` registers `TrayIconService` once, forwards `ITrayIconService` to it as `AddSettingsWindow()` does for `StartupRegistration`, and registers `TrayBalloonNotifier` as the `INotifier`.
 
   Verify: a new STA test `TrayBalloonNotifierTests.Show_FromAnyThread_QueuesOnUiDispatcher` passes, with a fake `IUiDispatcher` that doesn't run the action.
-- [ ] 2.2 Switch the five callers to `INotifier` (design D3):
+- [x] 2.2 Switch the five callers to `INotifier` (design D3):
   - `DictationFeedback.Notify` and `UpdateCheckService` call it directly, without the UI thread.
   - `SharpHookPushToTalkHotkey` and `TranscriberHostedService` call it directly and lose their `invokeOnUiThread` parameter, which they used only for the notification.
   - `ShutdownCoordinator` gets it from `App.OnStartup`. It keeps `ErrorNotificationDuration`, whose XML doc now says that removing the icon dismisses a balloon.
@@ -29,7 +29,7 @@
 
 ## 3. Dispatcher switch
 
-- [ ] 3.1 Add `InlineUiDispatcher` at the test project root. It runs the action at once and lets an exception propagate, and its XML doc says why it differs from the contract (design D1). Then switch the other services to an injected `IUiDispatcher`, and remove their `invokeOnUiThread` parameters:
+- [x] 3.1 Add `InlineUiDispatcher` at the test project root. It runs the action at once and lets an exception propagate, and its XML doc says why it differs from the contract (design D1). Then switch the other services to an injected `IUiDispatcher`, and remove their `invokeOnUiThread` parameters:
   - `DictationFeedback` and `UpdateCheckService` replace the delegate.
   - `SettingsWindowService` and `ModelSetupHostedService` replace `Application.Current.Dispatcher`.
   - `SettingsWindowService` passes its dispatcher to `SettingsViewModel`, which passes it to `DictationSectionViewModel` and `ModelSectionViewModel` instead of the delegate.
@@ -42,7 +42,7 @@
 
 ## 4. Tray status
 
-- [ ] 4.1 Add `Tray/TrayStatus` (`Ready`, `Recording`, `Transcribing`, `Unavailable`) (design D2):
+- [x] 4.1 Add `Tray/TrayStatus` (`Ready`, `Recording`, `Transcribing`, `Unavailable`) (design D2):
   - `ITrayIconService.SetStatus` becomes `SetStatus(TrayStatus status, string toolTip)`, and `ITrayIconService` no longer uses `System.Drawing`.
   - `TrayIconService` takes `DictationIcons` and maps each status with `internal static Icon IconFor(TrayStatus status, DictationIcons icons)`. It still hands H.NotifyIcon a copy.
   - `DictationFeedback` passes the status and no longer references `DictationIcons`, which stays in `Dictation/` with its registration.
@@ -55,7 +55,7 @@
 
 ## 5. Windows folders
 
-- [ ] 5.1 With `git mv`, move the Windows-only code that stays Windows-only into `Windows/` subfolders, keeping each file's namespace and content (design D4):
+- [x] 5.1 With `git mv`, move the Windows-only code that stays Windows-only into `Windows/` subfolders, keeping each file's namespace and content (design D4):
   - `Recording/Windows/`: `WasapiCaptureSession` and `WasapiCaptureSessionFactory`
   - `TextInsertion/Windows/`: `ForegroundWindowTracker` and `ProcessElevation`
   - `SettingsWindow/Windows/`: `StartupRegistration`, `IUserRegistry` and `UserRegistry`
@@ -66,7 +66,7 @@
 
 ## 6. Documentation
 
-- [ ] 6.1 Update `CLAUDE.md`:
+- [x] 6.1 Update `CLAUDE.md`:
   - *UI thread:* services marshal through `IUiDispatcher.InvokeAsync`, which queues the action and keeps an exception in the returned task.
   - *Notifications:* they go through `INotifier`, which may be called from any thread.
   - *Feature folders:* the platform subfolder rule (`Windows/`, later `MacOS/`, with the feature's namespace), and the `.DotSettings` entry that each new platform folder needs.

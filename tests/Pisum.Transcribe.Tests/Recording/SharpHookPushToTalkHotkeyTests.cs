@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Time.Testing;
+using Pisum.Transcribe.Notifications;
 using Pisum.Transcribe.Recording;
 using Pisum.Transcribe.Settings;
-using Pisum.Transcribe.Tray;
 using SharpHook.Data;
 using SharpHook.Testing;
 using LogLevel = Microsoft.Extensions.Logging.LogLevel;
@@ -15,7 +15,7 @@ public sealed class SharpHookPushToTalkHotkeyTests : IDisposable
 
     private readonly TestGlobalHook _hook = new();
     private readonly ISettingsStore _settingsStore = A.Fake<ISettingsStore>();
-    private readonly ITrayIconService _trayIcon = A.Fake<ITrayIconService>();
+    private readonly INotifier _notifier = A.Fake<INotifier>();
     private readonly FakeTimeProvider _timeProvider = new();
     private readonly CapturingLogger<SharpHookPushToTalkHotkey> _logger = new();
     private readonly HashSet<int> _physicallyDownRawCodes = [];
@@ -30,8 +30,7 @@ public sealed class SharpHookPushToTalkHotkeyTests : IDisposable
         // Distinctive raw codes, so the privacy test can search the log for them.
         _hook.KeyCodeToRawCode = key => key == KeyCode.VcRightControl ? RightControlRawCode : RawCodeOf(key);
 
-        _sut = new SharpHookPushToTalkHotkey(_hook, _settingsStore, _trayIcon, _timeProvider, _logger, IsKeyDown,
-            action => action());
+        _sut = new SharpHookPushToTalkHotkey(_hook, _settingsStore, _notifier, _timeProvider, _logger, IsKeyDown);
         _sut.Pressed += (_, _) => _signals.Add("Pressed");
         _sut.Released += (_, _) => _signals.Add("Released");
         _sut.Cancelled += (_, _) => _signals.Add("Cancelled");
@@ -151,7 +150,7 @@ public sealed class SharpHookPushToTalkHotkeyTests : IDisposable
 
         // Assert
         _logger.Entries.ShouldContain(entry => entry.Level == LogLevel.Error);
-        A.CallTo(() => _trayIcon.ShowNotification(SharpHookPushToTalkHotkey.UnavailableTitle,
+        A.CallTo(() => _notifier.Show(SharpHookPushToTalkHotkey.UnavailableTitle,
                 SharpHookPushToTalkHotkey.UnavailableMessage))
             .MustHaveHappenedOnceExactly();
     }
@@ -168,7 +167,7 @@ public sealed class SharpHookPushToTalkHotkeyTests : IDisposable
         // Assert
         _hook.IsDisposed.ShouldBeTrue();
         _logger.Entries.ShouldNotContain(entry => entry.Level >= LogLevel.Warning);
-        A.CallTo(() => _trayIcon.ShowNotification(A<string>._, A<string>._)).MustNotHaveHappened();
+        A.CallTo(() => _notifier.Show(A<string>._, A<string>._)).MustNotHaveHappened();
     }
 
     [Fact]

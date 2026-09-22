@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Pisum.Transcribe.Hosting;
 using Pisum.Transcribe.Recording;
 using Pisum.Transcribe.Settings;
 using Pisum.Transcribe.SpeechModels;
@@ -35,7 +36,7 @@ internal sealed partial class SettingsViewModel : ObservableObject
     private readonly ISettingsStore _settingsStore;
     private readonly IStartupRegistration _startupRegistration;
     private readonly ILogger<SettingsViewModel> _logger;
-    private readonly Action<Action> _invokeOnUiThread;
+    private readonly IUiDispatcher _uiDispatcher;
 
     // The saved state the draft is based on.
     private AppSettings _baseline;
@@ -53,9 +54,7 @@ internal sealed partial class SettingsViewModel : ObservableObject
     /// <param name="lifetime">The application lifetime.</param>
     /// <param name="confirmDelete">Asks the user whether to delete a model.</param>
     /// <param name="logger">The logger.</param>
-    /// <param name="invokeOnUiThread">
-    /// Queues an action on the UI thread, for tests. <see langword="null"/> uses the WPF dispatcher.
-    /// </param>
+    /// <param name="uiDispatcher">Reaches the UI thread, for settings saved elsewhere and for the sections.</param>
     public SettingsViewModel(ISettingsStore settingsStore,
                              IStartupRegistration startupRegistration,
                              IModelStore modelStore,
@@ -64,18 +63,18 @@ internal sealed partial class SettingsViewModel : ObservableObject
                              IHostApplicationLifetime lifetime,
                              Func<SpeechModel, bool> confirmDelete,
                              ILogger<SettingsViewModel> logger,
-                             Action<Action>? invokeOnUiThread = null)
+                             IUiDispatcher uiDispatcher)
     {
         _settingsStore = settingsStore;
         _startupRegistration = startupRegistration;
         _logger = logger;
-        _invokeOnUiThread = invokeOnUiThread ?? (action => Application.Current.Dispatcher.InvokeAsync(action));
+        _uiDispatcher = uiDispatcher;
         _baseline = settingsStore.Current;
         _startsWithWindows = startupRegistration.IsEnabled();
 
         Model = new ModelSectionViewModel(_baseline, modelStore, transcriber, lifetime.ApplicationStopping,
-            confirmDelete, _invokeOnUiThread);
-        Dictation = new DictationSectionViewModel(_baseline, Model.SelectedModel, hotkey, _invokeOnUiThread);
+            confirmDelete, uiDispatcher);
+        Dictation = new DictationSectionViewModel(_baseline, Model.SelectedModel, hotkey, uiDispatcher);
         TextInsertion = new TextInsertionSectionViewModel(_baseline.TextInsertion);
         General = new GeneralSectionViewModel(_startsWithWindows, _baseline.Updates);
 
@@ -208,7 +207,7 @@ internal sealed partial class SettingsViewModel : ObservableObject
 
     private void OnSettingsChanged(object? sender, SettingsChangedEventArgs e)
     {
-        _invokeOnUiThread(() => ApplyBaseline(e.Current));
+        _ = _uiDispatcher.InvokeAsync(() => ApplyBaseline(e.Current));
     }
 
     private void ApplyBaseline(AppSettings current)

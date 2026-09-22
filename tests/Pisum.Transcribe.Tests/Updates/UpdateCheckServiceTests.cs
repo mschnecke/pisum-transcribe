@@ -8,6 +8,7 @@ using Microsoft.Extensions.Http;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
+using Pisum.Transcribe.Notifications;
 using Pisum.Transcribe.Settings;
 using Pisum.Transcribe.Tests.SettingsWindow;
 using Pisum.Transcribe.Tray;
@@ -28,6 +29,7 @@ public sealed class UpdateCheckServiceTests : IAsyncDisposable
     private readonly ServiceProvider _services;
     private readonly CountingTimeProvider _time = new();
     private readonly ITrayIconService _trayIcon = A.Fake<ITrayIconService>();
+    private readonly INotifier _notifier = A.Fake<INotifier>();
     private readonly CapturingLogger<UpdateCheckService> _logger = new();
     private readonly ConcurrentQueue<(string Title, string Message)> _notifications = new();
     private readonly List<string> _openedUrls = [];
@@ -53,15 +55,15 @@ public sealed class UpdateCheckServiceTests : IAsyncDisposable
                 _itemClick = onClick;
                 _itemIsVisible = isVisible;
             });
-        A.CallTo(() => _trayIcon.ShowNotification(A<string>._, A<string>._))
+        A.CallTo(() => _notifier.Show(A<string>._, A<string>._))
             .Invokes((string title, string message) => _notifications.Enqueue((title, message)));
     }
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
     private UpdateCheckService Sut => _sut ??= new UpdateCheckService(
-        _services.GetRequiredService<IHttpClientFactory>(), _settingsStore, _trayIcon, _time, _logger, FirstDelay,
-        RunningVersion, _openedUrls.Add, action => action());
+        _services.GetRequiredService<IHttpClientFactory>(), _settingsStore, _trayIcon, _notifier,
+        new InlineUiDispatcher(), _time, _logger, FirstDelay, RunningVersion, _openedUrls.Add);
 
     private bool ItemShown => _itemIsVisible.ShouldNotBeNull()();
 
@@ -429,8 +431,8 @@ public sealed class UpdateCheckServiceTests : IAsyncDisposable
     {
         // Arrange
         var sut = new UpdateCheckService(_services.GetRequiredService<IHttpClientFactory>(), _settingsStore, _trayIcon,
-            _time, _logger, FirstDelay, RunningVersion,
-            _ => throw new System.ComponentModel.Win32Exception(1155), action => action());
+            _notifier, new InlineUiDispatcher(), _time, _logger, FirstDelay, RunningVersion,
+            _ => throw new System.ComponentModel.Win32Exception(1155));
         _handler.Respond = _ => Release("v1.2.0");
         await sut.StartAsync(Ct);
         await sut.CheckOnceAsync(Ct);

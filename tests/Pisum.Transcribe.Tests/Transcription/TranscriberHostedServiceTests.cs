@@ -1,7 +1,7 @@
+using Pisum.Transcribe.Notifications;
 using Pisum.Transcribe.Settings;
 using Pisum.Transcribe.SpeechModels;
 using Pisum.Transcribe.Transcription;
-using Pisum.Transcribe.Tray;
 
 namespace Pisum.Transcribe.Tests.Transcription;
 
@@ -14,7 +14,7 @@ public sealed class TranscriberHostedServiceTests
     private readonly ITranscriber _transcriber = A.Fake<ITranscriber>();
     private readonly IModelStore _modelStore = A.Fake<IModelStore>();
     private readonly ISettingsStore _settingsStore = A.Fake<ISettingsStore>();
-    private readonly ITrayIconService _trayIcon = A.Fake<ITrayIconService>();
+    private readonly INotifier _notifier = A.Fake<INotifier>();
     private readonly TranscriberHostedService _sut;
 
     public TranscriberHostedServiceTests()
@@ -24,7 +24,7 @@ public sealed class TranscriberHostedServiceTests
             Model = new ModelSettings(SelectedModel.Id),
             Transcription = new TranscriptionSettings(BackendPreference.Cpu),
         });
-        _sut = new TranscriberHostedService(_transcriber, _modelStore, _settingsStore, _trayIcon, action => action());
+        _sut = new TranscriberHostedService(_transcriber, _modelStore, _settingsStore, _notifier);
     }
 
     [Fact]
@@ -103,7 +103,7 @@ public sealed class TranscriberHostedServiceTests
     [Theory]
     [InlineData(nameof(TranscriberStatus.Loading))]
     [InlineData(nameof(TranscriberStatus.Ready))]
-    public async Task StatusChanged_LoadingOrReady_LeavesTrayToDictationFeedback(string status)
+    public async Task StatusChanged_LoadingOrReady_DoesNotNotify(string status)
     {
         // Arrange
         A.CallTo(() => _transcriber.ActiveBackend).Returns("CPU");
@@ -113,11 +113,11 @@ public sealed class TranscriberHostedServiceTests
         _transcriber.StatusChanged += Raise.With(_transcriber, Enum.Parse<TranscriberStatus>(status));
 
         // Assert
-        A.CallTo(_trayIcon).MustNotHaveHappened();
+        A.CallTo(_notifier).MustNotHaveHappened();
     }
 
     [Fact]
-    public async Task StatusChanged_Failed_NotifiesWithFailureMessageWithoutChangingToolTip()
+    public async Task StatusChanged_Failed_NotifiesWithFailureMessage()
     {
         // Arrange
         A.CallTo(() => _transcriber.FailureMessage).Returns(TranscribeCppTranscriber.DamagedModelMessage);
@@ -127,8 +127,7 @@ public sealed class TranscriberHostedServiceTests
         _transcriber.StatusChanged += Raise.With(_transcriber, TranscriberStatus.Failed);
 
         // Assert
-        A.CallTo(() => _trayIcon.ShowNotification("Model failed to load", TranscribeCppTranscriber.DamagedModelMessage))
+        A.CallTo(() => _notifier.Show("Model failed to load", TranscribeCppTranscriber.DamagedModelMessage))
             .MustHaveHappenedOnceExactly();
-        A.CallTo(() => _trayIcon.SetStatus(A<System.Drawing.Icon>._, A<string>._)).MustNotHaveHappened();
     }
 }

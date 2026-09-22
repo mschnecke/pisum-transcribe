@@ -6,6 +6,8 @@ using System.Text.Json;
 using System.Threading.Channels;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Pisum.Transcribe.Hosting;
+using Pisum.Transcribe.Notifications;
 using Pisum.Transcribe.Settings;
 using Pisum.Transcribe.Tray;
 
@@ -48,13 +50,14 @@ internal sealed class UpdateCheckService : BackgroundService
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly ISettingsStore _settingsStore;
     private readonly ITrayIconService _trayIcon;
+    private readonly INotifier _notifier;
+    private readonly IUiDispatcher _uiDispatcher;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<UpdateCheckService> _logger;
     private readonly TimeSpan _firstDelay;
     private readonly string? _runningVersionText;
     private readonly ReleaseVersion? _runningVersion;
     private readonly Action<string> _openUrl;
-    private readonly Action<Action> _invokeOnUiThread;
 
     // Written when the option turns on, so the waiting loop checks at once. Holds at most one wake-up, and writing it
     // never blocks the thread that saved the settings.
@@ -73,7 +76,9 @@ internal sealed class UpdateCheckService : BackgroundService
     /// </summary>
     /// <param name="httpClientFactory">Creates the <see cref="HttpClientName"/> client.</param>
     /// <param name="settingsStore">The settings store, read before each check.</param>
-    /// <param name="trayIcon">The tray icon, which shows the notice.</param>
+    /// <param name="trayIcon">The tray icon, whose menu shows the notice.</param>
+    /// <param name="notifier">Announces a new version.</param>
+    /// <param name="uiDispatcher">Reaches the UI thread, which the tray icon needs.</param>
     /// <param name="timeProvider">The time provider for the delays between checks.</param>
     /// <param name="logger">The logger.</param>
     /// <param name="firstDelay">
@@ -86,22 +91,22 @@ internal sealed class UpdateCheckService : BackgroundService
     /// <param name="openUrl">
     /// Opens a web page, for tests. <see langword="null"/> opens it in the default browser.
     /// </param>
-    /// <param name="invokeOnUiThread">
-    /// Queues an action on the UI thread, for tests. <see langword="null"/> uses the WPF dispatcher.
-    /// </param>
     public UpdateCheckService(IHttpClientFactory httpClientFactory,
                               ISettingsStore settingsStore,
                               ITrayIconService trayIcon,
+                              INotifier notifier,
+                              IUiDispatcher uiDispatcher,
                               TimeProvider timeProvider,
                               ILogger<UpdateCheckService> logger,
                               TimeSpan? firstDelay = null,
                               string? runningVersion = null,
-                              Action<string>? openUrl = null,
-                              Action<Action>? invokeOnUiThread = null)
+                              Action<string>? openUrl = null)
     {
         _httpClientFactory = httpClientFactory;
         _settingsStore = settingsStore;
         _trayIcon = trayIcon;
+        _notifier = notifier;
+        _uiDispatcher = uiDispatcher;
         _timeProvider = timeProvider;
         _logger = logger;
 
@@ -115,15 +120,14 @@ internal sealed class UpdateCheckService : BackgroundService
             ?.Split('+', 2)[0];
         _runningVersion = ReleaseVersion.ParseOwn(_runningVersionText);
         _openUrl = openUrl ?? (url => Process.Start(new ProcessStartInfo(url) {UseShellExecute = true})?.Dispose());
-        _invokeOnUiThread = invokeOnUiThread ?? (action => Application.Current.Dispatcher.InvokeAsync(action));
     }
 
     /// <inheritdoc />
     public override Task StartAsync(CancellationToken cancellationToken)
     {
         _settingsStore.Changed += OnSettingsChanged;
-        _invokeOnUiThread(() => _trayIcon.AddMenuItem(() => $"Pisum Transcribe {_available} is available…",
-            OpenReleasePage, () => _available is not null));
+        _ = _uiDispatcher.InvokeAsync(() => _trayIcon.AddMenuItem(
+            () => $"Pisum Transcribe {_available} is available…", OpenReleasePage, () => _available is not null));
         return base.StartAsync(cancellationToken);
     }
 
@@ -276,8 +280,8 @@ internal sealed class UpdateCheckService : BackgroundService
             }
         }
 
-        _invokeOnUiThread(() => _trayIcon.ShowNotification($"Pisum Transcribe {latest} is available",
-            "Choose it in the tray menu to open the release page."));
+        _notifier.Show($"Pisum Transcribe {latest} is available",
+            "Choose it in the tray menu to open the release page.");
     }
 
     private void OnSettingsChanged(object? sender, SettingsChangedEventArgs e)

@@ -187,7 +187,7 @@ public sealed class SettingsDialogTests
         A.CallTo(() => transcriber.ActiveBackend).Returns("Vulkan");
         return new SettingsViewModel(new FakeSettingsStore(settings), A.Fake<IStartupRegistration>(), modelStore,
             transcriber, A.Fake<IPushToTalkHotkey>(), A.Fake<IHostApplicationLifetime>(), _ => false,
-            NullLogger<SettingsViewModel>.Instance, action => action());
+            NullLogger<SettingsViewModel>.Instance, new InlineUiDispatcher());
     }
 
     private static IEnumerable<T> FindLogical<T>(DependencyObject parent)

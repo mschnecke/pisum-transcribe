@@ -1,6 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging.Abstractions;
+using Pisum.Transcribe.Hosting;
 using Pisum.Transcribe.Recording;
 using Pisum.Transcribe.Settings;
 using Pisum.Transcribe.SpeechModels;
@@ -19,7 +20,7 @@ namespace Pisum.Transcribe.SettingsWindow;
 internal sealed partial class DictationSectionViewModel : ObservableObject
 {
     private readonly IPushToTalkHotkey _hotkey;
-    private readonly Action<Action> _invokeOnUiThread;
+    private readonly IUiDispatcher _uiDispatcher;
     private SpeechModel _model;
     private HotkeyRecorder? _recorder;
 
@@ -32,14 +33,14 @@ internal sealed partial class DictationSectionViewModel : ObservableObject
     /// <param name="settings">The saved settings.</param>
     /// <param name="model">The model selected in the window, whose languages the pickers offer.</param>
     /// <param name="hotkey">The push-to-talk hotkey, suspended while a new hotkey is recorded.</param>
-    /// <param name="invokeOnUiThread">Queues an action on the UI thread.</param>
+    /// <param name="uiDispatcher">Reaches the UI thread.</param>
     public DictationSectionViewModel(AppSettings settings,
                                      SpeechModel model,
                                      IPushToTalkHotkey hotkey,
-                                     Action<Action> invokeOnUiThread)
+                                     IUiDispatcher uiDispatcher)
     {
         _hotkey = hotkey;
-        _invokeOnUiThread = invokeOnUiThread;
+        _uiDispatcher = uiDispatcher;
         _model = model;
 
         _isUpdating = true;
@@ -275,7 +276,7 @@ internal sealed partial class DictationSectionViewModel : ObservableObject
 
     private void OnRawKey(object? sender, RawKeyEventArgs e)
     {
-        _invokeOnUiThread(() => RecordKey(e.Key, e.IsPressed));
+        _ = _uiDispatcher.InvokeAsync(() => RecordKey(e.Key, e.IsPressed));
     }
 
     private void RecordKey(SharpHook.Data.KeyCode key, bool isPressed)

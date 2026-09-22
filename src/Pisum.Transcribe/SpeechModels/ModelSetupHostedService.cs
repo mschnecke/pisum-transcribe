@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Hosting;
+using Pisum.Transcribe.Hosting;
 using Pisum.Transcribe.Settings;
 using Pisum.Transcribe.Tray;
 
@@ -13,6 +14,7 @@ internal sealed class ModelSetupHostedService : IHostedService
     private readonly IModelStore _modelStore;
     private readonly ISettingsStore _settingsStore;
     private readonly ITrayIconService _trayIcon;
+    private readonly IUiDispatcher _uiDispatcher;
     private readonly IHostApplicationLifetime _lifetime;
 
     // Only touched on the UI thread.
@@ -24,22 +26,25 @@ internal sealed class ModelSetupHostedService : IHostedService
     /// <param name="modelStore">The model store.</param>
     /// <param name="settingsStore">The settings store, already loaded.</param>
     /// <param name="trayIcon">The tray icon.</param>
+    /// <param name="uiDispatcher">Reaches the UI thread.</param>
     /// <param name="lifetime">The application lifetime.</param>
     public ModelSetupHostedService(IModelStore modelStore,
                                    ISettingsStore settingsStore,
                                    ITrayIconService trayIcon,
+                                   IUiDispatcher uiDispatcher,
                                    IHostApplicationLifetime lifetime)
     {
         _modelStore = modelStore;
         _settingsStore = settingsStore;
         _trayIcon = trayIcon;
+        _uiDispatcher = uiDispatcher;
         _lifetime = lifetime;
     }
 
     /// <inheritdoc />
     public Task StartAsync(CancellationToken cancellationToken)
     {
-        return Application.Current.Dispatcher.InvokeAsync(() =>
+        return _uiDispatcher.InvokeAsync(() =>
         {
             // Checked each time the menu opens, so the item also returns when a model file is deleted while the app runs.
             _trayIcon.AddMenuItem("Download model…", ShowWindow, () => !IsSelectedModelInstalled());
@@ -48,7 +53,7 @@ internal sealed class ModelSetupHostedService : IHostedService
             {
                 ShowWindow();
             }
-        }).Task;
+        });
     }
 
     /// <inheritdoc />

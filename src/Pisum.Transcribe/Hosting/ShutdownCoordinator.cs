@@ -1,6 +1,7 @@
 using System.Windows.Threading;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Pisum.Transcribe.Notifications;
 using Pisum.Transcribe.Tray;
 
 namespace Pisum.Transcribe.Hosting;
@@ -24,12 +25,14 @@ internal sealed class ShutdownCoordinator
     public static readonly TimeSpan ExitTimeout = TimeSpan.FromSeconds(4.5);
 
     /// <summary>
-    /// The minimum time the tray icon stays after the error notification. Removing the icon dismisses its notification.
+    /// The minimum time the tray icon stays after the error notification. The notification is a balloon tip of the tray
+    /// icon (<see cref="TrayBalloonNotifier"/>), and removing the icon dismisses a balloon.
     /// </summary>
     public static readonly TimeSpan ErrorNotificationDuration = TimeSpan.FromSeconds(3);
 
     private readonly IHost _host;
     private readonly ITrayIconService _trayIcon;
+    private readonly INotifier _notifier;
     private readonly TimeProvider _timeProvider;
     private readonly Action<int> _shutdownApplication;
     private readonly Action<int> _exitProcess;
@@ -52,6 +55,7 @@ internal sealed class ShutdownCoordinator
     /// <param name="host">The host to stop and dispose.</param>
     /// <param name="lifetime">The lifetime of <paramref name="host"/>.</param>
     /// <param name="trayIcon">The tray icon.</param>
+    /// <param name="notifier">Shows the notification after an error.</param>
     /// <param name="timeProvider">The time provider for the watchdog.</param>
     /// <param name="shutdownApplication">Shuts down the WPF application with an exit code.</param>
     /// <param name="exitProcess">Ends the process at once with an exit code.</param>
@@ -59,6 +63,7 @@ internal sealed class ShutdownCoordinator
     public ShutdownCoordinator(IHost host,
                                IHostApplicationLifetime lifetime,
                                ITrayIconService trayIcon,
+                               INotifier notifier,
                                TimeProvider timeProvider,
                                Action<int> shutdownApplication,
                                Action<int> exitProcess,
@@ -66,6 +71,7 @@ internal sealed class ShutdownCoordinator
     {
         _host = host;
         _trayIcon = trayIcon;
+        _notifier = notifier;
         _timeProvider = timeProvider;
         _shutdownApplication = shutdownApplication;
         _exitProcess = exitProcess;
@@ -123,7 +129,7 @@ internal sealed class ShutdownCoordinator
             }
             else
             {
-                _trayIcon.ShowNotification(
+                _notifier.Show(
                     "Pisum Transcribe stopped",
                     "Pisum Transcribe stopped because of an error. Details are in the log.");
                 notificationShown = _timeProvider.GetTimestamp();
