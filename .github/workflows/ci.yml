@@ -16,6 +16,10 @@ jobs:
     name: windows-latest
     runs-on: windows-latest
 
+    env:
+      # Never released; it exists so the packaging script gets the one argument it takes.
+      VERSION: 0.1.0-ci.${{ github.run_number }}
+
     steps:
       - uses: actions/checkout@v4
 
@@ -34,3 +38,16 @@ jobs:
       # this runner skips itself with its reason in the output.
       - name: Test
         run: dotnet test Pisum.Transcribe.slnx
+
+      # Every change builds the zip, so the packaging doesn't rot between releases (design D3).
+      - name: Build the zip
+        run: ./packaging/windows/build-zip.ps1 -Version $env:VERSION
+        shell: pwsh
+
+      - name: Upload the zip
+        uses: actions/upload-artifact@v4
+        with:
+          name: zip
+          path: artifacts/*.zip
+          if-no-files-found: error
+          retention-days: 7

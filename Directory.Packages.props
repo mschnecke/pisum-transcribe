@@ -8,7 +8,8 @@
         <PackageVersion Include="H.NotifyIcon.Wpf" Version="2.4.1" />
         <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.12" />
         <PackageVersion Include="Microsoft.Extensions.Http" Version="10.0.12" />
-        <!-- Exact pin: a unit test asserts the loaded runtime version, which must not be the Windows ML copy in System32. -->
+        <!-- Exact pin: a unit test asserts the loaded runtime version, which must not be the Windows ML copy in System32.
+             When the pin changes, refresh packaging/third-party/onnxruntime-ThirdPartyNotices.txt from the new package's ThirdPartyNotices.txt. -->
         <PackageVersion Include="Microsoft.ML.OnnxRuntime" Version="[1.30.0]" />
         <PackageVersion Include="Microsoft.Windows.CsWin32" Version="0.3.333" />
         <!-- Exact pin: NuGet lists an unrelated 22.0.0 that a floating range would pick up. -->
