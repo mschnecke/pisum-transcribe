@@ -55,7 +55,7 @@
 
 ## 4. Workflows (design D6)
 
-- [ ] 4.1 In `ci.yml`, replace "Build the zip" with "Build the MSI" (`./packaging/windows/build-msi.ps1 -Version $env:VERSION`), and upload `artifacts/*.msi` as `msi` with `if-no-files-found: error` and `retention-days: 7`. Verify: on the pull request, the run is green and has the `msi` artifact. Its log shows the VC++ runtime copied from a Visual Studio `Microsoft.VC14*.CRT` folder, the guard passing and `wix msi validate` passing.
+- [x] 4.1 In `ci.yml`, replace "Build the zip" with "Build the MSI" (`./packaging/windows/build-msi.ps1 -Version $env:VERSION`), and upload `artifacts/*.msi` as `msi` with `if-no-files-found: error` and `retention-days: 7`. Verify: on the pull request, the run is green and has the `msi` artifact. Its log shows the VC++ runtime copied from a Visual Studio `Microsoft.VC14*.CRT` folder, the guard passing and `wix msi validate` passing.
 - [x] 4.2 In `release.yml`:
   - `build` runs `build-msi.ps1` and uploads `artifacts/*.msi`.
   - `release` publishes exactly `artifacts/Pisum.Transcribe_${{ needs.version.outputs.version }}_win-x64.msi`.
