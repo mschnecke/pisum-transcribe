@@ -1,0 +1,105 @@
+## 1. The package, proved on a real install first (design D1–D4)
+
+- [ ] 1.1 Pin WiX in a local tool manifest: `dotnet new tool-manifest`, then `dotnet tool install wix --version 6.0.2`, which writes `.config/dotnet-tools.json`. Verify: in a fresh shell, `dotnet tool restore` and then `dotnet wix --version` print `6.0.2`.
+- [ ] 1.2 Write `packaging/windows/Pisum.Transcribe.wxs` as design D1–D3 describe:
+  - `Scope="perUserOrMachine"`, with `INSTALLFOLDER` "Pisum Transcribe" under `ProgramFiles64Folder`, harvested with `<Files Include="$(var.PublishDir)\**" />`
+  - the Start Menu shortcut, with an `HKMU\Software\Pisum\Transcribe` key path
+  - the installed-apps icon and properties
+  - `<MajorUpgrade AllowSameVersionUpgrades="yes" …>` with the downgrade message, and `<MediaTemplate EmbedCab="yes" />`
+  - the two `WixQuietExec64` custom actions for the `Run` and `StartupApproved\Run` values, with `REMOVE="ALL" AND NOT UPGRADINGPRODUCTCODE` and `Return="ignore"`
+  - a header comment on why `PublishDir` and `IconFile` are absolute `-d` values (design D1)
+
+  Verify: on a publish folder from `./packaging/windows/build-zip.ps1 -Version 0.1.0-dev.1`, `dotnet wix build` with `-arch x64 -ext WixToolset.Util.wixext -d Version=0.1.0` and the two absolute paths succeeds, and `dotnet wix msi validate -sice ICE61 -wx` on the result exits 0.
+- [ ] 1.3 Install spike (design D1). First write down whether "Start with Windows" is on: the uninstall in 1.4 removes the real `Run` value. Open the MSI from 1.2 by double-click as a user without an elevated session, with logging (`msiexec /i <msi> /l*v install.log` gives the same install). Verify:
+  - no UAC prompt appears
+  - the files are in `%LOCALAPPDATA%\Programs\Pisum Transcribe\`
+  - the Start Menu has "Pisum Transcribe", which starts the app
+  - Windows Settings → Apps shows "Pisum Transcribe" with version `0.1.0` and the icon
+
+  If a UAC prompt appears, switch to D1's fallback: `Scope="perUser"`, `LocalAppDataFolder\Programs\Pisum Transcribe`, validation with `-sice ICE38 -sice ICE64 -sice ICE91` as well. Write the switch into design D1, and repeat this task.
+- [ ] 1.4 Upgrade and uninstall spike (design D2–D4). In the installed app, turn on "Start with Windows". Build two more MSIs from the same payload: one with `-d Version=0.1.1` and one with `-d Version=0.0.9`. Verify:
+  - **Upgrade while running:** installing `0.1.1` while the app runs shows a "files in use" prompt; record its text for the README. Closing applications ends the app, and the log shows the end-of-session shutdown. No reboot is asked for. Settings → Apps shows one entry, at `0.1.1`. "Start with Windows" is still on and points at the same exe.
+  - **Same-version upgrade:** reinstalling a rebuilt `0.1.1` MSI replaces the installed copy.
+  - **Downgrade refused:** opening the `0.0.9` MSI shows "A newer version of Pisum Transcribe is already installed.", and nothing changes.
+  - **Uninstall while running:** uninstalling from Settings → Apps ends the app. The `Run` and `StartupApproved\Run` values named `Pisum Transcribe` are gone (`reg query`). The install folder and the Start Menu shortcut are gone. `%LOCALAPPDATA%\Pisum Transcribe\` still has `settings.json`, `logs\` and `models\`.
+
+  If Restart Manager can't close the app, stop and name the change in `src/` that design D4's fallback needs before going on. Afterwards, restore "Start with Windows" as recorded in 1.3.
+
+## 2. Build script (design D5)
+
+- [ ] 2.1 `git mv packaging/windows/build-zip.ps1 packaging/windows/build-msi.ps1`. Keep steps 1–6, and replace the zip step:
+  - derive the numeric core of `-Version`
+  - `dotnet tool restore`
+  - `dotnet wix extension add -g WixToolset.Util.wixext/<version read from .config/dotnet-tools.json>`
+  - `dotnet wix build` into `artifacts/Pisum.Transcribe_<version>_win-x64.msi`
+  - `dotnet wix msi validate -sice ICE61 -wx`
+  - check the exit code of every call, clear an earlier MSI of the same name first, and print the version, the `ProductVersion`, the payload size and the MSI size
+  - update the script's help text
+
+  Verify: `./packaging/windows/build-msi.ps1 -Version 0.1.0-dev.1` creates `artifacts/Pisum.Transcribe_0.1.0-dev.1_win-x64.msi`, prints `ProductVersion 0.1.0`, the guard passing and no validation findings. `git status` shows nothing from `publish/` or `artifacts/`.
+- [ ] 2.2 Check that a failed validation stops the script: temporarily drop `-sice ICE61` and run it again. Verify: the script ends with a non-zero exit code, and there's no "Created" line. Then restore the flag, and check that `git diff` shows only the intended script changes.
+
+## 3. Third-party notices (design D7)
+
+- [ ] 3.1 Add a **WiX Toolset** section to `THIRD-PARTY-NOTICES.md`:
+  - the component: `Wix4UtilCA_X64`, embedded in the MSI, running only on uninstall to remove the startup entry
+  - the source: `https://github.com/wixtoolset/wix`, tag `v6.0.2`
+  - the license: MS-RL, with the text from that tag's `LICENSE.TXT`
+
+  Verify: list the MSI's `Binary` table (Windows Installer COM, as in the spike). Every third-party entry in it has a section in the notices file, and `Wix4UtilCA_X64` is the only one.
+
+## 4. Workflows (design D6)
+
+- [ ] 4.1 In `ci.yml`, replace "Build the zip" with "Build the MSI" (`./packaging/windows/build-msi.ps1 -Version $env:VERSION`), and upload `artifacts/*.msi` as `msi` with `if-no-files-found: error` and `retention-days: 7`. Verify: on the pull request, the run is green and has the `msi` artifact. Its log shows the VC++ runtime copied from a Visual Studio `Microsoft.VC14*.CRT` folder, the guard passing and `wix msi validate` passing.
+- [ ] 4.2 In `release.yml`:
+  - `build` runs `build-msi.ps1` and uploads `artifacts/*.msi`.
+  - `release` publishes exactly `artifacts/Pisum.Transcribe_${{ needs.version.outputs.version }}_win-x64.msi`.
+
+  Verify: the workflow parses, and `git diff` shows the explicit `if:` conditions, `fail_on_unmatched_files` and `generate_release_notes` unchanged.
+
+## 5. Documentation (design D8)
+
+- [ ] 5.1 Update `README.md`:
+  - **Getting started:** download `Pisum.Transcribe_<version>_win-x64.msi`, open it, and at the SmartScreen prompt choose **More info** → **Run anyway**. Nothing else needs to be installed. The app is in the Start Menu. Give the MSI size and the installed size from 2.1.
+  - **Upgrading:** install a newer MSI; if asked, let it close the running app, which then has to be started again.
+  - **Uninstalling:** from Windows Settings → Apps. This keeps `%LOCALAPPDATA%\Pisum Transcribe\` with settings, logs and models, which the user deletes by hand to remove them.
+  - **Zip users:** install the MSI, then delete the old folder.
+  - **Project status:** installer and CI exist, automatic updates and signing don't.
+
+  Verify: the README names no zip download except in the note for zip users.
+- [ ] 5.2 Update `packaging/README.md`:
+  - `build-msi.ps1` and `Pisum.Transcribe.wxs`
+  - the validation and why ICE61 is suppressed
+  - the dual-purpose package, including D1's outcome from the spike
+  - same-version upgrades
+  - the uninstall cleanup
+  - the tool manifest and the extension pin
+  - WiX's maintenance-fee terms
+  - how to prove an MSI: install without administrator rights (1.3) and on a clean machine (Windows Sandbox or a VM, as before)
+
+  Verify: every path it names exists, and `git grep -n build-zip` finds nothing outside `openspec/changes/archive/`.
+- [ ] 5.3 Update `CLAUDE.md`:
+  - *Layout*: `packaging/windows/build-msi.ps1`, `Pisum.Transcribe.wxs` and `.config/dotnet-tools.json`
+  - *Commands*: `./packaging/windows/build-msi.ps1 -Version 0.1.0-dev.1`
+
+  Verify: `git grep -n build-zip CLAUDE.md` finds nothing.
+- [ ] 5.4 Update `docs/roadmap.md`:
+  - Add `add-msi-installer` as step 13 after v1, with its GitHub issue.
+  - *Deferred*: automatic updates, noting that `add-installer-and-updates` (GitHub #2) records the Velopack approach, plus code signing and WinGet/Chocolatey.
+
+  Verify: `git grep -n add-msi-installer docs/roadmap.md` finds the step, and the Deferred list names automatic updates.
+
+## 6. Release (design Migration Plan)
+
+- [ ] 6.1 Before the merge, rehearse the tag path on the branch: `git tag v0.1.0-rc.2` at the branch head, then push it. Verify:
+  - the run skips `bump` and publishes **Pisum Transcribe v0.1.0-rc.2**, marked as a pre-release, with `Pisum.Transcribe_0.1.0-rc.2_win-x64.msi` and no zip
+  - the downloaded MSI installs on this machine without a UAC prompt
+  - the app logs `0.1.0-rc.2+<sha>`, and Settings → Apps shows `0.1.0`
+
+  Then delete the rehearsal with `gh release delete v0.1.0-rc.2 --cleanup-tag --yes`, so 6.3 can use the version. Verify: `gh release list` and `git ls-remote --tags origin` show no `v0.1.0-rc.2`.
+- [ ] 6.2 Prove the MSI from 6.1 on a clean machine, meaning Windows Sandbox or a VM without .NET and without the Visual C++ Redistributable (spec: "Start on a clean machine", "Engine and silence trimming load on a clean machine"). Check the precondition first: `Test-Path C:\Windows\System32\vcruntime140.dll` is `False`. Verify: the MSI installs, the Start Menu shortcut starts the app without a runtime prompt, and after downloading Canary 180M Flash the tooltip shows **Ready (CPU)** or **Ready (Vulkan)**. The log shows the version and "Voice activity detection is ready".
+- [ ] 6.3 **After the merge:** start **Release** by hand with the exact version `0.1.0-rc.2` (`gh workflow run release.yml -f version=0.1.0-rc.2`). Verify: `main` gets "Bump the version to 0.1.0-rc.2", `v0.1.0-rc.2` exists, and the pre-release carries the MSI. The final `0.1.0` is a separate step.
+
+## 7. Wrap-up
+
+- [ ] 7.1 Run `openspec validate add-msi-installer --strict` and `dotnet test Pisum.Transcribe.slnx`. Verify: both pass, and the last `ci.yml` run on the pull request is green with the `msi` artifact.
