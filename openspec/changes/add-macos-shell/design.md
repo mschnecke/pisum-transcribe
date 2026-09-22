@@ -22,6 +22,21 @@ This design also records the decisions that hold for every macOS change, decided
   - With `new NamedWaitHandleOptions { CurrentUserOnly = true, CurrentSessionOnly = false }`, a second process was refused in the same session and in a new one.
   - The options' defaults are `CurrentUserOnly = true` and `CurrentSessionOnly = true`.
 - **SharpHook** has `KeyCode.VcRightMeta` (right Command) and `KeyCode.VcFunction` (fn/Globe, "Available on: macOS").
+- **The spike of `move-windows-shell-to-avalonia`** (2026-09-22, branch `spike/avalonia-shell`; M1–M4 are in that design's Context). For this change and the later ones:
+  - **Quit reason.** Inside `ShutdownRequested`, `NSAppleEventManager.currentAppleEvent` is the quit event itself: `'aevt'/'quit'`.
+    - A quit with the logout reason carried `'why?'` = `'rlgo'`, and a plain quit carried none.
+    - Avalonia's `IsOSShutdown` is `internal`, and it was `false` for both.
+  - **`SIGTERM`**, handled through `PosixSignalRegistration`, ended the spike in 0.11 s. `lifetime.Shutdown()` doesn't raise `ShutdownRequested`.
+  - **The Accessibility grant needs a restart.** SharpHook's libuiohook checks `CGPreflightPostEventAccess()`, which doesn't see a grant made while the process runs: two restarts of the hook failed, and a relaunch worked. `AXIsProcessTrusted()` returns true at once, so it can't serve as the signal.
+  - **M5, pasteboard privacy:**
+    - Without the developer preview, macOS 27 reports `accessBehavior` = 2 (always allow) and never alerts.
+    - With the preview on, the first read of another app's content alerted and **blocked the reading thread** until the alert was answered (4.9 s, then 7.2 s). The state went from 0 (default) to 1 (ask) and stayed there, so every later read alerted again.
+    - Reading the app's own content didn't alert. Writing and `changeCount` never alerted.
+  - **M6, a stable self-signed certificate:**
+    - `codesign` accepted an untrusted self-signed identity from a separate keychain, with no trust setting and no prompt. The keychain's key partition list is set for `codesign`.
+    - The designated requirement was `identifier "…" and certificate leaf = H"…"`, and the Accessibility grant survived four rebuilds with different CDHashes.
+    - OpenSSL 3's default `.p12` fails `security import` with "MAC verification failed". It has to be exported with `-certpbe PBE-SHA1-3DES -keypbe PBE-SHA1-3DES -macalg sha1`.
+  - **One unexplained crash:** a startup abort from an unhandled managed exception, once in eight launches, not reproducible.
 - **Intel Macs:** macOS 26 was the last release for them, so current macOS runs only on Apple silicon.
 - **AppKit's `NSPasteboard.h`** in the Command Line Tools' SDK:
   - It has `NSPasteboardContentsCurrentHostOnly` for `prepareForNewContentsWithOptions:` ("should not be available to other devices"), which keeps an entry off Universal Clipboard.
@@ -136,14 +151,17 @@ This design also records the decisions that hold for every macOS change, decided
 - **The end of the session** (log out, shut down, restart):
   - macOS sends the app a quit event, and Avalonia turns it into `ShutdownRequested`.
   - The same handler as on Windows waits with `DispatcherWait.Until(RequestShutdownAsync(reason))` and never cancels, so the logout isn't blocked.
-  - The reason is `SessionEnd` when `IsOSShutdown` is set, and `Exit` otherwise.
+  - **The reason comes from the quit Apple event**, because Avalonia's `IsOSShutdown` is `internal` (spike, Context):
+    - The handler asks the helper for `pisum_current_quit_reason()`, which reads `'why?'` from `NSAppleEventManager.currentAppleEvent`.
+    - `'rlgo'` or `'logo'` (log out), `'rest'` (restart) and `'shut'` (shut down) mean `SessionEnd`. No reason means `Exit`, as when a user quits the app in Activity Monitor.
   - The log says the app ended because the macOS session ended.
 - **Ending the process:** on macOS, `ExitProcess` calls libc's `_exit(code)` after `Log.CloseAndFlush()`. It's the counterpart of `TerminateProcess`: no process-exit handlers, so the 5 s budget holds.
-- **Fallback if M4 shows** that Avalonia doesn't raise `ShutdownRequested` at logout, or doesn't set `IsOSShutdown`: the helper observes `NSWorkspace.willPowerOffNotification`, and C# routes it to the same handler. The spec requires only the outcome.
+- **A real logout** is still to be checked by hand, because the spike sent the logout-reason event itself. If a real logout carries no reason, the fallback is `NSWorkspace.willPowerOffNotification` through the helper, which marks the next `ShutdownRequested` as `SessionEnd`. The spec requires only the outcome.
 - **`SIGTERM`:**
   - On macOS, the app registers `PosixSignalRegistration` for `SIGTERM`. The handler cancels the default handling and calls `ShutdownCoordinator.RequestShutdownAsync(ShutdownReason.Exit)`, the same path as **Quit**, within 5 s.
   - This serves the `.pkg`'s `preinstall`, which ends a running app before its files are replaced (see `add-macos-packaging` below). It also backs up the end of the session, because launchd sends `SIGTERM` to processes that are still running.
-  - A test sends `SIGTERM` to the dev bundle and checks the log entry and the time to exit.
+  - It calls `ShutdownCoordinator` directly, not `lifetime.Shutdown()`, which skips `ShutdownRequested` and with it the wait for background work.
+  - A test sends `SIGTERM` to the dev bundle and checks the log entry and the time to exit. The spike's handler ended the process in 0.11 s.
 
 ### D6: One instance per user
 
@@ -200,7 +218,7 @@ This design also records the decisions that hold for every macOS change, decided
     - It is created once, with a long validity.
     - It is kept as a CI secret (`.p12` and password), with a backup outside GitHub.
     - It is as permanent as the bundle identifier.
-    - `add-macos-packaging` imports it into a temporary keychain on the runner.
+    - `add-macos-packaging` imports it into a temporary keychain on the runner and sets the key's partition list for `codesign`. No trust setting is needed (spike M6, Context).
 - **`dotnet run`** on macOS opens the bundle through LaunchServices (`RunCommand` `open`, `RunArguments` `-W "<app>"`). The app, not the terminal, is then the process that permissions and notifications belong to, and the permission flow later changes add can be tested for real. The log is in `~/Library/Logs/Pisum Transcribe/`.
 - **The release bundle** is a different one: `add-macos-packaging` builds it from the publish output, signs it with the project's certificate, and wraps it in the unsigned `.pkg`. There is no Developer ID and no notarization.
 
@@ -255,7 +273,11 @@ These were decided in explore mode on 2026-09-22, and each change's own design p
     - On a nearly full Mac with a lot of purgeable space (iCloud Drive's optimized storage, local snapshots, caches), `DriveInfo` would refuse a download that macOS would make room for.
     - Apple's guidance is the important usage capacity for work the user starts. A model download is exactly that.
     - `model-management`'s "Disk space check" goes on this change's checklist: on macOS, "free" means the space available for a download the user starts (D11).
-  - A fifth row, **Paste from other apps**, reads the pasteboard once while the user is looking. Any pasteboard privacy alert then appears there, not in the middle of an insertion (see `add-macos-text-insertion`).
+  - **After the Accessibility grant, the app relaunches itself.** The hotkey's permission check only sees the grant in a new process (spike M3, Context). The setup window says so before it relaunches, and it opens again after the relaunch if the model download or another grant is still missing.
+  - **A fifth row, Paste from other apps.**
+    - It reads the pasteboard once while the user is looking, so the first alert appears there and not in the middle of an insertion, and the app gets listed in System Settings.
+    - The alert's **Allow** counts for one read only (spike M5), so the row then leads the user to System Settings to choose **always allow**. It shows as done only in that state.
+    - Where the privacy isn't enforced, the row is done at once, as on macOS 27 today, which reports "always allow".
 - **`add-macos-text-insertion`:**
   - Paste with restore stays the method on macOS, as on Windows.
   - Before each snapshot, the app checks `NSPasteboard.accessBehavior` (macOS 15.4+). If reading isn't allowed, that dictation is typed instead, so the user's clipboard stays untouched.
@@ -277,19 +299,22 @@ These were decided in explore mode on 2026-09-22, and each change's own design p
   - **Requirements to cover in its spec deltas** (D11):
     - `text-insertion`: Elevated target windows (with Secure input on macOS added next to it), Modifier keys released before input, Clipboard paste method, Clipboard restore, Clipboard history exclusion, Busy clipboard fallback (Windows-only), Insertion outcome
     - `dictation`: Insertion fallback notification (the secure-input reason), Tray icon states (the secure-input reason for *unavailable*)
-  - **Check M5 before the specs are written.** Run the dev bundle with `defaults write io.github.mschnecke.pisum-transcribe EnablePasteboardPrivacyDeveloperPreview -bool yes`, then see whether the snapshot read alerts, how often, and whether "Allow" is remembered. It can run in the same session on the Mac as the spike of `move-windows-shell-to-avalonia`.
+  - **M5 is done** (Context). It sharpens the rule above:
+    - A snapshot is taken only when `accessBehavior` is 2 (always allow).
+    - In the "ask" state every read alerts and blocks, so that dictation is typed.
+    - The pasteboard is never read on the UI thread, because an alert blocks the thread that reads. `changeCount` and writing are safe anywhere.
 - **`add-macos-recording`:**
   - The default hotkey on macOS is **right Command** (`VcRightMeta`), and right Ctrl stays the default on Windows.
   - Right Option was rejected: on the German layout and many others, Option types characters such as `@`, `€` and brackets, so every one of them would briefly open the microphone and flash the menu bar's microphone indicator.
   - fn/Globe can be chosen in the hotkey editor, with a hint to set macOS's "Press 🌐 key to" to "Do Nothing".
   - The editor's modifier rule and its labels use Mac names.
-  - The hook starts again once Accessibility is granted.
+  - The hook needs a process that started after the Accessibility grant (spike M3). A hook that fails with `ErrorAxApiDisabled` makes the tray show *unavailable* with the reason, and the setup window's relaunch (`add-macos-setup`) brings it up.
   - **Microphone checks before capture.** A denied microphone, and a muted input device, deliver digital zeros without an error. Under "Start completes when audio flows", the start would then wait the full 3 s and fail as "microphone not responding", the wrong message, 3 s late. So before opening the microphone:
     - the app reads `AVCaptureDevice`'s authorization and fails at once with "Microphone access blocked"
     - it reads `kAudioDevicePropertyMute` (input scope), where the device has it, and reports "Microphone muted"
   - CoreAudio has no "silent packet" flag like WASAPI's, so only digital zeros count as silence. That requirement's Windows wording gets a macOS counterpart (D11).
   - Bluetooth microphones such as AirPods switch the headset to its hands-free profile when capture starts. The 3 s budget and the overlay's starting look cover the delay. A hardware test with AirPods confirms it.
-  - The hook's callback stays fast, because events are queued into the controller's channel as on Windows, since macOS disables an event tap whose callback is slow. The spike's M3 also checks that libuiohook enables the tap again after `kCGEventTapDisabledByTimeout`.
+  - The hook's callback stays fast, because events are queued into the controller's channel as on Windows, since macOS disables an event tap whose callback is slow. The spike didn't cover it, so this change checks, in libuiohook's source and with a deliberately slow handler, that the tap is enabled again after `kCGEventTapDisabledByTimeout`.
   - "Missed release recovery" polls `CGEventSourceKeyState` on the HID system state. It still reports the physical key while secure input hides key events from the tap, for example when a password field takes focus during a hold.
   - "Reset on session switch":
     - the screen lock through the distributed notifications `com.apple.screenIsLocked` and `com.apple.screenIsUnlocked` (CFNotificationCenter, a C API)
@@ -298,7 +323,7 @@ These were decided in explore mode on 2026-09-22, and each change's own design p
     - Events that software posts with `CGEventPost` carry the poster's pid, and the hook ignores them, as on Windows. That covers the app's own Cmd+V and tools such as Keyboard Maestro, BetterTouchTool and Hammerspoon.
     - A virtual keyboard device, such as Karabiner-Elements', can't be told apart from hardware, so it counts as a keyboard. A key remapped to right Command there can therefore be the hotkey.
     - The requirement states both.
-    - The spike's M3 also checks what SharpHook's simulated-event flag reports for posted events on macOS.
+    - The spike confirmed that SharpHook reports the app's own posted Cmd+V with `IsEventSimulated=True` (M3).
   - **Wording for the microphone on macOS:**
     - "Error notifications" (`dictation`) points to *System Settings → Privacy & Security → Microphone*, opened through its `x-apple.systempreferences:` link, instead of Windows' microphone privacy settings.
     - "Microphone opened only while recording" (`audio-recording`) and "Dictation ends when the application exits" (`dictation`) say that the orange microphone indicator in the menu bar goes off, where they say that Windows no longer shows the app as using the microphone.
@@ -315,9 +340,10 @@ These were decided in explore mode on 2026-09-22, and each change's own design p
     - A user approves the downloaded `.pkg` once with **Open Anyway**. The app itself is never assessed by Gatekeeper.
     - It is named `Pisum.Transcribe_<version>_osx-arm64.pkg`, and it is part of the lockstep release (D12).
   - The app is signed with the project's self-signed certificate (D9), so Accessibility and Microphone grants survive updates.
-  - **Check M6 before the specs are written:**
-    - Sign build 1 with a test certificate, grant Accessibility and Microphone, then install build 2, signed with the same certificate, through the `.pkg`. Both grants must still work.
-    - If they don't, the fallback is ad hoc signing as in pisum-whisper, with the new grants after every update disclosed in the README.
+  - **M6 passed** for Accessibility across four rebuilds (Context). Still to check before the specs are written:
+    - the Microphone grant
+    - an update installed through the `.pkg` rather than rebuilt in place
+    - The fallback stays ad hoc signing as in pisum-whisper, with the new grants after every update disclosed in the README.
   - **Proposed:** a Homebrew tap `mschnecke/homebrew-pisum-transcribe` with a cask that installs the `.pkg`. `release.yml` updates it through `repository_dispatch` after both installers are published, as pisum-whisper does. It saves the Open Anyway step on installs and updates.
   - No Developer ID or notarization, because there is no Apple Developer Program membership (user decision). The official Homebrew cask repository is closed to such apps: casks that fail Gatekeeper have been disabled since 2026-09-01.
   - **Upgrades behave as the MSI's do** (user decision). A plain `pkgbuild --root` package does none of this, and pisum-whisper's doesn't either:
@@ -333,7 +359,7 @@ These were decided in explore mode on 2026-09-22, and each change's own design p
   - **The MSI stays unsigned** (user decision). Microsoft treats a self-signed certificate like no signature: SmartScreen shows the same block, and the publisher stays unknown. SignPath Foundation's free signing for open source is the route if that changes.
 - **`add-macos-login-item`, proposed:** `SMAppService.mainApp` (macOS 13+). It needs the bundle, which exists by then. pisum-whisper's LaunchAgent plist in `~/Library/LaunchAgents` is the fallback.
 - **`add-macos-dictation`:**
-  - The overlay is an Avalonia window, or a native `NSPanel` if the spike's M2 fails.
+  - The overlay is an Avalonia window. The spike's M2 passed, so no `NSPanel` is needed: the target app stayed frontmost, the paste landed, and the overlay showed over a full-screen TextEdit on its Space. The native settings are applied through the `NSWindow` handle before the first `Show`.
   - `pisum_overlay_configure(nswindow)` in the helper sets what Avalonia doesn't expose:
     - a floating `level`
     - `ignoresMouseEvents`, for click-through
@@ -368,7 +394,8 @@ These were decided in explore mode on 2026-09-22, and each change's own design p
 
 ## Risks / Trade-offs
 
-- [The spike's M1 or M4 fails on macOS] → D5's helper fallback for logout. Without an agent app (M1), D1 of `move-windows-shell-to-avalonia` is decided again before this change starts.
+- [A real logout carries no quit reason, unlike the spike's synthesized event] → D5's fallback through `NSWorkspace.willPowerOffNotification`. It's checked by hand with the dev bundle.
+- [The unexplained startup abort seen once in the spike comes back] → The unhandled-exception logging names it. The manual checks include repeated launches through `open`.
 - [`UNUserNotificationCenter` misbehaves in an ad-hoc-signed dev bundle] → The helper returns a status and the app logs. Notifications are checked with a local signing identity (D9), and again with the project's certificate in packaging.
 - [Apple tightens Gatekeeper or `installer` for unsigned packages] → There's no fix without a membership. A build from source still works, because locally built apps aren't quarantined.
 - [The project's certificate is lost] → Every user grants Accessibility and Microphone once more after the next update. The backup outside GitHub (D9) exists for this.

@@ -35,7 +35,7 @@ Current state that the approach depends on:
   - xunit.v3 4.0.1 on Microsoft.Testing.Platform.
 - **Avalonia 12.1.1**, checked in the package's API docs:
   - the tray: `TrayIcon` with `Menu`, `Clicked`, `ToolTipText` and `MacOSProperties.IsTemplateIcon`, and `NativeMenu` with `Opening` and `NeedsUpdate`
-  - the lifetime: `IClassicDesktopStyleApplicationLifetime.ShutdownRequested` with `IsOSShutdown`, and `ShutdownMode.OnExplicitShutdown`
+  - the lifetime: `IClassicDesktopStyleApplicationLifetime.ShutdownRequested`, and `ShutdownMode.OnExplicitShutdown`. `IsOSShutdown` is documented too, but the spike found it `internal`.
   - the dispatcher: `Dispatcher.PushFrame(DispatcherFrame)` and `Dispatcher.UnhandledException`
   - windows: `Window.ShowActivated`, `ShowInTaskbar`, `WindowDecorations`, and `TopLevel.TryGetPlatformHandle`
   - no API for OS notifications, no public hook into a window's message procedure, and no message box
@@ -45,6 +45,22 @@ Current state that the approach depends on:
   - `Avalonia.Skia` depends on SkiaSharp 3.119 and HarfBuzzSharp 8.3.
   - `Avalonia` depends on `MicroCom.Runtime` and on `Avalonia.BuildServices`, Avalonia's build-time telemetry.
 - **The sister project** `mschnecke/pisum-whisper` already runs Avalonia as a menu bar app on macOS (see `add-macos-shell`'s Context).
+- **Spike results, macOS half and T1** (2026-09-22, MacBook Air M4, macOS 27, Avalonia 12.1.1, SharpHook 8.0.0; branch `spike/avalonia-shell`, see D3):
+  - **M1 ✓:** an agent app with no Dock icon (`activationPolicy` accessory). `NativeMenu.Opening` runs on every open, after `NeedsUpdate`, and changes headers and `IsVisible`. `MacOSProperties.IsTemplateIcon` switches between template and colored at runtime.
+  - **M2 ✓:** an Avalonia window with `ShowActivated=false` never activates the app. TextEdit stayed frontmost, the posted Cmd+V landed, and the same held with TextEdit in full screen: the overlay was on the full-screen Space. The native settings (`level`, `ignoresMouseEvents`, `collectionBehavior`) are set through `TryGetPlatformHandle()`, whose descriptor is `NSWindow` and which is available before the first `Show`. No `NSPanel` is needed.
+  - **M3 ✓ with a catch:**
+    - SharpHook's hook runs next to Avalonia's main loop, and the spike's own posted events arrive with `IsEventSimulated=True`.
+    - Without the Accessibility permission, starting the hook fails at once with `ErrorAxApiDisabled`.
+    - After the grant, the hook still fails until the **process restarts**. libuiohook checks `CGPreflightPostEventAccess()`, not `AXIsProcessTrusted()`, and that doesn't see a grant made while the process runs.
+  - **M4 ✓ with a catch:**
+    - A quit Apple event arrives as `ShutdownRequested`, and a `DispatcherFrame` wait inside the handler held the quit for the full 1.5 s.
+    - **`IsOSShutdown` is `internal`** in 12.1.1, although the docs list it. Read by reflection, it was `false` even for a quit carrying the logout reason.
+    - `lifetime.Shutdown()` doesn't raise `ShutdownRequested`.
+    - A real logout wasn't run, because it would have ended the session.
+  - **T1 ✗, fallback ✓:**
+    - `Avalonia.Headless.XUnit` 12.1.1 fails test discovery on xunit.v3 4.0.1 with a `MissingMethodException` for `TestIntrospectionHelper.GetTestCaseDetails`.
+    - Plain `[Fact]`s that run their body through `HeadlessUnitTestSession.Dispatch` pass. That includes the `DispatcherWait` pattern, a `DispatcherFrame` ended from another thread.
+  - **One unexplained crash:** a startup abort from an unhandled managed exception, once in eight launches, not reproducible.
 
 ## Goals / Non-Goals
 
@@ -85,7 +101,7 @@ A throwaway spike on a branch, not in `main`, runs before any task of this chang
 | M3 | SharpHook's global hook on its own thread while Avalonia runs the main loop, with and without the Accessibility permission | Press and release arrive with no deadlock. Without the permission, starting the hook fails with an error the app can detect | – |
 | M4 | **Quit** from the menu, and logging out | `ShutdownRequested` arrives, and a `PushFrame` wait inside it holds the quit until the shutdown ends | A handler on `applicationShouldTerminate` through Objective-C interop |
 | W1 | Overlay with the four extended styles through `TryGetPlatformHandle` | Notepad keeps the focus, clicks pass through, placement is correct on the target window's monitor at 100 % and 150 % | Drop `WS_EX_LAYERED` if it breaks Avalonia's renderer, and check click-through without it |
-| W2 | Sign-out, and `ENDSESSION_CLOSEAPP` sent from another process as in `end-with-windows-session`, with no window shown | `ShutdownRequested` with `IsOSShutdown`. The `DispatcherWait` inside it ends the app within 4.5 s, and Windows doesn't list the app as blocking | A hidden top-level window of the app's own (CsWin32 `RegisterClassEx` and `CreateWindowEx`) that routes `WM_QUERYENDSESSION` |
+| W2 | Sign-out, and `ENDSESSION_CLOSEAPP` sent from another process as in `end-with-windows-session`, with no window shown | `ShutdownRequested` arrives. `IsOSShutdown` isn't public, so D7 treats every `ShutdownRequested` on Windows as the end of the session. The `DispatcherWait` inside it ends the app within 4.5 s, and Windows doesn't list the app as blocking | A hidden top-level window of the app's own (CsWin32 `RegisterClassEx` and `CreateWindowEx`) that routes `WM_QUERYENDSESSION` |
 | W3 | Tray on Win32 | `NativeMenu.Opening` runs before the menu shows. The spike notes which button raises `Clicked`, that a right click opens the menu, and that icon and tooltip updates show | – |
 | T1 | `Avalonia.Headless.XUnit` 12.1.1, built against `xunit.v3.extensibility.core` 3.2.2, with xunit.v3 4.0.1 on Microsoft.Testing.Platform | An `[AvaloniaFact]` opens a window and passes | A fixture of the project's own on `Avalonia.Headless`'s `HeadlessUnitTestSession` |
 
@@ -98,9 +114,9 @@ The former W4, a toast with only the registry AUMID, doesn't depend on Avalonia.
 - M1, M3 and M4 must work or have a named workaround.
 - Otherwise this change stops and D1 is decided again. The four preparing changes stay useful either way.
 
-**After the spike:**
-- The results go into this document's Context.
-- The spec delta and `tasks.md` are written only then. W3 decides the wording of the click in `settings-window`.
+**Result of the macOS half (2026-09-22): go.** M2 works without the `NSPanel` fallback, and M1, M3 and M4 work with the workarounds named in Context and in D7. T1 uses its fallback (D11).
+
+**Still open: W1–W3**, on a Windows machine. The spike branch holds the Mac half only, so W1–W3 need their code added there first. The spec delta and `tasks.md` of this change are written after W1–W3, because W3 decides the wording of the click in `settings-window`.
 
 ### D4: Avalonia's tray icon
 
@@ -150,10 +166,12 @@ Moved to `show-windows-notifications`: WinRT toasts behind `INotifier`, and the 
   - `ExitProcess` keeps `TerminateProcess`, now through CsWin32 as the conventions require.
 - **`DispatcherWait`** keeps its method and its reasoning (a synchronous continuation ends the frame) over Avalonia's `DispatcherFrame` and `Dispatcher.PushFrame`.
 - **Session end:**
-  - A `ShutdownRequested` handler with `IsOSShutdown` calls `DispatcherWait.Until(RequestShutdownAsync(ShutdownReason.SessionEnd))`, as `OnSessionEnding` does.
+  - `IsOSShutdown` can't be used: it is `internal` in 12.1.1 (spike, Context).
+  - On Windows, every `ShutdownRequested` is the end of the session. **Exit** calls `ShutdownCoordinator` directly, there is no main window, and `ShutdownMode.OnExplicitShutdown` is set, so nothing else raises it.
+  - The handler calls `DispatcherWait.Until(RequestShutdownAsync(ShutdownReason.SessionEnd))`, as `OnSessionEnding` does.
   - It never cancels, because that would veto the end of the session.
-  - A `ShutdownRequested` without `IsOSShutdown` doesn't occur with `OnExplicitShutdown` and no main window. If it does, it is treated like **Exit**.
-  - W2 confirms this path, including Restart Manager, and its fallback is in D3.
+  - W2 confirms that Avalonia raises `ShutdownRequested` for `WM_QUERYENDSESSION`, including Restart Manager's `ENDSESSION_CLOSEAPP`. Its fallback is in D3.
+  - On macOS a `ShutdownRequested` can also be a plain quit. `add-macos-shell` D5 tells the two apart through the quit Apple event.
 
 ### D8: The windows
 
@@ -204,8 +222,12 @@ Moved to `use-win32-clipboard`: `Win32ClipboardService` on the Win32 API, behind
 ### D11: Tests
 
 - **Windows and the tray:**
-  - Tests of windows and the tray move to `Avalonia.Headless.XUnit` (`[AvaloniaFact]`): `SettingsDialogTests`, `RecordingOverlayWindowTests`, `DispatcherWaitTests` and `TrayIconServiceTests`. They drop their STA threads.
-  - The fallback, if T1 fails, is a fixture on `HeadlessUnitTestSession`.
+  - Tests of windows and the tray run on Avalonia's headless platform: `SettingsDialogTests`, `RecordingOverlayWindowTests`, `DispatcherWaitTests` and `TrayIconServiceTests`. They drop their STA threads.
+  - They use T1's fallback, because `Avalonia.Headless.XUnit` 12.1.1 fails discovery on xunit.v3 4.0.1 (spike, Context):
+    - The test project references `Avalonia.Headless`, and `[assembly: AvaloniaTestApplication]` names a test app builder with `UseHeadless`.
+    - A shared helper holds `HeadlessUnitTestSession.GetOrStartForAssembly`.
+    - The tests are plain `[Fact]`s whose body runs through `Session.Dispatch(…, TestContext.Current.CancellationToken)`.
+  - When a later `Avalonia.Headless.XUnit` supports xunit.v3 4.x, `[AvaloniaFact]` can replace the helper. That's a test-only change.
 - **The overlay's native styles and placement** can't be seen headless. They stay `Hardware` tests on a real desktop.
 - **Desktop tests** already use the Win32 `TestWindow` from `use-win32-clipboard`, so they don't change.
 - **Conventions:** the `[Trait]` categories and the naming stay the same.
@@ -234,14 +256,15 @@ Moved to `use-win32-clipboard`: `Win32ClipboardService` on the Win32 API, behind
 - [`WS_EX_LAYERED` conflicts with Avalonia's renderer, so the overlay is invisible or not click-through] → W1, then drop `WS_EX_LAYERED`.
 - [The Fluent look changes the windows' appearance] → Accepted (Non-Goals). A screenshot pass is part of the regression check.
 - [A bigger or smaller MSI, with more native DLLs to guard] → D12 measures it, and the guard covers the new DLLs.
-- [Avalonia's headless tests don't run on xunit.v3 4.x] → T1, and a fixture of the project's own.
+- [Avalonia's headless test package doesn't run on xunit.v3 4.x] → It happened (T1). The project's own session helper is in use (D11).
+- [An unexplained startup abort, seen once in the spike] → The app's unhandled-exception logging names the exception if it happens again. It's watched in the regression pass and in `add-macos-shell`.
 - [Porting the XAML changes a binding or a validation display without anyone noticing] → The view models don't change, and their tests stay. The settings window tests move to headless and assert the same things.
 
 ## Migration Plan
 
 1. **Spike** (D3), on branch `spike/avalonia-shell`, never merged:
-   - M1–M4 on the development Mac (with `add-macos-shell`'s M5 and M6 in the same session), then W1–W3, then T1.
-   - Record the results in Context, decide the fallbacks, then write the spec delta and `tasks.md`.
+   - Done on 2026-09-22: M1–M6 on the development Mac, and T1. The results are in Context.
+   - Still to do: W1–W3 on Windows. Then write the spec delta and `tasks.md`.
 2. **The four preparing changes** are done. They can run in parallel with the spike.
 3. **The Avalonia shell:**
    - the lifetime and `AvaloniaUiDispatcher`

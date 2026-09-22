@@ -55,7 +55,7 @@ The notices requirement of `packaging` keeps its wording, while the notices file
   - `Pisum.Transcribe.csproj` and `NativeMethods.txt`
 - **Tests:** `RecordingOverlayWindowTests`, `DispatcherWaitTests`, `SettingsDialogTests` and `TrayIconServiceTests`.
 - **Dependencies:**
-  - added: Avalonia 12.1 (core, the Win32 backend, Skia, HarfBuzz, the Fluent theme), and `Avalonia.Headless.XUnit` in the tests
+  - added: Avalonia 12.1 (core, the Win32 backend, Skia, HarfBuzz, the Fluent theme), and `Avalonia.Headless` in the tests. `Avalonia.Headless.XUnit` 12.1.1 doesn't run on xunit.v3 4.x (spike T1)
   - removed: `H.NotifyIcon.Wpf`, and WPF through `UseWPF`
 - **Packaging:** `packaging/windows/build-msi.ps1`, `assert-native-dependencies.ps1`, `THIRD-PARTY-NOTICES.md` and `packaging/third-party/`.
 - **Docs:**
