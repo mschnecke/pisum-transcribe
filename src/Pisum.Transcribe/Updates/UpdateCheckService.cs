@@ -33,7 +33,7 @@ internal sealed class UpdateCheckService : BackgroundService
     /// The latest release of the repository in GitHub's API, which is never a draft or a pre-release.
     /// </summary>
     public static readonly Uri LatestReleaseUri =
-        new("https://api.github.com/repos/mschnecke/pisum-transcript/releases/latest");
+        new("https://api.github.com/repos/mschnecke/pisum-transcribe/releases/latest");
 
     /// <summary>
     /// The time between two checks.
@@ -306,7 +306,7 @@ internal sealed class UpdateCheckService : BackgroundService
 
         // Built from the parsed numbers, never from the response, so nothing else from GitHub reaches the shell.
         var url = string.Create(CultureInfo.InvariantCulture,
-            $"https://github.com/mschnecke/pisum-transcript/releases/tag/v{version.Major}.{version.Minor}.{version.Patch}");
+            $"https://github.com/mschnecke/pisum-transcribe/releases/tag/v{version.Major}.{version.Minor}.{version.Patch}");
         try
         {
             _openUrl(url);

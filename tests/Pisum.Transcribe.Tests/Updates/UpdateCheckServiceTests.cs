@@ -135,7 +135,7 @@ public sealed class UpdateCheckServiceTests : IAsyncDisposable
         // Assert
         var request = _handler.Requests.ShouldHaveSingleItem();
         request.Method.ShouldBe(HttpMethod.Get);
-        request.RequestUri.ShouldBe(new Uri("https://api.github.com/repos/mschnecke/pisum-transcript/releases/latest"));
+        request.RequestUri.ShouldBe(new Uri("https://api.github.com/repos/mschnecke/pisum-transcribe/releases/latest"));
         request.Content.ShouldBeNull();
         request.Headers.Select(header => header.Key)
             .ShouldBe(["User-Agent", "Accept", "X-GitHub-Api-Version"], true);
@@ -421,7 +421,7 @@ public sealed class UpdateCheckServiceTests : IAsyncDisposable
         _itemClick.ShouldNotBeNull()();
 
         // Assert
-        _openedUrls.ShouldBe(["https://github.com/mschnecke/pisum-transcript/releases/tag/v1.2.0"]);
+        _openedUrls.ShouldBe(["https://github.com/mschnecke/pisum-transcribe/releases/tag/v1.2.0"]);
     }
 
     [Fact]
@@ -506,7 +506,7 @@ public sealed class UpdateCheckServiceTests : IAsyncDisposable
     }
 
     private static HttpResponseMessage Release(string tag,
-                                               string htmlUrl = "https://github.com/mschnecke/pisum-transcript")
+                                               string htmlUrl = "https://github.com/mschnecke/pisum-transcribe")
     {
         return new HttpResponseMessage(HttpStatusCode.OK)
         {

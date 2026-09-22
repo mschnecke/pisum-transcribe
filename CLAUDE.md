@@ -83,5 +83,5 @@ Only one instance runs at a time. A second launch waits up to 6 s and then exits
 
 ## Repository
 
-- GitHub repository: `mschnecke/pisum-transcript` (remote `git@github.pisum:mschnecke/pisum-transcript.git`). Use `gh` for issues, pull requests, workflow runs and releases.
+- GitHub repository: `mschnecke/pisum-transcribe` (remote `git@github.pisum:mschnecke/pisum-transcribe.git`). Use `gh` for issues, pull requests, workflow runs and releases.
 - The default branch is `main`. Changes reach it through pull requests to `main`.
