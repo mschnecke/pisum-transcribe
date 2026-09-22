@@ -284,7 +284,7 @@ SOFTWARE.
 - **Used for:** the keyboard hook behind SharpHook. The app ships `uiohook.dll` from the `SharpHook` 8.0.0 package, built from SharpHook's fork of libuiohook.
 - **Source:** https://github.com/TolikPylypchuk/libuiohook, commit `a41658fb2bef7503a3bcb305ab8bf849755fe906` (the submodule commit of SharpHook 8.0.0), forked from https://github.com/kwhat/libuiohook
 - **License:** GNU Lesser General Public License, version 3 or later. `uiohook.dll` is a separate library that the app loads at run time, so it can be replaced with another build of libuiohook that has the same interface. The full texts of the GNU LGPL version 3 and of the GNU GPL version 3, which it builds on, are at the end of this file.
-- **Corresponding source:** every release on https://github.com/mschnecke/pisum-transcript/releases carries the source of the commit above as `libuiohook-a41658fb2bef7503a3bcb305ab8bf849755fe906.tar.gz`, next to the MSI.
+- **Corresponding source:** every release on https://github.com/mschnecke/pisum-transcribe/releases carries the source of the commit above as `libuiohook-a41658fb2bef7503a3bcb305ab8bf849755fe906.tar.gz`, next to the MSI.
 
 ```
 libUIOHook: Cross-platform keyboard and mouse hooking from userland.
@@ -613,7 +613,7 @@ SOFTWARE.
 - **Used for:** the installer's custom actions. The MSI embeds `Wix4UtilCA_X64`, the custom action DLL of the WiX Util extension 6.0.2. It runs only while the MSI is installed, where it starts the app when the installation finishes, and while it's uninstalled, where it removes the "Start with Windows" entry. It isn't copied into the program folder.
 - **Source:** https://github.com/wixtoolset/wix, tag v6.0.2, commit `b3f340393117094a75ea8ced77f2357e4aa095e7`. The custom actions are in `src/ext/Util/ca`, and the libraries they are built with are in `src/libs`.
 - **License:** Microsoft Reciprocal License (MS-RL)
-- **Source code:** every release on https://github.com/mschnecke/pisum-transcript/releases carries the source of the commit above as `wix-b3f340393117094a75ea8ced77f2357e4aa095e7.tar.gz`, next to the MSI.
+- **Source code:** every release on https://github.com/mschnecke/pisum-transcribe/releases carries the source of the commit above as `wix-b3f340393117094a75ea8ced77f2357e4aa095e7.tar.gz`, next to the MSI.
 
 ```
 Copyright (c) .NET Foundation and contributors.
