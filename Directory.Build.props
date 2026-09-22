@@ -11,6 +11,6 @@
          release will say. Every release still overrides it from that tag: `release.yml` strips
          the `v` and `build-msi.ps1` passes -p:Version=<version> to publish, so the MSI name, the
          release and the version the app logs at start agree (design D4). -->
-    <Version>1.1.0</Version>
+    <Version>1.1.1</Version>
   </PropertyGroup>
 </Project>
