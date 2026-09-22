@@ -10,7 +10,8 @@ public static class Traits
         public const string Integration = "Integration";
 
         /// <summary>
-        /// Needs a microphone, a GPU or a downloaded model. Mark these tests with <c>[Fact(Explicit = true)]</c>.
+        /// Needs a microphone, a GPU, a downloaded model or internet access. Mark these tests with
+        /// <c>[Fact(Explicit = true)]</c>.
         /// </summary>
         public const string Hardware = "Hardware";
     }

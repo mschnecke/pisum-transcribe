@@ -2,7 +2,7 @@
 
 Pisum Transcribe is a push-to-talk dictation app for Windows. It runs in the system tray. Hold the hotkey, speak, and release it: the app transcribes your speech and inserts the text at the cursor in the active window. By default it translates German speech into English text.
 
-Speech recognition runs on your computer with an NVIDIA Canary model and the [transcribe.cpp](https://github.com/handy-computer/transcribe.cpp) engine. Audio and text never leave the machine. The app goes online only to download a speech model.
+Speech recognition runs on your computer with an NVIDIA Canary model and the [transcribe.cpp](https://github.com/handy-computer/transcribe.cpp) engine. Audio and text never leave the machine. The app goes online to download a speech model and, unless you turn it off in the settings, once a day to ask GitHub whether a new version exists.
 
 ## Features
 
@@ -80,6 +80,7 @@ Right-click the tray icon:
 | **Settings…** | Opens the settings window. Double-clicking the tray icon does the same. |
 | **Download model…** | Opens the download window. Shown only while the selected model is not installed. |
 | **Cancel transcription** | Stops the running transcription. Shown only while a dictation is transcribed. |
+| **Pisum Transcribe `<version>` is available…** | Opens the release page in the browser. Shown only when a newer version is released. |
 | **Exit** | Ends the app. |
 
 ### Settings
@@ -90,7 +91,7 @@ The settings window applies changes when you save them, without a restart. It ha
 - **Model:** download, delete and select speech models.
 - **Engine:** choose the compute backend: Auto (the GPU when it works, otherwise the CPU), Vulkan only, or CPU only. It also shows the engine status.
 - **Text insertion:** paste through the clipboard (with or without restoring the clipboard), or type the text. Typing leaves the clipboard alone but is slower for long text.
-- **General:** start with Windows. This adds an entry to the current user's `Run` registry key.
+- **General:** start with Windows, which adds an entry to the current user's `Run` registry key, and check for updates automatically, which asks GitHub once a day whether a new version exists. The update check is on by default.
 
 The settings are saved in `settings.json`. A file with the defaults looks like this:
 
@@ -101,7 +102,8 @@ The settings are saved in `settings.json`. A file with the defaults looks like t
   "transcription": { "backend": "auto", "task": "translate", "sourceLanguage": "de", "targetLanguage": "en" },
   "recording": { "hotkey": ["VcRightControl"] },
   "textInsertion": { "method": "clipboardPaste", "restoreClipboard": true },
-  "voiceActivity": { "enabled": true }
+  "voiceActivity": { "enabled": true },
+  "updates": { "checkAutomatically": true }
 }
 ```
 
@@ -129,16 +131,18 @@ All data is stored per user in `%LOCALAPPDATA%\Pisum Transcribe\`, and nothing r
 
 The log contains durations, lengths and status codes. It never contains audio or transcript text.
 
+Once a day, unless you turn off **Check for updates automatically** in the settings, the app asks GitHub whether a new version exists. The update check sends no audio, text, settings, logs or identifiers. Its request carries only what every HTTPS request carries: your IP address, and a user agent that names the app without its version. When a newer version is released, the tray menu and a notification say so. The app doesn't download or install it.
+
 ## Development
 
 ```sh
 dotnet build Pisum.Transcribe.slnx
 dotnet test Pisum.Transcribe.slnx                                                   # unit and integration tests
 dotnet test Pisum.Transcribe.slnx --filter-class "*.JsonSettingsStoreTests"         # one test class
-dotnet test Pisum.Transcribe.slnx --filter-trait "Category=Hardware" --explicit on  # needs a microphone, GPU or model
+dotnet test Pisum.Transcribe.slnx --filter-trait "Category=Hardware" --explicit on  # needs a microphone, GPU, model or internet access
 ```
 
-The solution uses the `.slnx` format, so pass it to `dotnet` commands explicitly. The tests use xunit v3 on Microsoft.Testing.Platform, with Shouldly and FakeItEasy. Hardware tests are marked explicit, so the default test run needs no microphone, GPU or downloaded model.
+The solution uses the `.slnx` format, so pass it to `dotnet` commands explicitly. The tests use xunit v3 on Microsoft.Testing.Platform, with Shouldly and FakeItEasy. Hardware tests are marked explicit, so the default test run needs no microphone, GPU, downloaded model or internet access.
 
 The app is a WPF app on the .NET Generic Host, with no main window. Each feature lives in its own folder and namespace under `src/Pisum.Transcribe/`:
 
@@ -154,6 +158,7 @@ The app is a WPF app on the .NET Generic Host, with no main window. Each feature
 | `TextInsertion/` | Paste or type at the cursor, clipboard restore |
 | `Dictation/` | The dictation workflow, overlay and notifications |
 | `SettingsWindow/` | Settings window |
+| `Updates/` | The daily update check and its tray notice |
 
 [CLAUDE.md](CLAUDE.md) describes the conventions for shutdown, the UI thread, settings, logging, code style and tests. [packaging/README.md](packaging/README.md) describes how the MSI is built and how a release is published.
 

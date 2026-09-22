@@ -51,6 +51,7 @@ internal sealed class JsonSettingsStore : ISettingsStore
             Recording = settings.Recording ?? new RecordingSettings(),
             TextInsertion = settings.TextInsertion ?? new TextInsertionSettings(),
             VoiceActivity = settings.VoiceActivity ?? new VoiceActivitySettings(),
+            Updates = settings.Updates ?? new UpdateSettings(),
         };
     }
 

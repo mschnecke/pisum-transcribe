@@ -307,6 +307,11 @@
                     <CheckBox Content="Start with _Windows" IsChecked="{Binding StartWithWindows}" />
                     <TextBlock Style="{StaticResource Hint}"
                                Text="Starts Pisum Transcribe when you sign in to Windows. Applies to your user account only." />
+
+                    <CheckBox Margin="0,16,0,0" Content="Check for _updates automatically"
+                              IsChecked="{Binding CheckForUpdates}" />
+                    <TextBlock Style="{StaticResource Hint}"
+                               Text="Asks GitHub once a day whether a new version of Pisum Transcribe exists. Nothing else is sent." />
                 </StackPanel>
             </Grid>
         </ScrollViewer>

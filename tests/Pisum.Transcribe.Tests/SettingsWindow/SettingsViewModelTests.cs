@@ -230,6 +230,50 @@ public sealed class SettingsViewModelTests
     }
 
     [Fact]
+    public void Constructor_DefaultSettings_ChecksForUpdates()
+    {
+        // Act
+        var sut = CreateSut();
+
+        // Assert
+        sut.General.CheckForUpdates.ShouldBeTrue();
+        sut.HasChanges.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task Save_CheckForUpdatesTurnedOff_SavesUpdatesSectionOff()
+    {
+        // Arrange
+        var sut = CreateSut();
+        sut.General.CheckForUpdates = false;
+        var canSave = sut.SaveCommand.CanExecute(null);
+
+        // Act
+        await sut.SaveCommand.ExecuteAsync(null);
+
+        // Assert
+        canSave.ShouldBeTrue();
+        var saved = _settingsStore.Saves.ShouldHaveSingleItem();
+        saved.ShouldBe(new AppSettings {Updates = new UpdateSettings(false)});
+        sut.HasChanges.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task SettingsChangedElsewhere_CheckForUpdatesNotEdited_ShowsNewValue()
+    {
+        // Arrange
+        var sut = CreateSut();
+
+        // Act
+        await _settingsStore.SaveAsync(_settingsStore.Current with {Updates = new UpdateSettings(false)},
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        sut.General.CheckForUpdates.ShouldBeFalse();
+        sut.HasChanges.ShouldBeFalse();
+    }
+
+    [Fact]
     public void TextInsertion_TypeText_DisablesRestoreClipboard()
     {
         // Arrange
