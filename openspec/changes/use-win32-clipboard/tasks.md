@@ -1,11 +1,12 @@
 ## 1. The Win32 clipboard service
 
-- [ ] 1.1 Add the clipboard, global-memory and window functions to `NativeMethods.txt`: `OpenClipboard`, `CloseClipboard`, `EmptyClipboard`, `EnumClipboardFormats`, `GetClipboardData`, `SetClipboardData`, `RegisterClipboardFormat`, `GlobalAlloc`, `GlobalLock`, `GlobalUnlock`, `GlobalSize`, `GlobalFree`, `CreateWindowEx`, `DestroyWindow`, `GetMessage`, `DispatchMessage`, `PostThreadMessage` and `GetCurrentThreadId`, plus `HWND_MESSAGE`. Verify: `dotnet build Pisum.Transcribe.slnx` passes and CsWin32 generates them in `Windows.Win32.PInvoke`.
+- [ ] 1.1 Add the clipboard, global-memory and window functions to `NativeMethods.txt`: `OpenClipboard`, `CloseClipboard`, `EmptyClipboard`, `EnumClipboardFormats`, `GetClipboardData`, `SetClipboardData`, `RegisterClipboardFormat`, `GlobalAlloc`, `GlobalLock`, `GlobalUnlock`, `GlobalSize`, `GlobalFree`, `CreateWindowEx`, `DestroyWindow`, `GetMessage`, `DispatchMessage`, `PostThreadMessage`, `GetCurrentThreadId`, `MsgWaitForMultipleObjectsEx` and `PeekMessage`, plus `HWND_MESSAGE`. Verify: `dotnet build Pisum.Transcribe.slnx` passes and CsWin32 generates them in `Windows.Win32.PInvoke`.
 - [ ] 1.2 Add `TextInsertion/Windows/Win32ClipboardService : IClipboardService, IDisposable` (design D1). It has:
   - its own thread with a message-only `STATIC` window as the clipboard owner, and a work queue woken with `PostThreadMessage`, with `TaskCompletionSource` results; `Dispose` posts `WM_QUIT`
   - `SequenceNumber` from `GetClipboardSequenceNumber`
-  - `OpenClipboard` retried 10 times, 100 ms apart
+  - `OpenClipboard` retried 10 times, 100 ms apart, with a wait that handles sent messages
   - `TrySetTextAsync` writing `CF_UNICODETEXT`, plus the three history formats when exclusion is asked for
+  - the failure handling of D1: no exceptions for Win32 failures, the clipboard emptied again after a write that fails partway, and the "busy" and "could not" log entries with the Win32 error code
 
   Verify: `Win32ClipboardServiceHardwareTests`, the renamed `WpfClipboardServiceHardwareTests`, pass these cases against the new service in `DesktopCollection`:
   - `TrySetTextAsync_ExcludeFromHistory_SetsTextAndExclusionFormats`
@@ -23,7 +24,7 @@
 
   Verify: the cases of task 1.2 and `TextInserterHardwareTests` pass.
 - [ ] 1.5 Add `TrySnapshotAsync` and `TryRestoreAsync` (design D1):
-  - The snapshot copies the formats in enumeration order, with D1's filter: registered formats except OLE's `DataObject` and `Ole Private Data`, and standard formats with plain `HGLOBAL` data. It skips `CF_TEXT` and `CF_OEMTEXT` next to `CF_UNICODETEXT`, GDI handles, `CF_METAFILEPICT` and `CF_DSPMETAFILEPICT`, `CF_OWNERDISPLAY`, and the private and GDI-object ranges.
+  - The snapshot copies the formats in enumeration order, with D1's filter: registered formats except OLE's `DataObject` and `Ole Private Data`, and standard formats with plain `HGLOBAL` data. It skips `CF_TEXT` and `CF_OEMTEXT` next to `CF_UNICODETEXT`, GDI handles, `CF_METAFILEPICT` and `CF_DSPMETAFILEPICT`, `CF_OWNERDISPLAY`, and the private and GDI-object ranges. A format that can't be read is skipped.
   - The restore writes the formats back in the same order, with the two history formats as DWORD `0` and `Pisum.Transcribe.Restored`.
   - The snapshot reports sensitive content from the exclusion formats as today.
 
