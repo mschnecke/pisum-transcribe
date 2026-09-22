@@ -1,6 +1,6 @@
 # Pisum Transcribe Roadmap
 
-This roadmap covers v1 of Pisum Transcribe, the push-to-talk dictation app described in [idea.md](idea.md). Each step is one GitHub issue and one OpenSpec change in `openspec/changes/<change>/`. Implement a change with `/opsx:apply <change>`, and archive it with `/opsx:archive <change>` once it is done.
+This roadmap covers v1 of Pisum Transcribe, the push-to-talk dictation app described in [idea.md](idea.md), and the [macOS port](#macos-port) that follows it. Each step is one GitHub issue and one OpenSpec change in `openspec/changes/<change>/`. Implement a change with `/opsx:apply <change>`, and archive it with `/opsx:archive <change>` once it is done.
 
 ## Dependency graph
 
@@ -68,8 +68,111 @@ The dictation workflow joins both tracks. After #6, the app is usable end to end
 - #9 keeps a dictation when the GPU fails.
 - #11 and #12 build on #9 and don't depend on each other.
 
+## macOS port
+
+Pisum Transcribe is to ship on macOS as a public release next to Windows. Avalonia UI becomes the shell on both platforms. Windows moves to it first, as a release of its own, after four smaller changes that prepare the move on today's WPF shell. The decisions behind the port were made in explore mode on 2026-09-22. They are recorded in the designs of `move-windows-shell-to-avalonia` and `add-macos-shell`. The latter's section "Decided for later macOS changes" covers the steps that have no OpenSpec change yet.
+
+### Dependency graph
+
+```mermaid
+graph TD
+    G10["GitHub #10 extract-ui-seams"] --> G12["GitHub #12 add-monochrome-tray-icons"]
+    G10 --> G13["GitHub #13 show-windows-notifications"]
+    G10 --> G14["GitHub #14 move-windows-shell-to-avalonia"]
+    G11["GitHub #11 use-win32-clipboard"] --> G14
+    G12 --> G14
+    G13 --> G14
+    SP(["Spike: M1–M6, W1–W3, T1"]) --> G14
+    G14 --> G15["GitHub #15 add-macos-shell"]
+    G15 --> G16["GitHub #16 add-macos-setup"]
+    G15 --> G17["GitHub #17 add-macos-recording"]
+    G15 --> G18["GitHub #18 add-metal-backend"]
+    G15 --> G21["GitHub #21 add-macos-login-item"]
+    G17 --> G19["GitHub #19 add-macos-text-insertion"]
+    G16 --> G20["GitHub #20 add-macos-dictation"]
+    G18 --> G20
+    G19 --> G20
+    G20 --> G22["GitHub #22 add-macos-packaging"]
+    G21 --> G22
+```
+
+### Order
+
+| Step | Issue | OpenSpec change | Blocked by | Delivers |
+|---|---|---|---|---|
+| 15 | [GitHub #10](https://github.com/mschnecke/pisum-transcribe/issues/10) | `extract-ui-seams` | – | `IUiDispatcher`, `TrayStatus`, `INotifier` and `Windows/` folders. No visible change |
+| 16 | [GitHub #11](https://github.com/mschnecke/pisum-transcribe/issues/11) | `use-win32-clipboard` | – | The clipboard on the Win32 API, without WPF. No visible change |
+| 17 | [GitHub #12](https://github.com/mschnecke/pisum-transcribe/issues/12) | `add-monochrome-tray-icons` | GitHub #10 | A monochrome microphone that follows the taskbar's mode, red while recording, amber while transcribing |
+| 18 | [GitHub #13](https://github.com/mschnecke/pisum-transcribe/issues/13) | `show-windows-notifications` | GitHub #10 | Notifications as Windows toasts from "Pisum Transcribe". Windows 10 version 2004 or later |
+| 19 | [GitHub #14](https://github.com/mschnecke/pisum-transcribe/issues/14) | `move-windows-shell-to-avalonia` | GitHub #10–#13, the spike | The Avalonia shell on Windows. A click opens the settings |
+| 20 | [GitHub #15](https://github.com/mschnecke/pisum-transcribe/issues/15) | `add-macos-shell` | GitHub #14 | The Mac build as a menu bar app: quit and logout, data folders, the Swift helper, a dev bundle, macOS CI |
+| 21 | [GitHub #16](https://github.com/mschnecke/pisum-transcribe/issues/16) | `add-macos-setup` | GitHub #15 | One setup window for the model and the permissions |
+| 22 | [GitHub #17](https://github.com/mschnecke/pisum-transcribe/issues/17) | `add-macos-recording` | GitHub #15 | Hold right Command to record, with microphone and secure-input handling |
+| 23 | [GitHub #18](https://github.com/mschnecke/pisum-transcribe/issues/18) | `add-metal-backend` | GitHub #15 | Metal with CPU fallback, the GPU setting renamed with a migration, the M4 benchmark |
+| 24 | [GitHub #19](https://github.com/mschnecke/pisum-transcribe/issues/19) | `add-macos-text-insertion` | GitHub #17 | Paste with restore, typing when the pasteboard can't be read, the secure-input hint |
+| 25 | [GitHub #20](https://github.com/mschnecke/pisum-transcribe/issues/20) | `add-macos-dictation` | GitHub #16, #18, #19 | **Mac MVP:** hold, speak, release, text appears |
+| 26 | [GitHub #21](https://github.com/mschnecke/pisum-transcribe/issues/21) | `add-macos-login-item` | GitHub #15 | Open at login |
+| 27 | [GitHub #22](https://github.com/mschnecke/pisum-transcribe/issues/22) | `add-macos-packaging` | GitHub #20, #21 | An unsigned `.pkg` with the project's own certificate, upgrades like the MSI's, a Homebrew tap, lockstep releases |
+
+**Planning state on 2026-09-22:**
+- **Ready for `/opsx:apply`:** GitHub #10, #11 and #12, fully planned.
+- **GitHub #13** has its proposal and design. Its spec deltas follow a first check on Windows.
+- **GitHub #14 and #15** have their proposals and designs. Their spec deltas and tasks wait for the spike.
+- **GitHub #16–#22** have no OpenSpec change yet.
+
+### Releases
+
+| Release | Contains | Installers |
+|---|---|---|
+| 1.2.0 | GitHub #10–#13 | MSI |
+| 1.3.0 | GitHub #14 | MSI |
+| 1.4.0 | GitHub #15–#22 | MSI and `.pkg`, the first lockstep release |
+
+- **Between 1.3.0 and 1.4.0,** the macOS steps land in `main`, and CI builds and tests the Mac target, but no macOS installer is released. Windows fixes ship as MSI-only patch releases.
+- **GitHub #18's settings migration** reaches Windows users with the first release that contains it.
+- **From 1.4.0 on,** one tag gives one release with both installers, published only when both builds pass.
+
+### Phases
+
+#### Phase 6: Windows preparation (GitHub #10–#13)
+These are no-regret changes on today's WPF shell. They're needed whichever shell macOS gets, so they don't wait for the spike. #10 and #11 are independent, and #12 and #13 build on #10. They ship as 1.2.0.
+
+**Checkpoint, the spike:** a throwaway branch before GitHub #14.
+- **M1–M4 on the development Mac:** an agent app with a menu bar icon, an overlay that leaves TextEdit focused (also in full screen), SharpHook next to Avalonia's main loop, and Quit and logout.
+- **M5:** macOS's pasteboard privacy alert.
+- **M6:** permission grants across builds signed with one certificate.
+- **W1–W3 on Windows:** the overlay styles, session end, and the tray.
+- **T1:** headless tests on xunit v3.
+- If the overlay takes focus on macOS even as a native `NSPanel`, stop before #14 and decide the shell again.
+
+#### Phase 7: The Avalonia shell (GitHub #14)
+The swap from WPF to Avalonia, checked against the existing specs. It ships as 1.3.0.
+
+#### Phase 8: The macOS track (GitHub #15–#21)
+- After #15, three tracks can run in parallel: #16 setup, #17 recording followed by #19 text insertion, and #18 Metal.
+- #21 depends only on #15.
+- #20 joins the tracks into the Mac MVP.
+
+**Checkpoint after #18:** run the benchmark on the development Mac, a MacBook Air M4 with 16 GB.
+- The target is warm transcription of a 10 s clip well under 3 s.
+- Compare Metal with the CPU, and Q8_0 with Q4_K_M.
+- Run long clips up to 399 s on Metal, to see whether the out-of-memory return matters on unified memory.
+- If Metal is slower than the CPU or unstable, or Q4_K_M matches Q8_0, change the Mac defaults before #20.
+
+#### Phase 9: The first lockstep release (GitHub #22)
+The `.pkg`, its signing and its upgrade behavior. It ships as 1.4.0, with the MSI.
+
 ## Deferred (not planned yet)
 
-- Distribution: WinGet and Chocolatey packages, code signing, and updating in one click, which waits for signing. The Chocolatey package id is `pisum-transcribe`, because `pisum-transcript` on the MyGet feed belongs to the old Pisum Transcript app and has versions up to 1.0.5.
+- Distribution: WinGet and Chocolatey packages, code signing of the MSI, and updating in one click, which waits for signing. The Chocolatey package id is `pisum-transcribe`, because `pisum-transcript` on the MyGet feed belongs to the old Pisum Transcript app and has versions up to 1.0.5.
+  - A self-signed certificate gives Windows users nothing: SmartScreen treats it like no signature.
+  - SignPath Foundation signs open-source projects for free, with "SignPath Foundation" as the publisher shown.
+- macOS without an Apple Developer Program membership:
+  - Developer ID signing and notarization aren't possible, so the `.pkg` ships unsigned (GitHub #22).
+  - The official Homebrew cask repository has been closed to apps that aren't notarized since 2026-09-01. A tap of the project's own is proposed in GitHub #22.
+- macOS on Intel Macs, a universal build, and macOS 13 or earlier.
+- For the sister project pisum-whisper:
+  - the `.pkg` upgrade rules and the self-signed certificate from GitHub #22
+  - its `MacOsClipboard` comment that nothing public keeps an entry off Universal Clipboard, which the SDK's `NSPasteboardContentsCurrentHostOnly` contradicts
 - Confirm the Canary model license before public distribution. Hugging Face lists CC-BY-4.0, while transcribe.cpp's docs say Apache-2.0.
 - Items listed as non-goals in the changes: microphone device picker, download resume, UI localization, sherpa-onnx engine.
