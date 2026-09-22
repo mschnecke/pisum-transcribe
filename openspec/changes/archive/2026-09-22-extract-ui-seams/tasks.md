@@ -62,7 +62,7 @@
   - The tests move the same way: `WasapiCaptureSessionTests`, `ForegroundWindowTrackerHardwareTests`, `StartupRegistrationTests`, `UserRegistryTests` and `FakeUserRegistry`.
 
   Verify: `dotnet build Pisum.Transcribe.slnx` passes with no warning, `dotnet test Pisum.Transcribe.slnx` passes, and `git log --follow` on a moved file shows its history.
-- [ ] 5.2 Add `src/Pisum.Transcribe/Pisum.Transcribe.csproj.DotSettings` and `tests/Pisum.Transcribe.Tests/Pisum.Transcribe.Tests.csproj.DotSettings`, which mark each new `Windows/` folder as not a namespace provider (in Rider: the folder's properties, *Namespace provider* off) (design D4). Verify: in Rider, no moved file shows "Namespace does not correspond to file location".
+- [x] 5.2 Add `src/Pisum.Transcribe/Pisum.Transcribe.csproj.DotSettings` and `tests/Pisum.Transcribe.Tests/Pisum.Transcribe.Tests.csproj.DotSettings`, which mark each new `Windows/` folder as not a namespace provider (in Rider: the folder's properties, *Namespace provider* off) (design D4). Verify: in Rider, no moved file shows "Namespace does not correspond to file location".
 
 ## 6. Documentation
 
