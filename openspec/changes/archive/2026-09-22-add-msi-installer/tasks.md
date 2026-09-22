@@ -114,4 +114,4 @@
 
 ## 7. Wrap-up
 
-- [ ] 7.1 Run `openspec validate add-msi-installer --strict` and `dotnet test Pisum.Transcribe.slnx`. Verify: both pass, and the last `ci.yml` run on the pull request is green with the `msi` artifact.
+- [x] 7.1 Run `openspec validate add-msi-installer --strict` and `dotnet test Pisum.Transcribe.slnx`. Verify: both pass, and the last `ci.yml` run on the pull request is green with the `msi` artifact.
