@@ -1,6 +1,6 @@
 ## Why
 
-The release zip from `add-packaging-ci` leaves installing to the user. They pick a folder, extract into it, find the exe, and later replace the folder by hand for every new version. The app has no Start Menu entry and no uninstall entry. If the user moves the folder, the autostart entry breaks until the app is started again. An MSI installer gives the app a fixed location, a Start Menu shortcut, an uninstall entry and in-place upgrades, without needing administrator rights. The installer is built with WiX v6, like `pisum-whisper`'s. Automatic updates, which the Velopack plan `add-installer-and-updates` bundled with its installer, are deferred.
+The release zip from `add-packaging-ci` leaves installing to the user. They pick a folder, extract into it, find the exe, and later replace the folder by hand for every new version. The app has no Start Menu entry and no uninstall entry. If the user moves the folder, the autostart entry breaks until the app is started again. An MSI installer gives the app a fixed location, a Start Menu shortcut, an uninstall entry and in-place upgrades, without needing administrator rights. The installer is built with WiX v6, like `pisum-whisper`'s. The Velopack plan `add-installer-and-updates` bundled automatic updates with its installer. They're replaced by a notice about new versions, which `add-update-check` plans next.
 
 ## What Changes
 
@@ -20,11 +20,11 @@ The release zip from `add-packaging-ci` leaves installing to the user. They pick
 - **Documentation:**
   - The README's *Getting started* section installs the MSI.
   - `packaging/README.md`, `CLAUDE.md` and `docs/roadmap.md` describe the installer.
-  - The roadmap keeps automatic updates as a deferred item.
+  - The roadmap names the update notice as the next change, and keeps WinGet as a deferred item.
 - Not included:
-  - automatic updates, and a "new version available" notice. `add-installer-and-updates` (issue #2) stays as the record of the Velopack approach to updates.
+  - a "new version available" notice: planned next as `add-update-check` (issue #2), which replaces the Velopack plan for updates. Updating in one click waits for code signing.
   - code signing: the MSI shows the same SmartScreen warning as the zip did.
-  - a per-machine install, WinGet and Chocolatey packages.
+  - a per-machine install, and WinGet and Chocolatey packages. WinGet comes later; a per-user MSI suits it.
   - deleting the speech models on uninstall.
 
 ## Capabilities

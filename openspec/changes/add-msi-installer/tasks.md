@@ -88,9 +88,10 @@
   Verify: `git grep -n build-zip CLAUDE.md` finds nothing.
 - [ ] 5.4 Update `docs/roadmap.md`:
   - Add `add-msi-installer` as step 13 after v1, with its GitHub issue.
-  - *Deferred*: automatic updates, noting that `add-installer-and-updates` (GitHub #2) records the Velopack approach, plus code signing and WinGet/Chocolatey.
+  - Add `add-update-check` (GitHub #2) as the planned next step: a notice when a new version is released.
+  - *Deferred*: replace the Velopack item with WinGet and Chocolatey packages (the Chocolatey id stays `pisum-transcribe`), code signing, and updating in one click, which waits for signing.
 
-  Verify: `git grep -n add-msi-installer docs/roadmap.md` finds the step, and the Deferred list names automatic updates.
+  Verify: `git grep -n -e add-msi-installer -e add-update-check docs/roadmap.md` finds both steps, and `git grep -n -i velopack docs/roadmap.md` finds nothing.
 
 ## 6. Release (design Migration Plan)
 

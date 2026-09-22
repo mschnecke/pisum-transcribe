@@ -156,7 +156,7 @@ The spec's notices requirement now covers code that runs only during install or 
 | `README.md` | *Getting started*: download the MSI, open it, and at the SmartScreen prompt choose **More info** → **Run anyway**. The app starts when the install finishes, and it's in the Start Menu. Upgrade by installing a newer MSI, which starts the new version. Uninstall from Windows Settings → Apps; that keeps settings, logs and models, which the user deletes by hand if wanted. Zip users install the MSI once and delete their old folder. The sizes come from the first MSI build. |
 | `packaging/README.md` | The MSI build and its validation, the dual-purpose package (D1), versions and same-version upgrades (D2), the uninstall cleanup (D3), the pins (D5), and proving the MSI on a clean machine and without administrator rights. |
 | `CLAUDE.md` | *Layout* and *Commands*: `build-msi.ps1` and `Pisum.Transcribe.wxs` instead of `build-zip.ps1`. |
-| `docs/roadmap.md` | `add-msi-installer` as a step. *Deferred*: automatic updates, noting that `add-installer-and-updates` (#2) records the Velopack approach, plus code signing and WinGet/Chocolatey. |
+| `docs/roadmap.md` | `add-msi-installer` as a step, and `add-update-check` (#2) as the planned next step: a notice when a new version is released. The *Deferred* item about Velopack becomes: WinGet and Chocolatey packages (the Chocolatey id stays `pisum-transcribe`), code signing, and updating in one click, which waits for signing. |
 
 ### D9: A double-click install starts the app
 
