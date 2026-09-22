@@ -59,10 +59,18 @@ Get-ChildItem -LiteralPath $appDir -Filter '*.lib' -File | Remove-Item -Force
 # 3. The project's license, over the flattened one from the native package.
 Copy-Item -LiteralPath (Join-Path $root 'LICENSE') -Destination (Join-Path $appDir 'LICENSE') -Force
 
-# 4. The notices (design D5).
+# 4. The notices (design D5), and the notices of ONNX Runtime and .NET for the components they bundle.
 Copy-Item -LiteralPath (Join-Path $root 'THIRD-PARTY-NOTICES.md') -Destination $appDir
-Copy-Item -LiteralPath (Join-Path $root 'packaging' 'third-party' 'onnxruntime-ThirdPartyNotices.txt') `
-    -Destination (Join-Path $appDir 'ThirdPartyNotices-OnnxRuntime.txt')
+$notices = [ordered]@{
+    'onnxruntime-ThirdPartyNotices.txt'       = 'ThirdPartyNotices-OnnxRuntime.txt'
+    'dotnet-runtime-THIRD-PARTY-NOTICES.txt'  = 'ThirdPartyNotices-DotNet.txt'
+    'dotnet-wpf-THIRD-PARTY-NOTICES.txt'      = 'ThirdPartyNotices-Wpf.txt'
+    'dotnet-winforms-THIRD-PARTY-NOTICES.txt' = 'ThirdPartyNotices-WinForms.txt'
+}
+foreach ($source in $notices.Keys) {
+    Copy-Item -LiteralPath (Join-Path $root 'packaging' 'third-party' $source) `
+        -Destination (Join-Path $appDir $notices[$source])
+}
 
 # 5. The Visual C++ runtime next to the exe, "local deployment" (design D9). The source is the
 # newest VC\Redist\MSVC\<version>\x64\Microsoft.VC14*.CRT of any Visual Studio instance - all of

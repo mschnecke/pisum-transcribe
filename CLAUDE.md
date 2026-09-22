@@ -33,7 +33,7 @@ tests/Pisum.Transcribe.Tests/    xunit v3 on Microsoft.Testing.Platform, Shouldl
 tools/generate-tray-icon.cs      Renders Tray/TrayIcon.svg into TrayIcon.ico (a .NET file-based app)
 .github/workflows/               ci.yml (build, test and MSI on every PR and push to main), release.yml (bump, tag, test, publish the MSI)
 .config/dotnet-tools.json        Local tool manifest that pins WiX (`wix`), restored by build-msi.ps1
-packaging/                       bump-version.sh, windows/build-msi.ps1 with the MSI's WiX source Pisum.Transcribe.wxs and the guard assert-native-dependencies.ps1, third-party/ (ONNX Runtime notices); see packaging/README.md
+packaging/                       bump-version.sh, windows/build-msi.ps1 with the MSI's WiX source Pisum.Transcribe.wxs and the guard assert-native-dependencies.ps1, third-party/ (the notices of ONNX Runtime and .NET); see packaging/README.md
 ```
 
 ## Architecture and conventions

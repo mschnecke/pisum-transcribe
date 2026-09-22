@@ -1,6 +1,6 @@
 # Third-party notices
 
-Pisum Transcribe ships the following third-party components. The installer puts this file into the program folder next to `Pisum.Transcribe.exe`, together with `ThirdPartyNotices-OnnxRuntime.txt`, ONNX Runtime's own notices for the components it bundles.
+Pisum Transcribe ships the following third-party components. The installer puts this file into the program folder next to `Pisum.Transcribe.exe`, together with the notices of ONNX Runtime and .NET for the components they bundle: `ThirdPartyNotices-OnnxRuntime.txt`, `ThirdPartyNotices-DotNet.txt`, `ThirdPartyNotices-Wpf.txt` and `ThirdPartyNotices-WinForms.txt`.
 
 ## Silero VAD
 
@@ -66,7 +66,7 @@ SOFTWARE.
 
 - **Used for:** speech-to-text. The app ships `transcribe.dll` from the `TranscribeCppSharp.Native.win-x64` 0.2.3 package.
 - **Source:** https://github.com/handy-computer/transcribe.cpp, tag v0.2.3
-- **License:** MIT
+- **License:** MIT. `transcribe.dll` also contains Unicode tables and tokenizer code that transcribe.cpp copied from llama.cpp (https://github.com/ggml-org/llama.cpp, `src/unicode-data.cpp` and `src/unicode.cpp`). llama.cpp has the same MIT license and copyright notice as ggml, below.
 
 ```
 MIT License
@@ -102,6 +102,66 @@ SOFTWARE.
 MIT License
 
 Copyright (c) 2023-2026 The ggml authors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+## llamafile sgemm
+
+- **Used for:** matrix multiplication on the CPU (tinyBLAS). It is compiled into the `ggml-cpu-*.dll` files, because transcribe.cpp builds ggml with `GGML_LLAMAFILE` on.
+- **Source:** https://github.com/mozilla-ai/llamafile, as vendored by ggml in transcribe.cpp v0.2.3 (`ggml/src/ggml-cpu/llamafile/sgemm.cpp`)
+- **License:** MIT
+
+```
+Copyright 2024 Mozilla Foundation
+
+Permission is hereby granted, free of charge, to any person obtaining
+a copy of this software and associated documentation files (the
+"Software"), to deal in the Software without restriction, including
+without limitation the rights to use, copy, modify, merge, publish,
+distribute, sublicense, and/or sell copies of the Software, and to
+permit persons to whom the Software is furnished to do so, subject to
+the following conditions:
+
+The above copyright notice and this permission notice shall be
+included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
+BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
+ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+## YaRN
+
+- **Used for:** the YaRN scaling of rotary position embeddings. ggml ported the function `rope_yarn` from YaRN's `LlamaYaRNScaledRotaryEmbedding.py`. It is compiled into the `ggml-cpu-*.dll` files and, as a GLSL copy, into `ggml-vulkan.dll`.
+- **Source:** https://github.com/jquesnelle/yarn, as ported by ggml in transcribe.cpp v0.2.3 (`ggml/src/ggml-cpu/ops.cpp` and `ggml/src/ggml-vulkan/vulkan-shaders/rope_funcs.glsl`)
+- **License:** MIT
+
+```
+MIT License
+
+Copyright (c) 2023 Jeffrey Quesnelle and Bowen Peng
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -224,6 +284,7 @@ SOFTWARE.
 - **Used for:** the keyboard hook behind SharpHook. The app ships `uiohook.dll` from the `SharpHook` 8.0.0 package, built from SharpHook's fork of libuiohook.
 - **Source:** https://github.com/TolikPylypchuk/libuiohook, commit `a41658fb2bef7503a3bcb305ab8bf849755fe906` (the submodule commit of SharpHook 8.0.0), forked from https://github.com/kwhat/libuiohook
 - **License:** GNU Lesser General Public License, version 3 or later. `uiohook.dll` is a separate library that the app loads at run time, so it can be replaced with another build of libuiohook that has the same interface. The full texts of the GNU LGPL version 3 and of the GNU GPL version 3, which it builds on, are at the end of this file.
+- **Corresponding source:** every release on https://github.com/mschnecke/pisum-transcript/releases carries the source of the commit above as `libuiohook-a41658fb2bef7503a3bcb305ab8bf849755fe906.tar.gz`, next to the MSI.
 
 ```
 libUIOHook: Cross-platform keyboard and mouse hooking from userland.
@@ -512,8 +573,8 @@ third-party archives.
 ## .NET
 
 - **Used for:** the runtime the app runs on. The installer is self-contained, so it ships the .NET runtime (`Microsoft.NETCore.App` 10.0.12), the Windows Desktop runtime with WPF (`Microsoft.WindowsDesktop.App` 10.0.12), and the `Microsoft.Extensions.*` 10.0.12 and `System.Numerics.Tensors` 9.0.0 packages.
-- **Source:** https://github.com/dotnet/runtime, https://github.com/dotnet/wpf and https://github.com/dotnet/winforms, tag v10.0.12
-- **License:** MIT. The .NET runtime and the Windows Desktop runtime include components under other licenses. Their notices are in https://github.com/dotnet/runtime/blob/v10.0.12/THIRD-PARTY-NOTICES.TXT, https://github.com/dotnet/wpf/blob/v10.0.12/THIRD-PARTY-NOTICES.TXT and https://github.com/dotnet/winforms/blob/v10.0.12/THIRD-PARTY-NOTICES.TXT.
+- **Source:** https://github.com/dotnet/runtime, https://github.com/dotnet/wpf and https://github.com/dotnet/winforms, tag v10.0.12. `System.Numerics.Tensors` 9.0.0 comes from https://github.com/dotnet/runtime, tag v9.0.0, commit `9d5a6a9aa463d6d10b0b0ba6d5982cc82f363dc3`.
+- **License:** MIT. The .NET runtime and the Windows Desktop runtime include components under other licenses. Their notices ship next to this file: `ThirdPartyNotices-DotNet.txt` is the `THIRD-PARTY-NOTICES.TXT` of the `Microsoft.NETCore.App.Runtime.win-x64` 10.0.12 package, and `ThirdPartyNotices-Wpf.txt` and `ThirdPartyNotices-WinForms.txt` are the `THIRD-PARTY-NOTICES.TXT` of dotnet/wpf and dotnet/winforms at tag v10.0.12. The notices of the `System.Numerics.Tensors` 9.0.0 package name no component that `ThirdPartyNotices-DotNet.txt` doesn't.
 
 ```
 The MIT License (MIT)
@@ -552,6 +613,7 @@ SOFTWARE.
 - **Used for:** the installer's custom actions. The MSI embeds `Wix4UtilCA_X64`, the custom action DLL of the WiX Util extension 6.0.2. It runs only while the MSI is installed, where it starts the app when the installation finishes, and while it's uninstalled, where it removes the "Start with Windows" entry. It isn't copied into the program folder.
 - **Source:** https://github.com/wixtoolset/wix, tag v6.0.2, commit `b3f340393117094a75ea8ced77f2357e4aa095e7`. The custom actions are in `src/ext/Util/ca`, and the libraries they are built with are in `src/libs`.
 - **License:** Microsoft Reciprocal License (MS-RL)
+- **Source code:** every release on https://github.com/mschnecke/pisum-transcript/releases carries the source of the commit above as `wix-b3f340393117094a75ea8ced77f2357e4aa095e7.tar.gz`, next to the MSI.
 
 ```
 Copyright (c) .NET Foundation and contributors.

@@ -175,4 +175,4 @@ The v1 feature set on the roadmap is implemented. GitHub Actions builds, tests a
 
 ## Third-party notices
 
-[THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) lists the third-party components the app ships and their licenses.
+[THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) lists the third-party components the app ships and their licenses. Every release also carries the source of libuiohook (LGPL) and WiX (MS-RL), the two copyleft components in the MSI.
