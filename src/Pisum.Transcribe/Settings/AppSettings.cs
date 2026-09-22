@@ -63,4 +63,9 @@ internal sealed record AppSettings
     /// The voice activity detection settings.
     /// </summary>
     public VoiceActivitySettings VoiceActivity { get; init; } = new();
+
+    /// <summary>
+    /// The update check settings.
+    /// </summary>
+    public UpdateSettings Updates { get; init; } = new();
 }

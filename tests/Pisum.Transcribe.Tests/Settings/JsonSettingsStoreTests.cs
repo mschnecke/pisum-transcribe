@@ -236,6 +236,51 @@ public sealed class JsonSettingsStoreTests : IDisposable
     }
 
     [Fact]
+    public void Load_UpdatesSectionMissing_ChecksAutomatically()
+    {
+        // Arrange
+        File.WriteAllText(_settingsFile, """{ "schemaVersion": 1 }""");
+
+        // Act
+        _sut.Load();
+
+        // Assert
+        _sut.Current.Updates.CheckAutomatically.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void Load_UpdatesSectionNull_ChecksAutomatically()
+    {
+        // Arrange
+        File.WriteAllText(_settingsFile, """{ "schemaVersion": 1, "updates": null }""");
+
+        // Act
+        _sut.Load();
+
+        // Assert
+        _sut.Current.Updates.ShouldBe(new UpdateSettings());
+        _sut.Current.Updates.CheckAutomatically.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task SaveAsync_CheckAutomaticallyOff_RoundTripsAsUpdatesSection()
+    {
+        // Arrange
+        var settings = new AppSettings {Updates = new UpdateSettings(false)};
+        await _sut.SaveAsync(settings, TestContext.Current.CancellationToken);
+        var otherStore = new JsonSettingsStore(new AppPaths(_root.Path), _logger);
+
+        // Act
+        otherStore.Load();
+
+        // Assert
+        otherStore.Current.Updates.CheckAutomatically.ShouldBeFalse();
+        var json = await File.ReadAllTextAsync(_settingsFile, TestContext.Current.CancellationToken);
+        json.ShouldContain("\"updates\": {");
+        json.ShouldContain("\"checkAutomatically\": false");
+    }
+
+    [Fact]
     public async Task SaveAsync_DefaultTextInsertionSettings_RoundTripWithCamelCaseEnumValues()
     {
         // Arrange

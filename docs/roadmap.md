@@ -43,7 +43,7 @@ After v1, the issues are on GitHub:
 |---|---|---|---|---|
 | 12 | [GitHub #1](https://github.com/mschnecke/pisum-transcript/issues/1) | `add-packaging-ci` | – | CI on every pull request and push to `main`, a self-contained zip on GitHub Releases, complete third-party notices |
 | 13 | [GitHub #6](https://github.com/mschnecke/pisum-transcript/issues/6) | `add-msi-installer` | GitHub #1 | A per-user MSI instead of the zip, without administrator rights: Start Menu shortcut, upgrades in place, uninstall that keeps the user's data |
-| 14 | [GitHub #2](https://github.com/mschnecke/pisum-transcript/issues/2) | `add-update-check` | GitHub #6 | A notice when a new version is released. Planned next, not proposed yet. |
+| 14 | [GitHub #2](https://github.com/mschnecke/pisum-transcript/issues/2) | `add-update-check` | GitHub #6 | A notice when a new version is released: a daily check of GitHub's latest release, a tray item and a notification, and an option to turn it off |
 
 ## Phases
 

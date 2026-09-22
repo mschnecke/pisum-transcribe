@@ -16,7 +16,7 @@ internal sealed class TrayIconService : ITrayIconService
     private readonly ContextMenu _contextMenu = new();
     private readonly MenuItem _exitItem = new() {Header = "Exit"};
     private readonly Separator _exitSeparator = new();
-    private readonly List<(MenuItem Item, Func<bool>? IsVisible)> _menuItems = [];
+    private readonly List<(MenuItem Item, Func<string> Header, Func<bool>? IsVisible)> _menuItems = [];
 
     /// <summary>
     /// Initializes a new instance with the app icon and a context menu with <b>Exit</b>. The icon is not shown yet.
@@ -45,6 +45,11 @@ internal sealed class TrayIconService : ITrayIconService
     /// <inheritdoc />
     public event EventHandler? DoubleClicked;
 
+    /// <summary>
+    /// The context menu, for tests.
+    /// </summary>
+    internal ContextMenu ContextMenu => _contextMenu;
+
     /// <inheritdoc />
     public void Show()
     {
@@ -56,9 +61,16 @@ internal sealed class TrayIconService : ITrayIconService
     /// <inheritdoc />
     public void AddMenuItem(string header, Action onClick, Func<bool>? isVisible = null)
     {
-        var item = new MenuItem {Header = header};
+        AddMenuItem(() => header, onClick, isVisible);
+    }
+
+    /// <inheritdoc />
+    public void AddMenuItem(Func<string> header, Action onClick, Func<bool>? isVisible = null)
+    {
+        // The header is set when the menu opens.
+        var item = new MenuItem();
         item.Click += (_, _) => onClick();
-        _menuItems.Add((item, isVisible));
+        _menuItems.Add((item, header, isVisible));
 
         if (_contextMenu.Items.IndexOf(_exitItem) == 0)
         {
@@ -89,12 +101,20 @@ internal sealed class TrayIconService : ITrayIconService
         _taskbarIcon.Dispose();
     }
 
-    private void UpdateMenuItemVisibility()
+    /// <summary>
+    /// Shows or hides each added item and sets the text of the shown ones. Runs when the menu opens.
+    /// </summary>
+    internal void UpdateMenuItemVisibility()
     {
         var anyVisible = false;
-        foreach (var (item, isVisible) in _menuItems)
+        foreach (var (item, header, isVisible) in _menuItems)
         {
             var visible = isVisible?.Invoke() ?? true;
+            if (visible)
+            {
+                item.Header = header();
+            }
+
             item.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
             anyVisible |= visible;
         }

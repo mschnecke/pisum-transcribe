@@ -1,5 +1,6 @@
 using System.Drawing;
 using System.Runtime.ExceptionServices;
+using System.Windows.Controls;
 using Pisum.Transcribe.Tray;
 
 namespace Pisum.Transcribe.Tests.Tray;
@@ -43,6 +44,31 @@ public sealed class TrayIconServiceTests
 
             // Assert
             Should.NotThrow(() => ready.Handle);
+        });
+    }
+
+    [Fact]
+    public void AddMenuItem_HeaderFunction_ShowsCurrentTextWhenMenuOpens()
+    {
+        RunOnStaThread(() =>
+        {
+            // Arrange
+            var header = "A";
+            var sut = new TrayIconService();
+            sut.AddMenuItem(() => header, () => { });
+            var item = (MenuItem) sut.ContextMenu.Items[0];
+
+            // Act
+            sut.UpdateMenuItemVisibility();
+            var first = item.Header;
+            header = "B";
+            sut.UpdateMenuItemVisibility();
+            var second = item.Header;
+
+            // Assert
+            first.ShouldBe("A");
+            second.ShouldBe("B");
+            sut.Remove();
         });
     }
 

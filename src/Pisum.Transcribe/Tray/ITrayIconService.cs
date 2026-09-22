@@ -34,6 +34,19 @@ internal interface ITrayIconService
     void AddMenuItem(string header, Action onClick, Func<bool>? isVisible = null);
 
     /// <summary>
+    /// Adds a menu item above <b>Exit</b> whose text is read each time the menu opens.
+    /// </summary>
+    /// <param name="header">
+    /// Runs on the UI thread each time the menu opens, while the item is shown, and returns its text. Keep it cheap.
+    /// </param>
+    /// <param name="onClick">Runs when the user chooses the menu item.</param>
+    /// <param name="isVisible">
+    /// Runs on the UI thread each time the menu opens and decides whether the item is shown. Keep it cheap.
+    /// <see langword="null"/> shows the item always.
+    /// </param>
+    void AddMenuItem(Func<string> header, Action onClick, Func<bool>? isVisible = null);
+
+    /// <summary>
     /// Changes the icon and its tooltip.
     /// </summary>
     /// <param name="icon">The new icon. The tray shows a copy, so the caller keeps ownership of it.</param>

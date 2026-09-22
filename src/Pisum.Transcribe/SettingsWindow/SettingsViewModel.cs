@@ -77,7 +77,7 @@ internal sealed partial class SettingsViewModel : ObservableObject
             confirmDelete, _invokeOnUiThread);
         Dictation = new DictationSectionViewModel(_baseline, Model.SelectedModel, hotkey, _invokeOnUiThread);
         TextInsertion = new TextInsertionSectionViewModel(_baseline.TextInsertion);
-        General = new GeneralSectionViewModel(_startsWithWindows);
+        General = new GeneralSectionViewModel(_startsWithWindows, _baseline.Updates);
 
         Model.PropertyChanged += OnSectionChanged;
         Dictation.PropertyChanged += OnSectionChanged;
@@ -202,6 +202,7 @@ internal sealed partial class SettingsViewModel : ObservableObject
             Recording = _baseline.Recording with {Hotkey = Dictation.Hotkey},
             TextInsertion = TextInsertion.ToSettings(),
             VoiceActivity = new VoiceActivitySettings(Dictation.TrimSilence),
+            Updates = new UpdateSettings(General.CheckForUpdates),
         };
     }
 
@@ -223,6 +224,7 @@ internal sealed partial class SettingsViewModel : ObservableObject
         Dictation.Model = Model.SelectedModel;
         Dictation.Rebase(previous, current);
         TextInsertion.Rebase(previous.TextInsertion, current.TextInsertion);
+        General.Rebase(previous.Updates, current.Updates);
         NotifySaveState();
     }
 
