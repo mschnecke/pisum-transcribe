@@ -17,7 +17,7 @@ Current state that the approach depends on:
 - **`Directory.Build.props`** records `0.1.0-rc.1`. The zip pre-release `v0.1.0-rc.1` is published.
 - **"Start with Windows"** (`StartupRegistration`) writes `"<exe path>"` to `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`, value `Pisum Transcribe`. Task Manager disables it through a value of the same name under `HKCU\…\Explorer\StartupApproved\Run`. At every start, the app re-points an existing `Run` value to its own exe (`StartupRegistration.cs:88`).
 - **The data folder** is `%LOCALAPPDATA%\Pisum Transcribe\` (`AppPaths`), separate from the install folder `%LOCALAPPDATA%\Programs\Pisum Transcribe\`.
-- **Session end:** `App.OnSessionEnding` routes Windows' end-session messages to `ShutdownCoordinator`, and the app ends as at **Exit** within 4.5 s (app-shell spec).
+- **Session end:** `App.OnSessionEnding` routes Windows' end-session messages to `ShutdownCoordinator`, and the app ends as at **Exit** within 4.5 s (app-shell spec). The archived change `end-with-windows-session` planned for installers: its design says a Restart Manager close (`ENDSESSION_CLOSEAPP`) arrives at WPF's hidden top-level window as the same `WM_QUERYENDSESSION` and takes the same path. Its manual test sent that message from another process to each of the app's top-level windows, as Restart Manager does.
 - **A spike on 2026-09-22 with WiX 6.0.2**, building the real payload in a scratch folder without installing it:
   - `wix build` doesn't run ICE validation, and `wix msi validate` does.
   - `Scope="perUser"` with the files under `LocalAppDataFolder\Programs` fails validation: 468 × ICE38 and 17 × ICE64 errors, plus 468 × ICE91 warnings. Every harvested file lies in the user profile with a file as its key path.
@@ -35,8 +35,8 @@ Current state that the approach depends on:
 - No change to `src/`. Install, upgrade and uninstall rely on the app's existing behavior: it re-points the autostart entry at start and handles session end.
 
 **Non-Goals:**
-- An install UI (dialogs, license page, folder choice, "launch now" checkbox) and a desktop shortcut.
-- Restarting the app after an upgrade. Windows Installer restarts only apps registered with `RegisterApplicationRestart`.
+- An install UI (dialogs, license page, folder choice) and a desktop shortcut. Starting the app after a double-click install needs no checkbox (D9).
+- Starting the app after an unattended install (`/qn`, `/passive`), as a package manager or a deployment tool runs it.
 - A per-machine install. The package is technically dual-purpose (D1), but only the per-user install is supported and tested.
 - Removing the data folder on uninstall (proposal, user decision).
 
@@ -101,12 +101,14 @@ Windows Installer's Restart Manager, on by default, finds `Pisum.Transcribe.exe`
 - **`util:CloseApplication`:** ICE105 (Context), and it would duplicate what Restart Manager does.
 - **Terminating the process:** that skips the shutdown, so the tray icon lingers and a dictation in progress is lost.
 
-**To verify in the spike:**
-- the prompt appears on a double-click upgrade
+**The app side is already built and tested:** `end-with-windows-session` designed this path for Restart Manager's `ENDSESSION_CLOSEAPP` and tested it by sending the message from another process (Context). WPF's hidden top-level window is the window Restart Manager finds.
+
+**To verify in the spike, the installer side:**
+- Windows Installer shows its own "files in use" prompt on a double-click upgrade, although the package authors no dialogs
 - the app's log shows the end-of-session shutdown
 - the upgrade finishes without asking for a reboot
 
-If Restart Manager can't close the app, because it finds no window to send the message to, the fallback is a change in `src/`, which the tasks then name. The spec requires only the outcome.
+If Restart Manager still can't close the app, the fallback is a change in `src/`, which the tasks then name. Given the tested app side, that's unlikely. The spec requires only the outcome.
 
 ### D5: `build-zip.ps1` becomes `build-msi.ps1`
 
@@ -139,7 +141,7 @@ dotnet wix msi validate -sice ICE61 -wx artifacts/Pisum.Transcribe_<version>_win
 ### D7: Notices
 
 `THIRD-PARTY-NOTICES.md` gets a **WiX Toolset** section:
-- the component: the custom action DLL `Wix4UtilCA_X64`, which is embedded in the MSI and runs only while the package is uninstalled (D3)
+- the component: the custom action DLL `Wix4UtilCA_X64`, which is embedded in the MSI and runs only during an install (D9) or an uninstall (D3)
 - the source: `wixtoolset/wix`, tag `v6.0.2`
 - the license: the MS-RL text
 
@@ -149,15 +151,43 @@ The spec's notices requirement now covers code that runs only during install or 
 
 | File | Change |
 |---|---|
-| `README.md` | *Getting started*: download the MSI, open it, and at the SmartScreen prompt choose **More info** → **Run anyway**. The app is in the Start Menu. Upgrade by installing a newer MSI. Uninstall from Windows Settings → Apps; that keeps settings, logs and models, which the user deletes by hand if wanted. Zip users install the MSI once and delete their old folder. The sizes come from the first MSI build. |
+| `README.md` | *Getting started*: download the MSI, open it, and at the SmartScreen prompt choose **More info** → **Run anyway**. The app starts when the install finishes, and it's in the Start Menu. Upgrade by installing a newer MSI, which starts the new version. Uninstall from Windows Settings → Apps; that keeps settings, logs and models, which the user deletes by hand if wanted. Zip users install the MSI once and delete their old folder. The sizes come from the first MSI build. |
 | `packaging/README.md` | The MSI build and its validation, the dual-purpose package (D1), versions and same-version upgrades (D2), the uninstall cleanup (D3), the pins (D5), and proving the MSI on a clean machine and without administrator rights. |
 | `CLAUDE.md` | *Layout* and *Commands*: `build-msi.ps1` and `Pisum.Transcribe.wxs` instead of `build-zip.ps1`. |
 | `docs/roadmap.md` | `add-msi-installer` as a step. *Deferred*: automatic updates, noting that `add-installer-and-updates` (#2) records the Velopack approach, plus code signing and WinGet/Chocolatey. |
 
+### D9: A double-click install starts the app
+
+A tray app shows nothing after a plain install, and after an upgrade Restart Manager has closed it (D4). So the MSI starts the app when an interactive install finishes. `WixShellExec`, from the same Util DLL as D3, runs as an immediate custom action after `InstallFinalize`. `WixShellExecTarget` is set to `[INSTALLFOLDER]Pisum.Transcribe.exe`, built from the folder, because `<Files>` generates the file IDs.
+
+Condition: `UILevel = 5 AND NOT Installed AND NOT REMOVE`.
+
+| Run | UILevel | `Installed` | `REMOVE` | Starts the app |
+|---|---|---|---|---|
+| Double-click, first install | 5 | no | empty | yes |
+| Double-click, upgrade | 5 | no (a new ProductCode) | empty | yes, the new version |
+| `msiexec /qn` (a package manager) | 2 | no | empty | no |
+| `msiexec /passive` | 3 | no | empty | no |
+| Uninstall | any | yes | `ALL` | no |
+
+A double-click gives `UILevel` 5 even though the package has no dialogs. Without a model, the started app opens **Download a speech model**, so a first install leads straight into setup. The single-instance guard makes a start while another instance runs harmless.
+
+**To verify in the spike:**
+- the app starts after a double-click install and after an upgrade, with its tray icon
+- it runs as the user without elevation (Task Manager, "Elevated: No")
+- `msiexec /i <msi> /qn` installs without starting it
+
+*Rejected:*
+- **A "Launch Pisum Transcribe" checkbox:** it needs a WixUI dialog set, which D1 leaves out.
+- **Restart Manager's own restart:** it restarts only apps registered with `RegisterApplicationRestart`, which would be app code, and it wouldn't cover a first install.
+- **Leaving the start to the user:** "installed, but nothing visible happens" is the most likely first-run confusion for a tray app.
+
 ## Risks / Trade-offs
 
 - [A dual-purpose package asks for elevation on a double-click] → The spike installs it first (D1). The fallback `Scope="perUser"` keeps the install folder and the specs.
-- [Restart Manager can't close the tray app, and the upgrade asks for a reboot] → The spike checks it (D4). The fallback is a small change in the app, named in the tasks.
+- [Restart Manager can't close the tray app, and the upgrade asks for a reboot] → Unlikely: the app side was built and tested for this in `end-with-windows-session`. The spike checks the installer side (D4), and the fallback is a small change in the app, named in the tasks.
+- [An administrator runs `msiexec /i` from an elevated prompt without `/q`, and D9 starts the app elevated] → Accepted as rare. A condition on Windows Installer's `Privileged` property might also stop the start for every admin account, which most home users have. Restarting the app from the Start Menu gives a normal one.
+- [The custom action after `InstallFinalize` starts the app in another context than the user's] → The spike checks the user and elevation of the started app (D9). If it's wrong, the fallback is to drop D9 and document the Start Menu, which is a spec change.
 - [Same-version upgrades let a later pre-release replace a final release with the same numeric version] → Accepted (D2). Pre-releases are rehearsals and aren't offered as the latest release.
 - [SmartScreen warns about the unsigned MSI as it did about the zip] → Documented. Signing stays a separate change.
 - [A user has both the zip and the MSI] → The `Run` value follows whichever copy started last, and both use the same data folder. The README says to delete the zip folder after installing.
@@ -170,8 +200,9 @@ The spec's notices requirement now covers code that runs only during install or 
 1. **Spike** (tasks 1.x), on the development machine or in Windows Sandbox:
    - Install a first `Pisum.Transcribe.wxs` MSI by double-click, and look for a UAC prompt.
    - Check the install folder, the Start Menu shortcut and the installed-apps entry.
+   - Check that the app starts after the install without elevation, and that a `/qn` install doesn't start it (D9).
    - Upgrade while the app runs, uninstall while it runs, and check the startup entry.
-   - Settle D1's and D4's fallbacks there.
+   - Settle D1's, D4's and D9's fallbacks there.
 2. Implement the script, the workflows, the notices and the docs. A pull request's CI builds and validates the MSI.
 3. Rehearse with a tag on the branch: an exact `0.1.0-rc.2` publishes a pre-release with the MSI. Prove it on a clean machine, then delete the rehearsal.
 4. After the merge, start **Release** by hand with `0.1.0-rc.2`. The first final release, `0.1.0`, is a separate step.

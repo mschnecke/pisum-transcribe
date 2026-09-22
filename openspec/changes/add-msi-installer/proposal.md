@@ -7,15 +7,16 @@ The release zip from `add-packaging-ci` leaves installing to the user. They pick
 - **Installer:** each release provides `Pisum.Transcribe_<version>_win-x64.msi`.
   - It installs for the current user, without administrator rights, into `%LOCALAPPDATA%\Programs\Pisum Transcribe\`. It adds a Start Menu shortcut and an entry in Windows' installed apps.
   - It contains everything the app needs, as the zip did: the .NET runtime and the Visual C++ runtime are in it, and nothing needs to be installed first.
-  - A double-click installs it with Windows Installer's own progress window. There are no install dialogs, no choice of folder, no desktop shortcut, and the app doesn't start by itself after installing.
-- **Upgrading:** installing a newer MSI replaces the installed version in place. Settings, speech models, logs and the "Start with Windows" entry stay. A final release installs over its own pre-releases (`0.1.0` over `0.1.0-rc.2`), because Windows Installer compares only the numeric part of the version. A running app is closed through its normal shutdown before its files are replaced.
+  - A double-click installs it with Windows Installer's own progress window and then starts the app. Without a speech model, the app then opens its setup window. There are no install dialogs, no choice of folder and no desktop shortcut.
+  - A silent install (`msiexec /qn`, as a package manager runs it) doesn't start the app.
+- **Upgrading:** installing a newer MSI replaces the installed version in place. Settings, speech models, logs and the "Start with Windows" entry stay. A final release installs over its own pre-releases (`0.1.0` over `0.1.0-rc.2`), because Windows Installer compares only the numeric part of the version. A running app is closed through its normal shutdown before its files are replaced, and a double-click upgrade starts the new version when it finishes.
 - **Uninstalling:** removes the program files, the Start Menu shortcut and the "Start with Windows" entry. It keeps `settings.json`, the logs and the downloaded speech models, so a reinstall keeps the user's setup.
 - **BREAKING (release assets):** a release carries the MSI instead of `Pisum.Transcribe_<version>_win-x64.zip`. Anyone using the zip installs the MSI once and deletes the old folder. The app's first start from the installed location re-points an existing "Start with Windows" entry to itself, as it already does after a move.
 - **Packaging:**
   - `packaging/windows/build-zip.ps1` becomes `build-msi.ps1`. It keeps all payload steps: publish, cleanup, license and notices, the local Visual C++ runtime and its guard. It then builds and validates the MSI instead of zipping.
   - The WiX tool and its Util extension are pinned exactly.
   - CI builds the MSI on every pull request and push to `main`, and the Release workflow publishes it.
-- **Third-party notices:** the MSI contains WiX's custom action code, which removes the startup entry on uninstall. WiX is MS-RL, so `THIRD-PARTY-NOTICES.md` gets a WiX Toolset section.
+- **Third-party notices:** the MSI contains WiX's custom action code, which starts the app after a double-click install and removes the startup entry on uninstall. WiX is MS-RL, so `THIRD-PARTY-NOTICES.md` gets a WiX Toolset section.
 - **Documentation:**
   - The README's *Getting started* section installs the MSI.
   - `packaging/README.md`, `CLAUDE.md` and `docs/roadmap.md` describe the installer.

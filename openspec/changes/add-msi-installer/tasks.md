@@ -7,21 +7,24 @@
   - the installed-apps icon and properties
   - `<MajorUpgrade AllowSameVersionUpgrades="yes" …>` with the downgrade message, and `<MediaTemplate EmbedCab="yes" />`
   - the two `WixQuietExec64` custom actions for the `Run` and `StartupApproved\Run` values, with `REMOVE="ALL" AND NOT UPGRADINGPRODUCTCODE` and `Return="ignore"`
+  - the `WixShellExec` custom action that starts the app after `InstallFinalize`, with `WixShellExecTarget` set to `[INSTALLFOLDER]Pisum.Transcribe.exe` and the condition `UILevel = 5 AND NOT Installed AND NOT REMOVE` (design D9)
   - a header comment on why `PublishDir` and `IconFile` are absolute `-d` values (design D1)
 
   Verify: on a publish folder from `./packaging/windows/build-zip.ps1 -Version 0.1.0-dev.1`, `dotnet wix build` with `-arch x64 -ext WixToolset.Util.wixext -d Version=0.1.0` and the two absolute paths succeeds, and `dotnet wix msi validate -sice ICE61 -wx` on the result exits 0.
 - [ ] 1.3 Install spike (design D1). First write down whether "Start with Windows" is on: the uninstall in 1.4 removes the real `Run` value. Open the MSI from 1.2 by double-click as a user without an elevated session, with logging (`msiexec /i <msi> /l*v install.log` gives the same install). Verify:
   - no UAC prompt appears
   - the files are in `%LOCALAPPDATA%\Programs\Pisum Transcribe\`
-  - the Start Menu has "Pisum Transcribe", which starts the app
+  - the app starts when the install finishes, shows its tray icon, and runs without elevation: Task Manager's Details tab shows "Elevated: No" (design D9)
+  - the Start Menu has "Pisum Transcribe", which also starts the app
   - Windows Settings → Apps shows "Pisum Transcribe" with version `0.1.0` and the icon
 
-  If a UAC prompt appears, switch to D1's fallback: `Scope="perUser"`, `LocalAppDataFolder\Programs\Pisum Transcribe`, validation with `-sice ICE38 -sice ICE64 -sice ICE91` as well. Write the switch into design D1, and repeat this task.
+  If a UAC prompt appears, switch to D1's fallback: `Scope="perUser"`, `LocalAppDataFolder\Programs\Pisum Transcribe`, validation with `-sice ICE38 -sice ICE64 -sice ICE91` as well. Write the switch into design D1, and repeat this task. If the app doesn't start, or starts elevated or as another user, stop: D9's fallback drops the start and changes the spec, so it needs your decision first.
 - [ ] 1.4 Upgrade and uninstall spike (design D2–D4). In the installed app, turn on "Start with Windows". Build two more MSIs from the same payload: one with `-d Version=0.1.1` and one with `-d Version=0.0.9`. Verify:
-  - **Upgrade while running:** installing `0.1.1` while the app runs shows a "files in use" prompt; record its text for the README. Closing applications ends the app, and the log shows the end-of-session shutdown. No reboot is asked for. Settings → Apps shows one entry, at `0.1.1`. "Start with Windows" is still on and points at the same exe.
+  - **Upgrade while running:** installing `0.1.1` while the app runs shows a "files in use" prompt; record its text for the README. Closing applications ends the app, and the log shows the end-of-session shutdown. No reboot is asked for. The new version starts when the upgrade finishes, and its log shows the version. Settings → Apps shows one entry, at `0.1.1`. "Start with Windows" is still on and points at the same exe.
   - **Same-version upgrade:** reinstalling a rebuilt `0.1.1` MSI replaces the installed copy.
   - **Downgrade refused:** opening the `0.0.9` MSI shows "A newer version of Pisum Transcribe is already installed.", and nothing changes.
   - **Uninstall while running:** uninstalling from Settings → Apps ends the app. The `Run` and `StartupApproved\Run` values named `Pisum Transcribe` are gone (`reg query`). The install folder and the Start Menu shortcut are gone. `%LOCALAPPDATA%\Pisum Transcribe\` still has `settings.json`, `logs\` and `models\`.
+  - **Unattended install:** `msiexec /i <0.1.1 msi> /qn` installs without starting the app, and `Get-Process Pisum.Transcribe` finds nothing. Then `msiexec /x <0.1.1 msi> /qn` removes it again.
 
   If Restart Manager can't close the app, stop and name the change in `src/` that design D4's fallback needs before going on. Afterwards, restore "Start with Windows" as recorded in 1.3.
 
@@ -42,7 +45,7 @@
 ## 3. Third-party notices (design D7)
 
 - [ ] 3.1 Add a **WiX Toolset** section to `THIRD-PARTY-NOTICES.md`:
-  - the component: `Wix4UtilCA_X64`, embedded in the MSI, running only on uninstall to remove the startup entry
+  - the component: `Wix4UtilCA_X64`, embedded in the MSI, running only during an install, where it starts the app, and an uninstall, where it removes the startup entry
   - the source: `https://github.com/wixtoolset/wix`, tag `v6.0.2`
   - the license: MS-RL, with the text from that tag's `LICENSE.TXT`
 
@@ -60,8 +63,8 @@
 ## 5. Documentation (design D8)
 
 - [ ] 5.1 Update `README.md`:
-  - **Getting started:** download `Pisum.Transcribe_<version>_win-x64.msi`, open it, and at the SmartScreen prompt choose **More info** → **Run anyway**. Nothing else needs to be installed. The app is in the Start Menu. Give the MSI size and the installed size from 2.1.
-  - **Upgrading:** install a newer MSI; if asked, let it close the running app, which then has to be started again.
+  - **Getting started:** download `Pisum.Transcribe_<version>_win-x64.msi`, open it, and at the SmartScreen prompt choose **More info** → **Run anyway**. Nothing else needs to be installed. The app starts when the install finishes, opens the model setup window on the first start, and is in the Start Menu. Give the MSI size and the installed size from 2.1.
+  - **Upgrading:** install a newer MSI; if asked, let it close the running app. It starts the new version when it finishes.
   - **Uninstalling:** from Windows Settings → Apps. This keeps `%LOCALAPPDATA%\Pisum Transcribe\` with settings, logs and models, which the user deletes by hand to remove them.
   - **Zip users:** install the MSI, then delete the old folder.
   - **Project status:** installer and CI exist, automatic updates and signing don't.
@@ -93,11 +96,11 @@
 
 - [ ] 6.1 Before the merge, rehearse the tag path on the branch: `git tag v0.1.0-rc.2` at the branch head, then push it. Verify:
   - the run skips `bump` and publishes **Pisum Transcribe v0.1.0-rc.2**, marked as a pre-release, with `Pisum.Transcribe_0.1.0-rc.2_win-x64.msi` and no zip
-  - the downloaded MSI installs on this machine without a UAC prompt
+  - the downloaded MSI installs on this machine without a UAC prompt and starts the app
   - the app logs `0.1.0-rc.2+<sha>`, and Settings → Apps shows `0.1.0`
 
   Then delete the rehearsal with `gh release delete v0.1.0-rc.2 --cleanup-tag --yes`, so 6.3 can use the version. Verify: `gh release list` and `git ls-remote --tags origin` show no `v0.1.0-rc.2`.
-- [ ] 6.2 Prove the MSI from 6.1 on a clean machine, meaning Windows Sandbox or a VM without .NET and without the Visual C++ Redistributable (spec: "Start on a clean machine", "Engine and silence trimming load on a clean machine"). Check the precondition first: `Test-Path C:\Windows\System32\vcruntime140.dll` is `False`. Verify: the MSI installs, the Start Menu shortcut starts the app without a runtime prompt, and after downloading Canary 180M Flash the tooltip shows **Ready (CPU)** or **Ready (Vulkan)**. The log shows the version and "Voice activity detection is ready".
+- [ ] 6.2 Prove the MSI from 6.1 on a clean machine, meaning Windows Sandbox or a VM without .NET and without the Visual C++ Redistributable (spec: "Start on a clean machine", "Engine and silence trimming load on a clean machine"). Check the precondition first: `Test-Path C:\Windows\System32\vcruntime140.dll` is `False`. Verify: the MSI installs and starts the app without a runtime prompt, and after downloading Canary 180M Flash the tooltip shows **Ready (CPU)** or **Ready (Vulkan)**. The log shows the version and "Voice activity detection is ready".
 - [ ] 6.3 **After the merge:** start **Release** by hand with the exact version `0.1.0-rc.2` (`gh workflow run release.yml -f version=0.1.0-rc.2`). Verify: `main` gets "Bump the version to 0.1.0-rc.2", `v0.1.0-rc.2` exists, and the pre-release carries the MSI. The final `0.1.0` is a separate step.
 
 ## 7. Wrap-up

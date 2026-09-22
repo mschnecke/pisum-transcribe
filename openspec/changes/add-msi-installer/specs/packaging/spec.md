@@ -1,12 +1,21 @@
 ## ADDED Requirements
 
 ### Requirement: Windows installer for x64
-Each release SHALL provide one Windows Installer package (MSI) for Windows x64. Installing it SHALL NOT require administrator rights: it SHALL install the application for the current user only, into `%LOCALAPPDATA%\Programs\Pisum Transcribe\`, and SHALL add a Start Menu shortcut named "Pisum Transcribe" and an entry in Windows' list of installed apps. The package SHALL contain the application and every runtime dependency it needs, so that the installed application starts, detects speech and transcribes on a Windows 10 or 11 x64 machine that has neither a .NET runtime nor the Microsoft Visual C++ Redistributable installed, without installing anything else first. A GPU driver is not such a dependency: without Vulkan, the application runs on the CPU as the transcription spec describes. The file name SHALL contain the release version and identify the platform, in the form `Pisum.Transcribe_<version>_win-x64.msi`.
+Each release SHALL provide one Windows Installer package (MSI) for Windows x64. Installing it SHALL NOT require administrator rights: it SHALL install the application for the current user only, into `%LOCALAPPDATA%\Programs\Pisum Transcribe\`, and SHALL add a Start Menu shortcut named "Pisum Transcribe" and an entry in Windows' list of installed apps. The package SHALL contain the application and every runtime dependency it needs, so that the installed application starts, detects speech and transcribes on a Windows 10 or 11 x64 machine that has neither a .NET runtime nor the Microsoft Visual C++ Redistributable installed, without installing anything else first. A GPU driver is not such a dependency: without Vulkan, the application runs on the CPU as the transcription spec describes. When the package is installed interactively, by opening it, the installer SHALL start the application, without administrator rights, when it finishes. An unattended installation, such as `msiexec /qn`, SHALL NOT start it. The file name SHALL contain the release version and identify the platform, in the form `Pisum.Transcribe_<version>_win-x64.msi`.
 
 #### Scenario: Install without administrator rights
 - **WHEN** a user who isn't an administrator opens the package
 - **THEN** the application is installed into `%LOCALAPPDATA%\Programs\Pisum Transcribe\` without asking for administrator credentials
 - **AND** the Start Menu has a "Pisum Transcribe" shortcut, and Windows' list of installed apps shows "Pisum Transcribe"
+
+#### Scenario: Opening the package starts the application
+- **WHEN** the package is opened and the installation finishes
+- **THEN** the application starts without administrator rights and shows its tray icon
+- **AND** without a downloaded speech model, it opens the setup window
+
+#### Scenario: An unattended installation doesn't start the application
+- **WHEN** the package is installed with `msiexec /i <package> /qn`
+- **THEN** the installation completes and the application isn't running
 
 #### Scenario: Start on a clean machine
 - **WHEN** the package is installed on a Windows 11 x64 machine with neither a .NET runtime nor the Visual C++ Redistributable installed, and the application is started from its Start Menu shortcut
@@ -22,7 +31,7 @@ Each release SHALL provide one Windows Installer package (MSI) for Windows x64. 
 - **THEN** the installer is named `Pisum.Transcribe_0.1.0_win-x64.msi`
 
 ### Requirement: Upgrading in place
-Installing the package of a release while another version is installed SHALL replace the installed application in its folder, so that exactly one copy stays installed. A package whose version differs from the installed one only by a pre-release suffix SHALL also replace it, so that a final release installs over its release candidates. A package whose version, without its pre-release suffix, is lower than the installed one SHALL be refused with a message, and the installed application SHALL stay unchanged. An upgrade SHALL keep the user's settings, logs, downloaded speech models and "Start with Windows" entry. If the application is running, it SHALL end as it does when the user chooses **Exit** before its files are replaced, and the upgrade SHALL NOT need a restart of Windows.
+Installing the package of a release while another version is installed SHALL replace the installed application in its folder, so that exactly one copy stays installed. A package whose version differs from the installed one only by a pre-release suffix SHALL also replace it, so that a final release installs over its release candidates. A package whose version, without its pre-release suffix, is lower than the installed one SHALL be refused with a message, and the installed application SHALL stay unchanged. An upgrade SHALL keep the user's settings, logs, downloaded speech models and "Start with Windows" entry. If the application is running, it SHALL end as it does when the user chooses **Exit** before its files are replaced, and the upgrade SHALL NOT need a restart of Windows. After an interactive upgrade, the installer SHALL start the new version, as after an interactive installation.
 
 #### Scenario: Newer release over an older one
 - **WHEN** the package of `0.2.0` is installed while `0.1.0` is installed, and the application is started afterwards
@@ -39,7 +48,7 @@ Installing the package of a release while another version is installed SHALL rep
 
 #### Scenario: Upgrade while the application runs
 - **WHEN** the package of a newer release is installed while the application runs, and the user agrees to close applications if the installer asks
-- **THEN** the application ends as it does at **Exit**, the upgrade completes without a restart of Windows, and the new version starts from the Start Menu shortcut
+- **THEN** the application ends as it does at **Exit**, the upgrade completes without a restart of Windows, and the new version starts when the upgrade finishes
 
 ### Requirement: Uninstalling
 Uninstalling the application through Windows' list of installed apps SHALL remove the application's program folder, its Start Menu shortcut and its "Start with Windows" entry, including an entry the user disabled in Task Manager. It SHALL keep the per-user data folder `%LOCALAPPDATA%\Pisum Transcribe\` with the settings, the logs and the downloaded speech models. An upgrade SHALL NOT remove the "Start with Windows" entry. If the application is running, it SHALL end as it does when the user chooses **Exit** before its files are removed.
