@@ -80,10 +80,10 @@
   - On the clean machine from 4.4, that zip starts, reaches **Ready** with a downloaded model, and logs `0.1.0-rc.1`.
 
   Then delete the rehearsal (`gh release delete v0.1.0-rc.1 --cleanup-tag --yes`), so 5.3 can use the same version. Verify: `gh release list` and `git ls-remote --tags origin` show no `v0.1.0-rc.1`.
-- [ ] 5.3 **After the merge**, tracked in the change's GitHub issue: GitHub offers `workflow_dispatch` only for workflows on the default branch. Start **Release** by hand with the exact version `0.1.0-rc.1` (`gh workflow run release.yml -f version=0.1.0-rc.1`). Verify:
+- [x] 5.3 **After the merge**, tracked in the change's GitHub issue: GitHub offers `workflow_dispatch` only for workflows on the default branch. Start **Release** by hand with the exact version `0.1.0-rc.1` (`gh workflow run release.yml -f version=0.1.0-rc.1`). Verify:
   - The run commits `Bump the version to 0.1.0-rc.1` to `main` and pushes `v0.1.0-rc.1`.
   - The pre-release `Pisum Transcribe v0.1.0-rc.1` is published with its zip.
-- [ ] 5.4 **After the merge**, tracked in the issue: check the refusal. Start **Release** again with the exact version `0.1.0-rc.1`. Verify: the `bump` job fails with "v0.1.0-rc.1 already exists", and `main` has no new commit.
+- [x] 5.4 **After the merge**, tracked in the issue: check the refusal. Start **Release** again with the exact version `0.1.0-rc.1`. Verify: the `bump` job fails with "v0.1.0-rc.1 already exists", and `main` has no new commit.
 - [ ] 5.5 **After the merge:** optionally delete the `v0.1.0-rc.1` release and tag again. Leave the bump commit, so the next `patch` gives `0.1.0` (design D4). Don't publish `v0.1.0` in this change. Verify: `Directory.Build.props` on `main` says `0.1.0-rc.1`. Then close the change's issue by hand once its checklist is done. The PR references the issue with "Part of #N", never with a closing keyword.
 
 ## 6. Documentation (design D8)
