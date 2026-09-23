@@ -19,7 +19,8 @@ namespace Pisum.Transcribe.SettingsWindow;
 /// <remarks>
 /// Settings saved elsewhere while the window is open, such as the model chosen in the setup window, replace the values
 /// the user has not edited. Save therefore writes exactly what the window shows and never an old value of a setting
-/// that the user did not touch. "Start with Windows" is not a setting; it is read from and written to Windows.
+/// that the user did not touch. "Start with Windows" is not a setting; it is read from and written to Windows, and it
+/// is hidden where there is no <see cref="IStartupRegistration"/>.
 /// </remarks>
 internal sealed partial class SettingsViewModel : ObservableObject
 {
@@ -34,7 +35,7 @@ internal sealed partial class SettingsViewModel : ObservableObject
     public const string StartupFailedMessage = "Start with Windows could not be changed. Details are in the log.";
 
     private readonly ISettingsStore _settingsStore;
-    private readonly IStartupRegistration _startupRegistration;
+    private readonly IStartupRegistration? _startupRegistration;
     private readonly ILogger<SettingsViewModel> _logger;
     private readonly IUiDispatcher _uiDispatcher;
 
@@ -47,7 +48,9 @@ internal sealed partial class SettingsViewModel : ObservableObject
     /// Initializes a new instance with the saved settings.
     /// </summary>
     /// <param name="settingsStore">The settings store.</param>
-    /// <param name="startupRegistration">Starts the application at sign-in.</param>
+    /// <param name="startupRegistration">
+    /// Starts the application at sign-in, or <see langword="null"/> where the platform has none, which hides the option.
+    /// </param>
     /// <param name="modelStore">The model store.</param>
     /// <param name="transcriber">The transcription engine.</param>
     /// <param name="hotkey">The push-to-talk hotkey, suspended while a new hotkey is recorded.</param>
@@ -56,7 +59,7 @@ internal sealed partial class SettingsViewModel : ObservableObject
     /// <param name="logger">The logger.</param>
     /// <param name="uiDispatcher">Reaches the UI thread, for settings saved elsewhere and for the sections.</param>
     public SettingsViewModel(ISettingsStore settingsStore,
-                             IStartupRegistration startupRegistration,
+                             IStartupRegistration? startupRegistration,
                              IModelStore modelStore,
                              ITranscriber transcriber,
                              IPushToTalkHotkey hotkey,
@@ -70,13 +73,13 @@ internal sealed partial class SettingsViewModel : ObservableObject
         _logger = logger;
         _uiDispatcher = uiDispatcher;
         _baseline = settingsStore.Current;
-        _startsWithWindows = startupRegistration.IsEnabled();
+        _startsWithWindows = startupRegistration?.IsEnabled() ?? false;
 
         Model = new ModelSectionViewModel(_baseline, modelStore, transcriber, lifetime.ApplicationStopping,
             confirmDelete, uiDispatcher);
         Dictation = new DictationSectionViewModel(_baseline, Model.SelectedModel, hotkey, uiDispatcher);
         TextInsertion = new TextInsertionSectionViewModel(_baseline.TextInsertion);
-        General = new GeneralSectionViewModel(_startsWithWindows, _baseline.Updates);
+        General = new GeneralSectionViewModel(startupRegistration is not null, _startsWithWindows, _baseline.Updates);
 
         Model.PropertyChanged += OnSectionChanged;
         Dictation.PropertyChanged += OnSectionChanged;
@@ -162,7 +165,7 @@ internal sealed partial class SettingsViewModel : ObservableObject
                 ApplyBaseline(settings);
             }
 
-            if (General.StartWithWindows != _startsWithWindows)
+            if (_startupRegistration is not null && General.StartWithWindows != _startsWithWindows)
             {
                 try
                 {

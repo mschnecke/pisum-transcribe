@@ -8,10 +8,12 @@ Pisum Transcribe is to ship on macOS as a public release next to Windows. `move-
 - **Menu bar app:**
   - The app runs as an agent: no Dock icon, no main window, no entry in the app switcher.
   - Its icon sits in the menu bar as a monochrome template image, which follows light and dark mode.
-  - The menu has the same items as on Windows. The last item is **Quit Pisum Transcribe**, the macOS name for **Exit**.
+  - The menu has the items of the features the Mac build runs (below). The last item is **Quit Pisum Transcribe**, the macOS name for **Exit**.
+- **Only the shell runs on macOS in this change:** the menu bar icon, notifications, settings, the model setup and download, the transcription engine on the CPU, the settings window and the update check. Recording, voice activity detection, text insertion and dictation are not registered on macOS until the later changes add them, so the menu has no **Cancel transcription** yet. In the settings window, the hotkey editor records nothing yet, and "Start with Windows" isn't shown.
 - **Ending:**
   - **Quit**, and the end of the macOS session (log out, shut down, restart), end the app as **Exit** does on Windows: background work stops, the icon goes, and the process ends within 5 seconds.
   - The app never holds up a logout.
+  - A termination request (`SIGTERM`), for example from an installer, ends the app as **Quit** does.
 - **One instance per user:** a second launch ends without a second menu bar icon, whether it comes from Finder, from the terminal or at login.
 - **Data and logs:**
   - Settings and speech models live in `~/Library/Application Support/Pisum Transcribe/`.
@@ -44,13 +46,15 @@ Pisum Transcribe is to ship on macOS as a public release next to Windows. `move-
   - "Single instance per user session" is per user on macOS, across launches from Finder, the terminal and login.
   - "Local data folder" and "Local rolling log files" name the macOS folders.
   - "Unhandled errors end the application visibly" names the macOS notification.
+  - "Notifications come from Pisum Transcribe" covers macOS notifications, the permission asked at the first start, and the log instead of a notification outside an app bundle.
   - A new requirement, "End with the macOS session", covers log out, shut down and restart, next to "End with the Windows session".
+  - A new requirement, "Termination request on macOS", covers `SIGTERM`.
 - `packaging`: "Continuous integration checks every change" builds and tests on macOS as well as on Windows.
 - `settings-storage`: "Settings file location" names `~/Library/Application Support/Pisum Transcribe/settings.json` on macOS.
 - `model-management`: "Installed model detection" names the macOS models folder.
-- `settings-window`: "Opening the settings window" is the **Settings…** menu item only on macOS. A click on the menu bar icon opens the menu, as macOS convention has it.
-
-The spec deltas are written after the spike of `move-windows-shell-to-avalonia` (its design D3). M1 and M4 decide how the menu bar icon and the end of the session work.
+- `settings-window`:
+  - "Opening the settings window" is the **Settings…** menu item only on macOS. A click on the menu bar icon opens the menu, as macOS convention has it.
+  - "Start with Windows" isn't shown on macOS. Starting at login comes with a later change.
 
 ## Impact
 
@@ -58,7 +62,9 @@ The spec deltas are written after the spike of `move-windows-shell-to-avalonia` 
 - **Code:**
   - `Pisum.Transcribe.csproj` gets the second target framework, the macOS packages (`Avalonia.Native`, the macOS runtime packages of transcribe.cpp, ONNX Runtime and SharpHook), and the targets for the Swift helper and the dev `.app`.
   - `Hosting/`: `AppPaths` (logs), `SingleInstanceGuard` (per-user scope on macOS), and macOS code for ending the process and for the end of the session.
-  - `Tray/`: the menu bar template icon and the **Quit** label.
+  - `Tray/`: the menu bar template icon and the **Quit** label, and the icon choice behind a per-platform icon set (design D14).
+  - Win32 calls in shared files move into `Windows/` subfolders: the overlay's placement and styles, the modifier key check of text insertion, and the elevation default of `TextInserter` (design D14).
+  - `AppHost` registers only the shell's features on macOS, and macOS gets an inactive hotkey for the settings window (design D14).
   - A macOS implementation of `INotifier`.
 - **New files:**
   - `src/Pisum.Transcribe.MacNative/`: the Swift sources of `libPisumMac.dylib`

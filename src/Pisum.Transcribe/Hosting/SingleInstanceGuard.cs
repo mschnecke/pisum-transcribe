@@ -1,8 +1,8 @@
 namespace Pisum.Transcribe.Hosting;
 
 /// <summary>
-/// Allows one running instance per logon session through a named mutex.
-/// Mutex ownership belongs to a thread, so acquire and dispose the guard on the same thread.
+/// Allows one running instance through a named mutex, whose scope the caller chooses: per logon session on Windows, and
+/// per user on macOS. Mutex ownership belongs to a thread, so acquire and dispose the guard on the same thread.
 /// </summary>
 internal sealed class SingleInstanceGuard : IDisposable
 {
@@ -19,9 +19,13 @@ internal sealed class SingleInstanceGuard : IDisposable
     /// Initializes a new instance. The mutex is opened, not acquired.
     /// </summary>
     /// <param name="mutexName">The mutex name, such as <c>Local\Pisum.Transcribe.SingleInstance</c>.</param>
-    public SingleInstanceGuard(string mutexName)
+    /// <param name="options">
+    /// The scope of the mutex, or <see langword="null"/> for the platform's default, which the name's prefix sets on
+    /// Windows.
+    /// </param>
+    public SingleInstanceGuard(string mutexName, NamedWaitHandleOptions? options = null)
     {
-        _mutex = new Mutex(false, mutexName);
+        _mutex = options is { } scope ? new Mutex(false, mutexName, scope) : new Mutex(false, mutexName);
     }
 
     /// <summary>

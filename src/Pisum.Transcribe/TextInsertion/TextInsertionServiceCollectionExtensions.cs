@@ -18,12 +18,17 @@ internal static class TextInsertionServiceCollectionExtensions
     public static IServiceCollection AddTextInsertion(this IServiceCollection services)
     {
         services.TryAddSingleton(TimeProvider.System);
+#if WINDOWS
         services.AddSingleton<IForegroundWindowTracker, ForegroundWindowTracker>();
         services.AddSingleton<IClipboardService, Win32ClipboardService>();
         services.AddSingleton<IKeyboardInput, SharpHookKeyboardInput>();
-        services.AddSingleton<TextInserter>();
+
+        // The process token is read once.
+        services.AddSingleton(provider => ActivatorUtilities.CreateInstance<TextInserter>(provider,
+            ProcessElevation.IsElevated((uint) Environment.ProcessId, out _) ?? false));
         services.AddSingleton<ITextInserter>(provider => provider.GetRequiredService<TextInserter>());
         services.AddHostedService(provider => provider.GetRequiredService<TextInserter>());
+#endif
         return services;
     }
 }

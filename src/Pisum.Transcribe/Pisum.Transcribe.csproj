@@ -1,12 +1,22 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
-    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <!-- Both frameworks on every host, so an edit on one platform can't break the other's compile unnoticed
+         (design D2 of add-macos-shell). -->
+    <TargetFrameworks>$(PisumWindowsTargetFramework);$(PisumMacTargetFramework)</TargetFrameworks>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <Product>Pisum Transcribe</Product>
     <StartupObject>Pisum.Transcribe.Program</StartupObject>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(TargetFramework)' == '$(PisumWindowsTargetFramework)'">
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Tray\TrayIcon.ico</ApplicationIcon>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(TargetFramework)' == '$(PisumMacTargetFramework)'">
+    <RuntimeIdentifier>osx-arm64</RuntimeIdentifier>
   </PropertyGroup>
 
   <ItemGroup>
@@ -16,19 +26,27 @@
     <PackageReference Include="Avalonia.HarfBuzz"/>
     <PackageReference Include="Avalonia.Skia"/>
     <PackageReference Include="Avalonia.Themes.Fluent"/>
-    <PackageReference Include="Avalonia.Win32"/>
     <PackageReference Include="CommunityToolkit.Mvvm"/>
     <PackageReference Include="Microsoft.Extensions.Hosting"/>
     <PackageReference Include="Microsoft.Extensions.Http"/>
     <PackageReference Include="Microsoft.ML.OnnxRuntime"/>
-    <!-- Build-time source generator for the Win32 calls listed in NativeMethods.txt. -->
-    <PackageReference Include="Microsoft.Windows.CsWin32" PrivateAssets="all"/>
-    <PackageReference Include="NAudio.Wasapi"/>
     <PackageReference Include="Serilog.Extensions.Hosting"/>
     <PackageReference Include="Serilog.Sinks.File"/>
     <PackageReference Include="SharpHook"/>
     <PackageReference Include="TranscribeCppSharp"/>
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == '$(PisumWindowsTargetFramework)'">
+    <PackageReference Include="Avalonia.Win32"/>
+    <!-- Build-time source generator for the Win32 calls listed in NativeMethods.txt. -->
+    <PackageReference Include="Microsoft.Windows.CsWin32" PrivateAssets="all"/>
+    <PackageReference Include="NAudio.Wasapi"/>
     <PackageReference Include="TranscribeCppSharp.Native.win-x64"/>
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == '$(PisumMacTargetFramework)'">
+    <PackageReference Include="Avalonia.Native"/>
+    <PackageReference Include="TranscribeCppSharp.Native.osx-arm64"/>
   </ItemGroup>
 
   <ItemGroup>
@@ -37,20 +55,126 @@
     <InternalsVisibleTo Include="DynamicProxyGenAssembly2"/>
   </ItemGroup>
 
-  <ItemGroup>
-    <EmbeddedResource Include="Tray\TrayIcon.ico"/>
-    <!-- The title bar and taskbar icon of the windows, which Avalonia doesn't take from the exe. -->
-    <AvaloniaResource Include="Tray\TrayIcon.ico"/>
-    <EmbeddedResource Include="Tray\Windows\*.ico"/>
-    <None Include="VoiceActivity\Assets\silero_vad.onnx" CopyToOutputDirectory="PreserveNewest"/>
-    <!-- The icon of the notification registration, which Windows reads from a file next to the exe. -->
-    <None Include="Tray\TrayIcon.png" Link="TrayIcon.png" CopyToOutputDirectory="PreserveNewest"/>
+  <!-- Platform folders: Windows/ compiles only for Windows, and MacOS/ only for macOS (design D2 of add-macos-shell). -->
+  <ItemGroup Condition="'$(TargetFramework)' == '$(PisumWindowsTargetFramework)'">
+    <Compile Remove="**\MacOS\**"/>
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == '$(PisumMacTargetFramework)'">
+    <Compile Remove="**\Windows\**"/>
   </ItemGroup>
 
   <ItemGroup>
+    <!-- The title bar and taskbar icon of the windows, which Avalonia doesn't take from the exe. -->
+    <AvaloniaResource Include="Tray\TrayIcon.ico"/>
+    <None Include="VoiceActivity\Assets\silero_vad.onnx" CopyToOutputDirectory="PreserveNewest"/>
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == '$(PisumWindowsTargetFramework)'">
+    <EmbeddedResource Include="Tray\TrayIcon.ico"/>
+    <EmbeddedResource Include="Tray\Windows\*.ico"/>
+    <!-- The icon of the notification registration, which Windows reads from a file next to the exe. -->
+    <None Include="Tray\TrayIcon.png" Link="TrayIcon.png" CopyToOutputDirectory="PreserveNewest"/>
     <!-- The Windows projection for toasts. ReadyToRun would double its size for code that runs a few times per
          session (design D5 of show-windows-notifications). -->
     <PublishReadyToRunExclude Include="Microsoft.Windows.SDK.NET.dll"/>
     <PublishReadyToRunExclude Include="WinRT.Runtime.dll"/>
   </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == '$(PisumMacTargetFramework)'">
+    <!-- NSImage scales the menu bar icon to the menu bar's height, so the @2x image serves both scales. -->
+    <EmbeddedResource Include="Tray\MacOS\*@2x.png"/>
+  </ItemGroup>
+
+  <!-- The Swift helper libPisumMac.dylib, built with the Command Line Tools for the macOS framework on a macOS host only
+       (design D3 of add-macos-shell). -->
+  <PropertyGroup>
+    <PisumBuildsMacNative Condition="'$(TargetFramework)' == '$(PisumMacTargetFramework)' and $([MSBuild]::IsOSPlatform('OSX'))">true</PisumBuildsMacNative>
+    <!-- The Swift helper's target and the bundle's LSMinimumSystemVersion. Keep it in step with the comment on the ONNX
+         Runtime pin (design D1 of add-macos-shell). -->
+    <PisumMacMinimumVersion>14.0</PisumMacMinimumVersion>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(PisumBuildsMacNative)' == 'true'">
+    <PisumSwiftSource Include="..\Pisum.Transcribe.MacNative\*.swift"/>
+  </ItemGroup>
+
+  <Target Name="PisumBuildMacNative" BeforeTargets="AssignTargetPaths" Condition="'$(PisumBuildsMacNative)' == 'true'"
+          DependsOnTargets="PisumCompileMacNative">
+    <ItemGroup>
+      <None Include="$(PisumMacNativeLibrary)" Link="libPisumMac.dylib" CopyToOutputDirectory="PreserveNewest"/>
+    </ItemGroup>
+  </Target>
+
+  <Target Name="PisumSetMacNativePaths">
+    <PropertyGroup>
+      <PisumMacNativeLibrary>$(ProjectDir)$(IntermediateOutputPath)libPisumMac.dylib</PisumMacNativeLibrary>
+    </PropertyGroup>
+  </Target>
+
+  <Target Name="PisumCompileMacNative" DependsOnTargets="PisumSetMacNativePaths" Inputs="@(PisumSwiftSource)"
+          Outputs="$(PisumMacNativeLibrary)">
+    <MakeDir Directories="$(ProjectDir)$(IntermediateOutputPath)"/>
+    <Message Importance="high" Text="Building libPisumMac.dylib with swiftc for macOS $(PisumMacMinimumVersion)"/>
+    <Exec Command="swiftc -emit-library -O -target arm64-apple-macos$(PisumMacMinimumVersion) -module-name PisumMac -o &quot;$(PisumMacNativeLibrary)&quot; @(PisumSwiftSource->'&quot;%(FullPath)&quot;', ' ')"/>
+  </Target>
+
+  <!-- The dev app bundle <output>/Pisum Transcribe.app, assembled after the build on a macOS host and signed inside-out,
+       so the app runs with its own identity and permissions (design D9 of add-macos-shell). Set the environment variable
+       PisumCodesignIdentity to a local signing identity, so macOS keeps permission grants across builds; the default -
+       signs ad hoc. -->
+  <PropertyGroup Condition="'$(PisumBuildsMacNative)' == 'true'">
+    <PisumCodesignIdentity Condition="'$(PisumCodesignIdentity)' == ''">-</PisumCodesignIdentity>
+  </PropertyGroup>
+
+  <Target Name="PisumSetAppBundlePaths">
+    <PropertyGroup>
+      <PisumAppBundle>$(TargetDir)Pisum Transcribe.app</PisumAppBundle>
+      <PisumAppBundleStamp>$(ProjectDir)$(IntermediateOutputPath)PisumAppBundle.stamp</PisumAppBundleStamp>
+    </PropertyGroup>
+    <ItemGroup>
+      <PisumAppBundleInput Include="$(TargetDir)**" Exclude="$(PisumAppBundle)/**"/>
+      <PisumAppBundleInput Include="MacOS\Info.plist;Tray\MacOS\AppIcon.icns"/>
+    </ItemGroup>
+  </Target>
+
+  <Target Name="PisumAssembleAppBundle" AfterTargets="Build" Condition="'$(PisumBuildsMacNative)' == 'true'"
+          DependsOnTargets="PisumSetAppBundlePaths" Inputs="@(PisumAppBundleInput)" Outputs="$(PisumAppBundleStamp)">
+    <ItemGroup>
+      <_PisumBundleFile Include="$(TargetDir)**" Exclude="$(PisumAppBundle)/**"/>
+    </ItemGroup>
+    <PropertyGroup>
+      <_PisumInfoPlist>$([System.IO.File]::ReadAllText('$(ProjectDir)MacOS/Info.plist').Replace('@VERSION@', '$(Version)').Replace('@MINIMUM_SYSTEM_VERSION@', '$(PisumMacMinimumVersion)'))</_PisumInfoPlist>
+    </PropertyGroup>
+
+    <!-- From scratch, so no file of an earlier build stays behind. -->
+    <RemoveDir Directories="$(PisumAppBundle)"/>
+    <Copy SourceFiles="@(_PisumBundleFile)"
+          DestinationFiles="@(_PisumBundleFile->'$(PisumAppBundle)/Contents/MacOS/%(RecursiveDir)%(Filename)%(Extension)')"/>
+    <Copy SourceFiles="Tray\MacOS\AppIcon.icns" DestinationFolder="$(PisumAppBundle)/Contents/Resources"/>
+    <WriteLinesToFile File="$(PisumAppBundle)/Contents/Info.plist" Lines="$(_PisumInfoPlist)" Overwrite="true"/>
+
+    <!-- Inside-out: every nested file first, then the bundle, which signs the executable and seals the resources.
+         codesign counts every file in Contents/MacOS as code, and keeps the signature of a file that isn't Mach-O, such
+         as an assembly, in its extended attributes. No deep signing, and no timestamp, which a local identity can't
+         get. -->
+    <ItemGroup>
+      <_PisumBundleNestedFile Include="$(PisumAppBundle)/Contents/MacOS/**"
+                              Exclude="$(PisumAppBundle)/Contents/MacOS/$(AssemblyName)"/>
+    </ItemGroup>
+    <Message Importance="high" Text="Signing $(PisumAppBundle) with identity $(PisumCodesignIdentity)"/>
+    <Exec Command="codesign --force --timestamp=none --sign &quot;$(PisumCodesignIdentity)&quot; @(_PisumBundleNestedFile->'&quot;%(FullPath)&quot;', ' ')"/>
+    <Exec Command="codesign --force --timestamp=none --sign &quot;$(PisumCodesignIdentity)&quot; &quot;$(PisumAppBundle)&quot;"/>
+    <Touch Files="$(PisumAppBundleStamp)" AlwaysCreate="true"/>
+  </Target>
+
+  <!-- dotnet run opens the bundle through LaunchServices, so the app, not the terminal, owns its permissions and
+       notifications. -W waits until the app has ended. -->
+  <Target Name="PisumRunAppBundle" BeforeTargets="ComputeRunArguments" Condition="'$(PisumBuildsMacNative)' == 'true'"
+          DependsOnTargets="PisumSetAppBundlePaths">
+    <PropertyGroup>
+      <RunCommand>open</RunCommand>
+      <RunArguments>-W &quot;$(PisumAppBundle)&quot;</RunArguments>
+    </PropertyGroup>
+  </Target>
 </Project>

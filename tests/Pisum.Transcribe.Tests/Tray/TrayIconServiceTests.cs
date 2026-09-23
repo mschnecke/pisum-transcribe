@@ -1,4 +1,3 @@
-using Avalonia;
 using Avalonia.Controls;
 using Pisum.Transcribe.Tray;
 
@@ -8,28 +7,20 @@ namespace Pisum.Transcribe.Tests.Tray;
 public sealed class TrayIconServiceTests
 {
     [Fact]
-    public Task IconFor_EachStatusAndMode_ReturnsMatchingIcon()
+    public Task Constructor_Always_ShowsInitialIcon()
     {
         return HeadlessUi.RunAsync(() =>
         {
             // Arrange
-            var icons = TrayIconService.LoadIcons();
+            var icons = new FakeTrayIconSet();
 
             // Act
-            var iconsByStatusAndMode = Enum.GetValues<TrayStatus>()
-                .SelectMany(_ => Enum.GetValues<TaskbarMode>(), (status, mode) => (status, mode))
-                .ToDictionary(key => key, key => TrayIconService.IconFor(key.status, key.mode, icons));
+            var sut = new TrayIconService(icons, new InlineUiDispatcher());
 
             // Assert
-            iconsByStatusAndMode.Count.ShouldBe(8);
-            iconsByStatusAndMode[(TrayStatus.Ready, TaskbarMode.Light)].ShouldBeSameAs(icons.ReadyLight);
-            iconsByStatusAndMode[(TrayStatus.Ready, TaskbarMode.Dark)].ShouldBeSameAs(icons.ReadyDark);
-            iconsByStatusAndMode[(TrayStatus.Unavailable, TaskbarMode.Light)].ShouldBeSameAs(icons.UnavailableLight);
-            iconsByStatusAndMode[(TrayStatus.Unavailable, TaskbarMode.Dark)].ShouldBeSameAs(icons.UnavailableDark);
-            iconsByStatusAndMode[(TrayStatus.Recording, TaskbarMode.Light)].ShouldBeSameAs(icons.Recording);
-            iconsByStatusAndMode[(TrayStatus.Recording, TaskbarMode.Dark)].ShouldBeSameAs(icons.Recording);
-            iconsByStatusAndMode[(TrayStatus.Transcribing, TaskbarMode.Light)].ShouldBeSameAs(icons.Transcribing);
-            iconsByStatusAndMode[(TrayStatus.Transcribing, TaskbarMode.Dark)].ShouldBeSameAs(icons.Transcribing);
+            sut.ShownIcon.ShouldBeSameAs(icons.Initial);
+            sut.IsTemplateIcon.ShouldBeFalse();
+            sut.Remove();
         });
     }
 
@@ -58,35 +49,56 @@ public sealed class TrayIconServiceTests
         return HeadlessUi.RunAsync(() =>
         {
             // Arrange
-            var sut = CreateSut();
+            var icons = new FakeTrayIconSet();
+            var sut = new TrayIconService(icons, new InlineUiDispatcher());
 
             // Act
             sut.SetStatus(TrayStatus.Recording, "Pisum Transcribe – Recording…");
 
             // Assert
-            sut.ShownIcon.ShouldBeSameAs(sut.Icons.Recording);
+            sut.ShownIcon.ShouldBeSameAs(icons.For(TrayStatus.Recording));
+            sut.IsTemplateIcon.ShouldBeFalse();
             sut.ToolTip.ShouldBe("Pisum Transcribe – Recording…");
             sut.Remove();
         });
     }
 
     [Fact]
-    public Task TaskbarModeChanged_WhileReady_AppliesIconForNewMode()
+    public Task SetStatus_ReadyThenRecording_SetsTemplateFlagWithEachIcon()
     {
         return HeadlessUi.RunAsync(() =>
         {
             // Arrange
-            var taskbarMode = A.Fake<ITaskbarModeWatcher>();
-            A.CallTo(() => taskbarMode.Current).Returns(TaskbarMode.Light);
-            var sut = new TrayIconService(taskbarMode, new InlineUiDispatcher());
-            sut.SetStatus(TrayStatus.Ready, "Pisum Transcribe – Ready (CPU)");
-            A.CallTo(() => taskbarMode.Current).Returns(TaskbarMode.Dark);
+            var icons = new FakeTrayIconSet();
+            var sut = new TrayIconService(icons, new InlineUiDispatcher());
 
             // Act
-            taskbarMode.Changed += Raise.WithEmpty();
+            sut.SetStatus(TrayStatus.Ready, "Pisum Transcribe – Ready (CPU)");
+            var readyIsTemplate = sut.IsTemplateIcon;
+            sut.SetStatus(TrayStatus.Recording, "Pisum Transcribe – Recording…");
 
             // Assert
-            sut.ShownIcon.ShouldBeSameAs(sut.Icons.ReadyDark);
+            readyIsTemplate.ShouldBeTrue();
+            sut.IsTemplateIcon.ShouldBeFalse();
+            sut.Remove();
+        });
+    }
+
+    [Fact]
+    public Task IconsChanged_WhileReady_AppliesNewIcon()
+    {
+        return HeadlessUi.RunAsync(() =>
+        {
+            // Arrange
+            var icons = new FakeTrayIconSet();
+            var sut = new TrayIconService(icons, new InlineUiDispatcher());
+            sut.SetStatus(TrayStatus.Ready, "Pisum Transcribe – Ready (CPU)");
+
+            // Act
+            var replaced = icons.Replace(TrayStatus.Ready);
+
+            // Assert
+            sut.ShownIcon.ShouldBeSameAs(replaced);
             sut.Remove();
         });
     }
@@ -109,7 +121,7 @@ public sealed class TrayIconServiceTests
             ((NativeMenuItem) sut.Menu.Items[0]).Header.ShouldBe("Download model…");
             ((NativeMenuItem) sut.Menu.Items[1]).Header.ShouldBe("Settings…");
             sut.Menu.Items[2].ShouldBeOfType<NativeMenuItemSeparator>();
-            ((NativeMenuItem) sut.Menu.Items[3]).Header.ShouldBe("Exit");
+            ((NativeMenuItem) sut.Menu.Items[3]).Header.ShouldBe(TrayIconService.ExitHeader);
             sut.Remove();
         });
     }
@@ -166,70 +178,13 @@ public sealed class TrayIconServiceTests
     }
 
     [Fact]
-    public Task WindowOpened_TrayPopup_UpdatesMenuItems()
-    {
-        return HeadlessUi.RunAsync(() =>
-        {
-            // Arrange
-            var header = "Before";
-            var sut = CreateSut();
-            sut.AddMenuItem(() => header, () => { });
-            sut.UpdateMenuItems();
-            header = "After";
-            var popup = new TrayPopupRoot();
-
-            // Act
-            popup.Show();
-
-            // Assert
-            ((NativeMenuItem) sut.Menu.Items[0]).Header.ShouldBe("After");
-            popup.Close();
-            sut.Remove();
-        });
-    }
-
-    [Fact]
-    public Task WindowOpened_OtherWindow_LeavesMenuItemsAlone()
-    {
-        return HeadlessUi.RunAsync(() =>
-        {
-            // Arrange
-            var header = "Before";
-            var sut = CreateSut();
-            sut.AddMenuItem(() => header, () => { });
-            sut.UpdateMenuItems();
-            header = "After";
-            var window = new Window();
-
-            // Act
-            window.Show();
-
-            // Assert
-            ((NativeMenuItem) sut.Menu.Items[0]).Header.ShouldBe("Before");
-            window.Close();
-            sut.Remove();
-        });
-    }
-
-    [Fact]
-    public void TrayPopupTypeName_AvaloniaWin32_NamesItsTrayMenuWindow()
-    {
-        // Act
-        var types = typeof(Win32PlatformOptions).Assembly.GetTypes()
-            .Where(type => type.Name == TrayIconService.TrayPopupTypeName);
-
-        // Assert: an Avalonia update that renames the type would freeze the tray menu unnoticed.
-        types.ShouldHaveSingleItem().IsSubclassOf(typeof(Window)).ShouldBeTrue();
-    }
-
-    [Fact]
     public Task Remove_ThenOtherCalls_HaveNoEffect()
     {
         return HeadlessUi.RunAsync(() =>
         {
             // Arrange
-            var taskbarMode = A.Fake<ITaskbarModeWatcher>();
-            var sut = new TrayIconService(taskbarMode, new InlineUiDispatcher());
+            var icons = new FakeTrayIconSet();
+            var sut = new TrayIconService(icons, new InlineUiDispatcher());
             sut.Show();
             sut.SetStatus(TrayStatus.Ready, "Pisum Transcribe – Ready (CPU)");
             var shown = sut.ShownIcon;
@@ -238,7 +193,7 @@ public sealed class TrayIconServiceTests
             sut.Remove();
             sut.SetStatus(TrayStatus.Recording, "Pisum Transcribe – Recording…");
             sut.Show();
-            taskbarMode.Changed += Raise.WithEmpty();
+            icons.Replace(TrayStatus.Ready);
             sut.Remove();
 
             // Assert
@@ -250,11 +205,6 @@ public sealed class TrayIconServiceTests
 
     private static TrayIconService CreateSut()
     {
-        return new TrayIconService(A.Fake<ITaskbarModeWatcher>(), new InlineUiDispatcher());
+        return new TrayIconService(new FakeTrayIconSet(), new InlineUiDispatcher());
     }
-
-    /// <summary>
-    /// A window with the type name of the tray menu's popup in Avalonia's Win32 backend.
-    /// </summary>
-    private sealed class TrayPopupRoot : Window;
 }

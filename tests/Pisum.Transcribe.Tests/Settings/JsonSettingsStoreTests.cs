@@ -502,10 +502,11 @@ public sealed class JsonSettingsStoreTests : IDisposable
         Directory.CreateDirectory(_settingsFile);
 
         // Act
-        await Should.ThrowAsync<UnauthorizedAccessException>(() =>
+        var exception = await Record.ExceptionAsync(() =>
             _sut.SaveAsync(new AppSettings {SchemaVersion = 7}, TestContext.Current.CancellationToken));
 
-        // Assert
+        // Assert: Windows reports the folder as access denied, and macOS as an I/O error.
+        (exception is UnauthorizedAccessException or IOException).ShouldBeTrue(exception?.ToString());
         raised.ShouldBe(0);
         _sut.Current.ShouldBeSameAs(previous);
     }

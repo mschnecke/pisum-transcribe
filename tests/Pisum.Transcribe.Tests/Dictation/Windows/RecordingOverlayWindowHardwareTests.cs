@@ -39,7 +39,7 @@ public sealed class RecordingOverlayWindowHardwareTests
             await Win32Ui.InvokeAsync(() => ((IRecordingOverlay) sut).Hide());
 
             // Assert
-            (styles & RecordingOverlayWindow.ExtendedStyles).ShouldBe(RecordingOverlayWindow.ExtendedStyles,
+            (styles & Win32OverlayPlatform.ExtendedStyles).ShouldBe(Win32OverlayPlatform.ExtendedStyles,
                 $"Show {round} lost extended styles.");
             foreground.ShouldBe(target.Handle, $"Show {round} took the foreground.");
         }

@@ -6,13 +6,14 @@ namespace Pisum.Transcribe.Tray;
 internal interface ITrayIconService
 {
     /// <summary>
-    /// Raised when the user chooses <b>Exit</b> in the context menu.
+    /// Raised when the user chooses <b>Exit</b>, or <b>Quit Pisum Transcribe</b> on macOS, in the context menu.
     /// </summary>
     event EventHandler? ExitRequested;
 
     /// <summary>
     /// Raised on the UI thread when the user clicks the icon with the left button, on the release. A double-click
-    /// raises it twice. A right click opens the menu and doesn't raise it.
+    /// raises it twice. A right click opens the menu and doesn't raise it. Never raised on macOS, where a click opens the
+    /// menu.
     /// </summary>
     event EventHandler? Clicked;
 

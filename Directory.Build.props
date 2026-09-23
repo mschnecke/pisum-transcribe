@@ -6,6 +6,10 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
 
+    <!-- The app builds both; the test project builds the host's one (design D2 of add-macos-shell). -->
+    <PisumWindowsTargetFramework>net10.0-windows10.0.19041.0</PisumWindowsTargetFramework>
+    <PisumMacTargetFramework>net10.0</PisumMacTargetFramework>
+
     <!-- The development default, and the record of the last version: `packaging/bump-version.sh`
          reads it to work out the next one and rewrites it, so it is what the tag of the next
          release will say. Every release still overrides it from that tag: `release.yml` strips

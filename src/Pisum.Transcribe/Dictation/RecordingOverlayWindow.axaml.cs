@@ -1,15 +1,9 @@
 using System.Diagnostics;
-using System.Runtime.InteropServices;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
 using Avalonia.Media.Immutable;
 using Avalonia.Threading;
-using Windows.Win32;
-using Windows.Win32.Foundation;
-using Windows.Win32.Graphics.Gdi;
-using Windows.Win32.UI.HiDpi;
-using Windows.Win32.UI.WindowsAndMessaging;
 
 namespace Pisum.Transcribe.Dictation;
 
@@ -35,13 +29,6 @@ internal sealed partial class RecordingOverlayWindow : Window, IRecordingOverlay
     public const double BottomMargin = 48;
 
     /// <summary>
-    /// The extended window styles that the overlay needs: no activation, click-through (with layered), and no Alt+Tab
-    /// entry.
-    /// </summary>
-    public const WINDOW_EX_STYLE ExtendedStyles = WINDOW_EX_STYLE.WS_EX_NOACTIVATE | WINDOW_EX_STYLE.WS_EX_TRANSPARENT |
-                                                  WINDOW_EX_STYLE.WS_EX_TOOLWINDOW | WINDOW_EX_STYLE.WS_EX_LAYERED;
-
-    /// <summary>
     /// The style class that turns the spinner.
     /// </summary>
     internal const string SpinningClass = "spinning";
@@ -54,12 +41,24 @@ internal sealed partial class RecordingOverlayWindow : Window, IRecordingOverlay
 
     private readonly DispatcherTimer _elapsedTimer = new() {Interval = ElapsedInterval};
     private readonly Stopwatch _recording = new();
+    private readonly IOverlayPlatform _platform;
+
+    /// <summary>
+    /// Initializes a new instance, hidden, with the platform's placement and window settings, for the XAML loader.
+    /// Create it on the UI thread.
+    /// </summary>
+    public RecordingOverlayWindow()
+        : this(CreatePlatform())
+    {
+    }
 
     /// <summary>
     /// Initializes a new instance, hidden. Create it on the UI thread.
     /// </summary>
-    public RecordingOverlayWindow()
+    /// <param name="platform">The monitor placement and the native window settings.</param>
+    public RecordingOverlayWindow(IOverlayPlatform platform)
     {
+        _platform = platform;
         InitializeComponent();
         _elapsedTimer.Tick += (_, _) => UpdateElapsed();
     }
@@ -85,13 +84,13 @@ internal sealed partial class RecordingOverlayWindow : Window, IRecordingOverlay
     {
         ShowContent(StartingBrush, false, null);
 
-        var bounds = CalculateBounds(GetWorkArea(targetWindow, out var dpi), dpi);
+        var bounds = CalculateBounds(_platform.GetWorkArea(targetWindow, out var dpi), dpi);
         Position = bounds.Position;
         Show();
 
         // Avalonia resets the extended styles on every Show, so they are set again each time. ShowActivated=false keeps
         // the focus in the target window until then.
-        ApplyExtendedStyles();
+        _platform.Configure(this);
 
         // A window that moved to a monitor with another DPI was rescaled by Avalonia, which can shift it.
         Position = bounds.Position;
@@ -125,37 +124,14 @@ internal sealed partial class RecordingOverlayWindow : Window, IRecordingOverlay
         Hide();
     }
 
-    /// <summary>
-    /// Reads the work area and DPI of the monitor that contains most of the target window, or of the primary monitor
-    /// without a target.
-    /// </summary>
-    private static PixelRect GetWorkArea(nint targetWindow, out uint dpi)
+    private static IOverlayPlatform CreatePlatform()
     {
-        var monitor = PInvoke.MonitorFromWindow((HWND) targetWindow,
-            targetWindow == 0 ? MONITOR_FROM_FLAGS.MONITOR_DEFAULTTOPRIMARY : MONITOR_FROM_FLAGS.MONITOR_DEFAULTTONEAREST);
-        var info = new MONITORINFO {cbSize = (uint) Marshal.SizeOf<MONITORINFO>()};
-        PInvoke.GetMonitorInfo(monitor, ref info);
-
-        // Needs Windows 8.1. The analyzer assumes the Windows 7 of the target framework, but .NET 10 needs Windows 10.
-#pragma warning disable CA1416
-        PInvoke.GetDpiForMonitor(monitor, MONITOR_DPI_TYPE.MDT_EFFECTIVE_DPI, out dpi, out _);
-#pragma warning restore CA1416
-
-        var work = info.rcWork;
-        return new PixelRect(work.left, work.top, work.right - work.left, work.bottom - work.top);
-    }
-
-    private void ApplyExtendedStyles()
-    {
-        // The headless platform of the tests has no window handle.
-        if (TryGetPlatformHandle() is not {HandleDescriptor: "HWND"} handle)
-        {
-            return;
-        }
-
-        var window = (HWND) handle.Handle;
-        var styles = (WINDOW_EX_STYLE) (uint) PInvoke.GetWindowLongPtr(window, WINDOW_LONG_PTR_INDEX.GWL_EXSTYLE);
-        PInvoke.SetWindowLongPtr(window, WINDOW_LONG_PTR_INDEX.GWL_EXSTYLE, (nint) (uint) (styles | ExtendedStyles));
+#if WINDOWS
+        return new Win32OverlayPlatform();
+#else
+        // add-macos-dictation adds the overlay on macOS.
+        throw new PlatformNotSupportedException("The recording overlay is not available on this platform yet.");
+#endif
     }
 
     /// <summary>

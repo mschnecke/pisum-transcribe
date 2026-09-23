@@ -86,7 +86,7 @@ public sealed class SettingsWindowServiceTests
         var transcriber = A.Fake<ITranscriber>();
         A.CallTo(() => transcriber.Status).Returns(TranscriberStatus.Ready);
         return new SettingsWindowService(_trayIcon, new InlineUiDispatcher(), new FakeSettingsStore(new AppSettings()),
-            A.Fake<IStartupRegistration>(), modelStore, transcriber, A.Fake<IPushToTalkHotkey>(),
-            A.Fake<IHostApplicationLifetime>(), NullLogger<SettingsViewModel>.Instance);
+            modelStore, transcriber, A.Fake<IPushToTalkHotkey>(), A.Fake<IHostApplicationLifetime>(),
+            NullLogger<SettingsViewModel>.Instance, A.Fake<IStartupRegistration>());
     }
 }

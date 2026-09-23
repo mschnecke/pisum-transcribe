@@ -16,7 +16,13 @@ internal enum ShutdownReason
     Error,
 
     /// <summary>
-    /// The Windows session ends: sign-out, shutdown or restart. Exit code 0.
+    /// The Windows or macOS session ends: sign-out, shutdown or restart. Exit code 0.
     /// </summary>
     SessionEnd,
+
+    /// <summary>
+    /// A termination request (<c>SIGTERM</c>) on macOS, for example from an installer. Handled like
+    /// <see cref="UserExit"/>. Exit code 0.
+    /// </summary>
+    TerminationRequest,
 }

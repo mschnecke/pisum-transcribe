@@ -38,7 +38,7 @@ public sealed class RecordingOverlayWindowTests
         return HeadlessUi.RunAsync(() =>
         {
             // Arrange
-            var sut = new RecordingOverlayWindow();
+            var sut = new RecordingOverlayWindow(new FakeOverlayPlatform());
 
             // Act
             ((IRecordingOverlay) sut).ShowStarting(0);
@@ -61,7 +61,7 @@ public sealed class RecordingOverlayWindowTests
         return HeadlessUi.RunAsync(() =>
         {
             // Arrange
-            var sut = new RecordingOverlayWindow();
+            var sut = new RecordingOverlayWindow(new FakeOverlayPlatform());
             IRecordingOverlay overlay = sut;
             overlay.ShowStarting(0);
             var startingDot = sut.Dot.Fill;
@@ -85,7 +85,7 @@ public sealed class RecordingOverlayWindowTests
         return HeadlessUi.RunAsync(() =>
         {
             // Arrange
-            var sut = new RecordingOverlayWindow();
+            var sut = new RecordingOverlayWindow(new FakeOverlayPlatform());
             IRecordingOverlay overlay = sut;
             overlay.ShowStarting(0);
             overlay.ShowRecording();
@@ -108,7 +108,7 @@ public sealed class RecordingOverlayWindowTests
         return HeadlessUi.RunAsync(() =>
         {
             // Arrange
-            var sut = new RecordingOverlayWindow();
+            var sut = new RecordingOverlayWindow(new FakeOverlayPlatform());
             IRecordingOverlay overlay = sut;
             overlay.ShowStarting(0);
             overlay.ShowTranscribing();
@@ -132,7 +132,7 @@ public sealed class RecordingOverlayWindowTests
         return HeadlessUi.RunAsync(() =>
         {
             // Arrange
-            var sut = new RecordingOverlayWindow();
+            var sut = new RecordingOverlayWindow(new FakeOverlayPlatform());
             IRecordingOverlay overlay = sut;
             overlay.ShowStarting(0);
             overlay.ShowRecording();

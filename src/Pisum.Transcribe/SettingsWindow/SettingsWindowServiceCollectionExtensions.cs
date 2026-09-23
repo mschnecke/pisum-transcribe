@@ -1,5 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
+#if WINDOWS
 using Microsoft.Extensions.DependencyInjection.Extensions;
+#endif
 
 namespace Pisum.Transcribe.SettingsWindow;
 
@@ -9,7 +11,7 @@ namespace Pisum.Transcribe.SettingsWindow;
 internal static class SettingsWindowServiceCollectionExtensions
 {
     /// <summary>
-    /// Adds <see cref="IStartupRegistration"/>, which also updates an existing startup entry at startup, the
+    /// Adds <see cref="IStartupRegistration"/> on Windows, which also updates an existing startup entry at startup, the
     /// <see cref="SettingsApplier"/>, which applies saved settings while the application runs, and the
     /// <see cref="SettingsWindowService"/>, which opens the settings window from the tray. Register it after the
     /// features whose settings it changes.
@@ -18,11 +20,13 @@ internal static class SettingsWindowServiceCollectionExtensions
     /// <returns>The same service collection, for chaining.</returns>
     public static IServiceCollection AddSettingsWindow(this IServiceCollection services)
     {
+#if WINDOWS
         // Shared with the notification registration.
         services.TryAddSingleton<IUserRegistry, UserRegistry>();
         services.AddSingleton<StartupRegistration>();
         services.AddSingleton<IStartupRegistration>(provider => provider.GetRequiredService<StartupRegistration>());
         services.AddHostedService(provider => provider.GetRequiredService<StartupRegistration>());
+#endif
         services.AddHostedService<SettingsApplier>();
         services.AddHostedService<SettingsWindowService>();
         return services;

@@ -8,10 +8,16 @@ namespace Pisum.Transcribe.Tray;
 /// because the application has no window to host it.
 /// </summary>
 /// <remarks>
+/// <para>
 /// On Windows the menu is Avalonia's own popup, and <see cref="NativeMenu.Opening"/> never runs there. The items are
 /// updated when the popup opens instead: each open creates a new popup window of the internal type
 /// <see cref="TrayPopupTypeName"/>, and a class handler on <see cref="Window.WindowOpenedEvent"/> runs before its content
 /// is loaded, so the items show updated on that open.
+/// </para>
+/// <para>
+/// On macOS the menu is a native menu, which raises <see cref="NativeMenu.Opening"/> before each open, and a click on the
+/// icon opens it, so <see cref="Clicked"/> is never raised there.
+/// </para>
 /// </remarks>
 internal sealed class TrayIconService : ITrayIconService
 {
@@ -20,43 +26,53 @@ internal sealed class TrayIconService : ITrayIconService
     /// </summary>
     internal const string TrayPopupTypeName = "TrayPopupRoot";
 
-    private const string ProductName = "Pisum Transcribe";
-    private const string IconResourceName = "Pisum.Transcribe.Tray.TrayIcon.ico";
-    private const string StatusIconResourcePrefix = "Pisum.Transcribe.Tray.Windows.TrayGlyph.";
+    /// <summary>
+    /// The last menu item, which ends the application: <b>Exit</b> on Windows, and <b>Quit Pisum Transcribe</b> on
+    /// macOS, as Apple's guidelines name it.
+    /// </summary>
+#if WINDOWS
+    internal const string ExitHeader = "Exit";
+#else
+    internal const string ExitHeader = "Quit Pisum Transcribe";
+#endif
 
-    private readonly ITaskbarModeWatcher _taskbarMode;
+    private const string ProductName = "Pisum Transcribe";
+
+    private readonly ITrayIconSet _icons;
     private readonly IUiDispatcher _uiDispatcher;
     private readonly TrayIcon _trayIcon;
     private readonly NativeMenu _menu = new();
-    private readonly NativeMenuItem _exitItem = new("Exit");
+    private readonly NativeMenuItem _exitItem = new(ExitHeader);
     private readonly NativeMenuItemSeparator _exitSeparator = new();
     private readonly List<(NativeMenuItem Item, Func<string> Header, Func<bool>? IsVisible)> _menuItems = [];
+#if WINDOWS
     private readonly IDisposable _menuOpenedHandler;
+#endif
     private TrayStatus? _status;
     private bool _removed;
 
     /// <summary>
-    /// Initializes a new instance with the app icon and a menu with <b>Exit</b>, and loads the status icons. The icon
-    /// is not shown yet.
+    /// Initializes a new instance with the platform's initial icon and a menu with <see cref="ExitHeader"/>. The icon is
+    /// not shown yet.
     /// </summary>
-    /// <param name="taskbarMode">The taskbar's mode, which the icon at rest follows.</param>
-    /// <param name="uiDispatcher">Moves a change of the taskbar's mode to the UI thread.</param>
-    public TrayIconService(ITaskbarModeWatcher taskbarMode, IUiDispatcher uiDispatcher)
+    /// <param name="icons">The platform's icons.</param>
+    /// <param name="uiDispatcher">Moves a change of the icons to the UI thread.</param>
+    public TrayIconService(ITrayIconSet icons, IUiDispatcher uiDispatcher)
     {
-        _taskbarMode = taskbarMode;
+        _icons = icons;
         _uiDispatcher = uiDispatcher;
-        Icons = LoadIcons();
-        _taskbarMode.Changed += OnTaskbarModeChanged;
+        _icons.Changed += OnIconsChanged;
         _exitItem.Click += (_, _) => ExitRequested?.Invoke(this, EventArgs.Empty);
         _menu.Items.Add(_exitItem);
 
         _trayIcon = new TrayIcon
         {
-            Icon = LoadIcon(IconResourceName),
             ToolTipText = ProductName,
             Menu = _menu,
             IsVisible = false,
         };
+        Apply(_icons.Initial);
+#if WINDOWS
         _trayIcon.Clicked += (_, _) => Clicked?.Invoke(this, EventArgs.Empty);
         _menuOpenedHandler = Window.WindowOpenedEvent.AddClassHandler<Window>((window, _) =>
         {
@@ -65,13 +81,28 @@ internal sealed class TrayIconService : ITrayIconService
                 UpdateMenuItems();
             }
         });
+#else
+        // Runs on every open, after NeedsUpdate, and shows the changes on that open (spike M1 of
+        // move-windows-shell-to-avalonia).
+        _menu.Opening += (_, _) => UpdateMenuItems();
+#endif
     }
 
     /// <inheritdoc />
     public event EventHandler? ExitRequested;
 
+#if WINDOWS
     /// <inheritdoc />
     public event EventHandler? Clicked;
+#else
+    /// <inheritdoc />
+    /// <remarks>Never raised on macOS, where a click on the icon opens the menu.</remarks>
+    public event EventHandler? Clicked
+    {
+        add { }
+        remove { }
+    }
+#endif
 
     /// <summary>
     /// The menu, for tests.
@@ -79,14 +110,14 @@ internal sealed class TrayIconService : ITrayIconService
     internal NativeMenu Menu => _menu;
 
     /// <summary>
-    /// The status icons, for tests.
+    /// The icon that the tray shows, for tests.
     /// </summary>
-    internal TrayIcons Icons { get; }
+    internal TrayIconImage ShownIcon { get; private set; } = null!;
 
     /// <summary>
-    /// The status icon that the tray shows, or <see langword="null"/> before the first status, for tests.
+    /// Whether the tray draws the icon as a template image, for tests.
     /// </summary>
-    internal WindowIcon? ShownIcon { get; private set; }
+    internal bool IsTemplateIcon => MacOSProperties.GetIsTemplateIcon(_trayIcon);
 
     /// <summary>
     /// The tooltip that the tray shows, for tests.
@@ -139,7 +170,7 @@ internal sealed class TrayIconService : ITrayIconService
         }
 
         _status = status;
-        ApplyIcon(status);
+        Apply(_icons.For(status));
         _trayIcon.ToolTipText = toolTip;
     }
 
@@ -152,51 +183,11 @@ internal sealed class TrayIconService : ITrayIconService
         }
 
         _removed = true;
-        _taskbarMode.Changed -= OnTaskbarModeChanged;
+        _icons.Changed -= OnIconsChanged;
+#if WINDOWS
         _menuOpenedHandler.Dispose();
+#endif
         _trayIcon.Dispose();
-    }
-
-    /// <summary>
-    /// The icon of a status on a taskbar.
-    /// </summary>
-    /// <param name="status">The status.</param>
-    /// <param name="mode">The taskbar's mode.</param>
-    /// <param name="icons">The status icons.</param>
-    /// <returns>One of <paramref name="icons"/>.</returns>
-    internal static WindowIcon IconFor(TrayStatus status, TaskbarMode mode, TrayIcons icons)
-    {
-        return (status, mode) switch
-        {
-            (TrayStatus.Ready, TaskbarMode.Light) => icons.ReadyLight,
-            (TrayStatus.Ready, TaskbarMode.Dark) => icons.ReadyDark,
-            (TrayStatus.Unavailable, TaskbarMode.Light) => icons.UnavailableLight,
-            (TrayStatus.Unavailable, TaskbarMode.Dark) => icons.UnavailableDark,
-            (TrayStatus.Recording, _) => icons.Recording,
-            (TrayStatus.Transcribing, _) => icons.Transcribing,
-            _ => throw new ArgumentOutOfRangeException(nameof(status), (status, mode), null),
-        };
-    }
-
-    /// <summary>
-    /// Loads the status icons from the embedded ICOs. Avalonia hands the tray the frame at the small icon size of the
-    /// display's scaling (<c>SM_CXSMICON</c>).
-    /// </summary>
-    /// <returns>The status icons.</returns>
-    internal static TrayIcons LoadIcons()
-    {
-        return new TrayIcons(
-            LoadStatusIcon("Ready.Light"),
-            LoadStatusIcon("Ready.Dark"),
-            LoadStatusIcon("Unavailable.Light"),
-            LoadStatusIcon("Unavailable.Dark"),
-            LoadStatusIcon("Recording"),
-            LoadStatusIcon("Transcribing"));
-
-        static WindowIcon LoadStatusIcon(string name)
-        {
-            return LoadIcon($"{StatusIconResourcePrefix}{name}.ico");
-        }
     }
 
     /// <summary>
@@ -220,28 +211,23 @@ internal sealed class TrayIconService : ITrayIconService
         _exitSeparator.IsVisible = anyVisible;
     }
 
-    private static WindowIcon LoadIcon(string resourceName)
+    private void OnIconsChanged(object? sender, EventArgs e)
     {
-        using var stream = typeof(TrayIconService).Assembly.GetManifestResourceStream(resourceName)
-                           ?? throw new InvalidOperationException($"Embedded resource {resourceName} is missing.");
-        return new WindowIcon(stream);
-    }
-
-    private void OnTaskbarModeChanged(object? sender, EventArgs e)
-    {
-        // Raised on the watcher's thread.
+        // Raised on any thread.
         _ = _uiDispatcher.InvokeAsync(() =>
         {
             if (!_removed && _status is { } status)
             {
-                ApplyIcon(status);
+                Apply(_icons.For(status));
             }
         });
     }
 
-    private void ApplyIcon(TrayStatus status)
+    private void Apply(TrayIconImage icon)
     {
-        ShownIcon = IconFor(status, _taskbarMode.Current, Icons);
-        _trayIcon.Icon = ShownIcon;
+        // Together, so macOS never draws a colored icon as a template or the other way round.
+        ShownIcon = icon;
+        MacOSProperties.SetIsTemplateIcon(_trayIcon, icon.IsTemplate);
+        _trayIcon.Icon = icon.Icon;
     }
 }
