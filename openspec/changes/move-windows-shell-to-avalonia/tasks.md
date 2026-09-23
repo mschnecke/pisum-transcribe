@@ -3,7 +3,7 @@ The windows and the tray are replaced in place (groups 3 and 4), before the appl
 ## 1. Packages and build
 
 - [ ] 1.1 Add Avalonia 12.1.1 to `Directory.Packages.props` (design D6): `Avalonia`, `Avalonia.Win32`, `Avalonia.Skia`, `Avalonia.HarfBuzz`, `Avalonia.Themes.Fluent`, and `Avalonia.Headless` for the tests. Reference the first five in `Pisum.Transcribe.csproj` and `Avalonia.Headless` in `Pisum.Transcribe.Tests.csproj`. `UseWPF` stays until task 5.5. Verify: `dotnet build Pisum.Transcribe.slnx` passes with warnings as errors, and the build output has no `Avalonia.X11.dll`, `Avalonia.Native.dll` or `Avalonia.FreeDesktop*.dll`.
-- [ ] 1.2 Turn off Avalonia's build telemetry (`Avalonia.BuildServices`, D6) with the opt-out that package documents, set in `Directory.Build.props` with a comment that says why. Verify: a detailed build log (`dotnet build Pisum.Transcribe.slnx -v:d`) shows that the telemetry task doesn't run, locally and in the CI job's log.
+- [ ] 1.2 Turn off Avalonia's build telemetry (D6). Add `Avalonia.BuildServices` 11.3.2 to `Directory.Packages.props` with a comment that says why, and reference it in `Pisum.Transcribe.csproj` and `Pisum.Transcribe.Tests.csproj` with `ExcludeAssets="all"` and `PrivateAssets="all"`. Do this in the same commit as task 1.1, so no build of this change runs the telemetry. Verify: a detailed build log (`dotnet build Pisum.Transcribe.slnx -v:d`) has no `AvaloniaStats` target for either project, locally and in the CI job's log.
 - [ ] 1.3 Remove `global using System.Windows` from `GlobalUsing.cs` (D6). Add explicit `using` directives to the WPF files that still need them until they are replaced. Verify: `dotnet build Pisum.Transcribe.slnx` passes.
 
 ## 2. Headless tests

@@ -61,7 +61,7 @@ Current state that the approach depends on:
     - `Avalonia.Headless.XUnit` 12.1.1 fails test discovery on xunit.v3 4.0.1 with a `MissingMethodException` for `TestIntrospectionHelper.GetTestCaseDetails`.
     - Plain `[Fact]`s that run their body through `HeadlessUnitTestSession.Dispatch` pass. That includes the `DispatcherWait` pattern, a `DispatcherFrame` ended from another thread.
   - **One unexplained crash:** a startup abort from an unhandled managed exception, once in eight launches, not reproducible.
-- **Spike results, Windows half** (2026-09-23, Windows 11 build 26200, 150 % on a 3840 × 2160 monitor, Avalonia 12.1.1 with `UseWin32().UseSkia().UseHarfBuzz()`; same branch, `spike/WindowsSpike.cs`):
+- **Spike results, Windows half** (2026-09-23, Windows 11 build 26200, 150 % on a 3840 × 2160 monitor, Avalonia 12.1.1 with `UseWin32().UseSkia().UseHarfBuzz()`; same branch, `spike/AvaloniaShellSpike/WindowsSpike.cs`):
   - **W1 ✓ with a catch:**
     - `TryGetPlatformHandle()` returns the `HWND` before the first `Show`.
     - **Avalonia resets the extended styles on every `Show`.** Set before it, they are gone after it (`TOPMOST|NOREDIRECTIONBITMAP` only). Set again right after each `Show`, they hold.
@@ -87,7 +87,7 @@ Current state that the approach depends on:
 
 **Non-Goals:**
 - A macOS target framework, macOS code or a macOS build.
-- Visual design work beyond a faithful port. Where Avalonia's Fluent theme differs from WPF's look, the Fluent look wins unless it breaks a spec.
+- Visual design work beyond a faithful port. Where Avalonia's Fluent theme differs from WPF's look, the Fluent look wins unless it breaks a spec. The windows use Fluent's default accent and density, not matched to Windows' accent color.
 - Replacing SharpHook, NAudio, CsWin32 or the transcription engine. They are not UI.
 
 ## Decisions
@@ -171,8 +171,13 @@ Moved to `show-windows-notifications`: WinRT toasts behind `INotifier`, and the 
 
 - **`UseWPF` goes.** The target framework stays `net10.0-windows10.0.19041.0`, from `show-windows-notifications`, and `RuntimeIdentifier` stays `win-x64`.
 - **`global using System.Windows`** goes from `GlobalUsing.cs` with `UseWPF`. Without WPF it imports nothing the app needs. `extract-ui-seams` kept it, because the compiler finds every WPF type here anyway.
-- **The Avalonia packages** are `Avalonia`, `Avalonia.Win32`, `Avalonia.Skia`, the HarfBuzz text shaping package and `Avalonia.Themes.Fluent`. They are pinned centrally in `Directory.Packages.props`. The app configures the Win32 backend and Skia explicitly instead of `UsePlatformDetect`. That keeps the X11 and macOS backends out of the MSI.
-- **Build telemetry:** Avalonia's build telemetry (`Avalonia.BuildServices`) is turned off for local builds and CI, because the project sends nothing it doesn't need to. The spike confirms the opt-out.
+- **The Avalonia packages** are `Avalonia`, `Avalonia.Win32`, `Avalonia.Skia`, `Avalonia.HarfBuzz` (text shaping, the source of `UseHarfBuzz()`) and `Avalonia.Themes.Fluent`. They are pinned centrally in `Directory.Packages.props`. The app configures the Win32 backend and Skia explicitly instead of `UsePlatformDetect`. That keeps the X11 and macOS backends out of the MSI.
+- **Build telemetry:** Avalonia's build telemetry (`Avalonia.BuildServices`) is turned off for local builds and CI, because the project sends nothing it doesn't need to.
+  - `Avalonia` 12.1.1 depends on `Avalonia.BuildServices` 11.3.2. Its `AvaloniaStats` target runs before `CoreCompile` in every build that isn't a design-time build, and sends hashed project and machine names, the OS, the IDE and the CI environment.
+  - The only opt-out the package documents is the environment variable `AVALONIA_TELEMETRY_OPTOUT=1`. There is no MSBuild property.
+  - **The app and the test project reference `Avalonia.BuildServices` directly, with `ExcludeAssets="all"` and `PrivateAssets="all"`,** so NuGet imports none of its targets. Checked on 2026-09-23: a build with the reference has no `AvaloniaStats` target, and one without it runs it. The test project needs the reference too, because `Avalonia.Headless` pulls the package in again.
+  - The version is in `Directory.Packages.props`, with a comment that says why. If a later Avalonia needs a newer `Avalonia.BuildServices`, the lower direct reference raises NU1605, which fails the build and asks for the new version.
+  - *Rejected:* the environment variable. It only works on machines and CI jobs where someone set it, and a build without it sends the data before anyone notices.
 - **Package pins:**
   - `CommunityToolkit.Mvvm` and the hosting packages stay.
   - `H.NotifyIcon.Wpf` goes from `Directory.Packages.props`.
@@ -219,7 +224,7 @@ Moved to `show-windows-notifications`: WinRT toasts behind `INotifier`, and the 
   - Opening or focusing a window keeps today's behavior: restore it if minimized, then `Activate()`.
 - **Confirmations:**
   - A small modal `ConfirmDialog` (message, **Yes**, **No**, No as the default) replaces `MessageBox`. Avalonia's dialogs are asynchronous, so the close confirmation cancels `Closing` first and closes the window again after **Yes**.
-  - When the app exits, the windows close without asking, as `settings-window` requires. A flag set by the shutdown skips the confirmation.
+  - When the app exits, the windows close without asking, as `settings-window` requires. A flag set by the shutdown skips the confirmation, and a `ConfirmDialog` that is already open closes with its window. Otherwise the open dialog would keep its window from closing.
 
 *Rejected:*
 - **A third-party message box package:** the three confirmations don't justify another dependency and its notices.
@@ -300,12 +305,13 @@ Moved to `use-win32-clipboard`: `Win32ClipboardService` on the Win32 API, behind
 1. **Spike** (D3), on branch `spike/avalonia-shell`, never merged:
    - Done on 2026-09-22: M1–M6 on the development Mac, and T1.
    - Done on 2026-09-23: W1–W3 on Windows. The results are in Context.
-   - Next: write the spec delta and `tasks.md`.
+   - The spec delta and `tasks.md` followed on 2026-09-23.
 2. **The four preparing changes** are done. They can run in parallel with the spike.
-3. **The Avalonia shell:**
-   - the lifetime and `AvaloniaUiDispatcher`
-   - the tray with the new icons
-   - the windows and the confirmations
+3. **The Avalonia shell,** in this order:
+   - the windows and the confirmations, then the tray with the new icons, each replaced in place and tested on the headless platform (D11)
+   - then the lifetime, `AvaloniaUiDispatcher` and `DispatcherWait`, which make the app run again
+   - The app doesn't run between the first window and the lifetime. Neither order avoids that: Avalonia windows can't run under a WPF application, and WPF windows can't run under an Avalonia lifetime. This order has each window and the tray tested before the switch, so when the app runs again, only the lifetime is new.
+   - *Rejected:* keeping the WPF and the Avalonia windows side by side until the switch. The app would stay buildable with both, but three classes would need temporary names, and the switch would still come at once.
 4. **Remove WPF and `H.NotifyIcon.Wpf`.**
 5. **Packaging, notices, guard, docs.** CI builds and validates the MSI.
 6. **Regression pass against the specs** on Windows 11 and Windows 10 22H2:
@@ -320,4 +326,4 @@ Moved to `use-win32-clipboard`: `Win32ClipboardService` on the Win32 API, behind
 
 ## Open Questions
 
-- The Fluent theme's accent and density: Avalonia's defaults, or matched to Windows' accent color. That can be decided during the port without changing a spec.
+None. The Fluent theme's accent and density were settled as Fluent's defaults (Non-Goals).
