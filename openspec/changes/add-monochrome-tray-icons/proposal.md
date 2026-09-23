@@ -27,7 +27,10 @@ The tray icon is the colored app icon with a colored dot for the state, drawn wi
 ## Impact
 
 - **Depends on:** `extract-ui-seams` (`TrayStatus`, so only the tray service changes).
-- **New files:** `src/Pisum.Transcribe/Tray/TrayGlyph.svg`, and the rendered icons, which are committed as `TrayIcon.ico` is today.
+- **New files**, committed as `TrayIcon.ico` is today:
+  - `src/Pisum.Transcribe/Tray/TrayGlyph.svg`, the status glyph, and `Tray/TrayIcon.png`, the app icon at 256 px for `show-windows-notifications`
+  - `Tray/Windows/`: the status ICOs, embedded, and `TaskbarModeWatcher`
+  - `Tray/MacOS/`: the menu bar PNGs at `@1x` and `@2x`, which follow Apple's rules for menu bar extras and which `add-macos-shell` uses
 - **Code:**
   - `Tray/TrayIconService`: it loads the icons, reads the taskbar mode, and watches it for changes.
   - `Dictation/DictationIcons` goes.
