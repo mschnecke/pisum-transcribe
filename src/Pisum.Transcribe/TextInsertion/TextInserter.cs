@@ -52,22 +52,20 @@ internal sealed class TextInserter : ITextInserter, IHostedService
     /// <param name="tracker">The foreground window tracker.</param>
     /// <param name="timeProvider">The time provider for the modifier wait and the restore delay.</param>
     /// <param name="logger">The logger.</param>
-    /// <param name="isSelfElevated">
-    /// Whether this process runs elevated, for tests. <see langword="null"/> reads the process token once.
-    /// </param>
+    /// <param name="isSelfElevated">Whether this process runs elevated.</param>
     public TextInserter(IClipboardService clipboard,
                         IKeyboardInput keyboard,
                         IForegroundWindowTracker tracker,
                         TimeProvider timeProvider,
                         ILogger<TextInserter> logger,
-                        bool? isSelfElevated = null)
+                        bool isSelfElevated)
     {
         _clipboard = clipboard;
         _keyboard = keyboard;
         _tracker = tracker;
         _timeProvider = timeProvider;
         _logger = logger;
-        _isSelfElevated = isSelfElevated ?? ProcessElevation.IsElevated((uint) Environment.ProcessId, out _) ?? false;
+        _isSelfElevated = isSelfElevated;
     }
 
     /// <inheritdoc />

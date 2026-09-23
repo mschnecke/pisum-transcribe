@@ -65,11 +65,17 @@ public sealed class ShutdownCoordinatorTests : IDisposable
         A.CallTo(() => _notifier.Show(A<string>._, A<string>._)).MustNotHaveHappened();
     }
 
-    [Fact]
-    public async Task RequestShutdownAsync_SessionEnd_RemovesIconBeforeStoppingHostAndExitsWithCode0()
+    [Theory]
+    [InlineData(nameof(ShutdownReason.SessionEnd))]
+    [InlineData(nameof(ShutdownReason.TerminationRequest))]
+    public async Task RequestShutdownAsync_SessionEndOrTerminationRequest_RemovesIconBeforeStoppingHostAndExitsWithCode0(
+        string reasonName)
     {
+        // Arrange: by name, because the enum is internal.
+        var reason = Enum.Parse<ShutdownReason>(reasonName);
+
         // Act
-        await _sut.RequestShutdownAsync(ShutdownReason.SessionEnd)
+        await _sut.RequestShutdownAsync(reason)
             .WaitAsync(SignalTimeout, TestContext.Current.CancellationToken);
 
         // Assert
@@ -83,7 +89,7 @@ public sealed class ShutdownCoordinatorTests : IDisposable
             && entry.Properties.Any(property => property.Key == "{OriginalFormat}"
                                                 && Equals(property.Value, "Shutting down, reason {Reason}"))
             && entry.Properties.Any(property => property.Key == "Reason"
-                                                && Equals(property.Value, ShutdownReason.SessionEnd)));
+                                                && Equals(property.Value, reason)));
     }
 
     [Fact]

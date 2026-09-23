@@ -52,3 +52,25 @@ jobs:
           path: artifacts/*.msi
           if-no-files-found: error
           retention-days: 7
+
+  # The same commands on Apple silicon. The build also compiles the Swift helper and assembles the dev app bundle,
+  # signed ad hoc, so both are checked on every change; nothing is uploaded (design D13 of add-macos-shell).
+  macos:
+    name: macos-latest
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Restore
+        run: dotnet restore Pisum.Transcribe.slnx
+
+      - name: Build
+        run: dotnet build Pisum.Transcribe.slnx --no-restore
+
+      - name: Test
+        run: dotnet test Pisum.Transcribe.slnx

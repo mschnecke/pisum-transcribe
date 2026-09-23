@@ -1,16 +1,21 @@
 using Microsoft.Extensions.DependencyInjection;
+#if !WINDOWS
+using Microsoft.Extensions.DependencyInjection.Extensions;
+#endif
 using Microsoft.Extensions.Hosting;
-using Pisum.Transcribe.Dictation;
 using Pisum.Transcribe.Notifications;
 using Pisum.Transcribe.Recording;
 using Pisum.Transcribe.Settings;
 using Pisum.Transcribe.SettingsWindow;
 using Pisum.Transcribe.SpeechModels;
-using Pisum.Transcribe.TextInsertion;
 using Pisum.Transcribe.Transcription;
 using Pisum.Transcribe.Tray;
 using Pisum.Transcribe.Updates;
+#if WINDOWS
+using Pisum.Transcribe.Dictation;
+using Pisum.Transcribe.TextInsertion;
 using Pisum.Transcribe.VoiceActivity;
+#endif
 using Serilog;
 
 namespace Pisum.Transcribe.Hosting;
@@ -22,6 +27,7 @@ internal static class AppHost
 {
     /// <summary>
     /// Creates the host. Each feature registers its services with one <c>services.Add&lt;Feature&gt;()</c> call here.
+    /// On macOS only the shell runs so far: no recording, voice activity detection, text insertion or dictation.
     /// Call it on the UI thread.
     /// </summary>
     /// <param name="paths">The application data folders.</param>
@@ -40,6 +46,11 @@ internal static class AppHost
         builder.Services.AddSerilog((_, configuration) => configuration.WriteToAppLog(paths));
         builder.Services.AddSingleton(paths);
         builder.Services.AddSingleton<IUiDispatcher>(new AvaloniaUiDispatcher());
+#if !WINDOWS
+        builder.Services.AddSingleton<IHostLifetime, SignalFreeHostLifetime>();
+        builder.Services.TryAddSingleton<MacNativeLibrary>();
+        builder.Services.AddSingleton<QuitEventSender>();
+#endif
 
         builder.Services.AddTray();
         builder.Services.AddNotifications();
@@ -47,9 +58,11 @@ internal static class AppHost
         builder.Services.AddSpeechModels();
         builder.Services.AddTranscription();
         builder.Services.AddRecording();
+#if WINDOWS
         builder.Services.AddTextInsertion();
         builder.Services.AddVoiceActivity();
         builder.Services.AddDictation();
+#endif
         builder.Services.AddSettingsWindow();
         builder.Services.AddUpdates();
 

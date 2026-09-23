@@ -237,11 +237,14 @@
                        IsVisible="{Binding #Navigation.SelectedIndex, Converter={x:Static local:SectionIndexConverter.Instance}, ConverterParameter=4}">
                     <StackPanel x:DataType="local:GeneralSectionViewModel">
                         <TextBlock Classes="sectionTitle" Text="General" />
-                        <CheckBox Content="Start with _Windows" IsChecked="{Binding StartWithWindows}" />
-                        <TextBlock Classes="hint"
-                                   Text="Starts Pisum Transcribe when you sign in to Windows. Applies to your user account only." />
+                        <StackPanel x:Name="StartWithWindowsRow" Margin="0,0,0,16"
+                                    IsVisible="{Binding IsStartWithWindowsAvailable}">
+                            <CheckBox Content="Start with _Windows" IsChecked="{Binding StartWithWindows}" />
+                            <TextBlock Classes="hint"
+                                       Text="Starts Pisum Transcribe when you sign in to Windows. Applies to your user account only." />
+                        </StackPanel>
 
-                        <CheckBox Margin="0,16,0,0" Content="Check for _updates automatically"
+                        <CheckBox Content="Check for _updates automatically"
                                   IsChecked="{Binding CheckForUpdates}" />
                         <TextBlock Classes="hint"
                                    Text="Asks GitHub once a day whether a new version of Pisum Transcribe exists. Nothing else is sent." />

@@ -2,6 +2,8 @@
 
 Pisum Transcribe is a push-to-talk dictation app for Windows. It runs in the system tray. Hold the hotkey, speak, and release it: the app transcribes your speech and inserts the text at the cursor in the active window. By default it translates German speech into English text.
 
+A version for macOS on Apple silicon is coming. It isn't released yet, so this README covers Windows only.
+
 Speech recognition runs on your computer with an NVIDIA Canary model and the [transcribe.cpp](https://github.com/handy-computer/transcribe.cpp) engine. Audio and text never leave the machine. The app goes online to download a speech model and, unless you turn it off in the settings, once a day to ask GitHub whether a new version exists.
 
 ## Features
@@ -52,7 +54,7 @@ You need the [.NET SDK 10.0.400](https://dotnet.microsoft.com/download) or a lat
 ```sh
 git clone https://github.com/mschnecke/pisum-transcribe.git
 cd pisum-transcribe
-dotnet run --project src/Pisum.Transcribe
+dotnet run --project src/Pisum.Transcribe -f net10.0-windows10.0.19041.0
 ```
 
 ## Usage

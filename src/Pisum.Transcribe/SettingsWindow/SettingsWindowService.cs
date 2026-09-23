@@ -24,7 +24,7 @@ internal sealed class SettingsWindowService : IHostedService
     private readonly ITrayIconService _trayIcon;
     private readonly IUiDispatcher _uiDispatcher;
     private readonly ISettingsStore _settingsStore;
-    private readonly IStartupRegistration _startupRegistration;
+    private readonly IStartupRegistration? _startupRegistration;
     private readonly IModelStore _modelStore;
     private readonly ITranscriber _transcriber;
     private readonly IPushToTalkHotkey _hotkey;
@@ -40,21 +40,23 @@ internal sealed class SettingsWindowService : IHostedService
     /// <param name="trayIcon">The tray icon.</param>
     /// <param name="uiDispatcher">Reaches the UI thread.</param>
     /// <param name="settingsStore">The settings store.</param>
-    /// <param name="startupRegistration">Starts the application at sign-in.</param>
     /// <param name="modelStore">The model store.</param>
     /// <param name="transcriber">The transcription engine.</param>
     /// <param name="hotkey">The push-to-talk hotkey.</param>
     /// <param name="lifetime">The application lifetime.</param>
     /// <param name="viewModelLogger">The logger of the settings view model.</param>
+    /// <param name="startupRegistration">
+    /// Starts the application at sign-in, or <see langword="null"/> where the platform has none.
+    /// </param>
     public SettingsWindowService(ITrayIconService trayIcon,
                                  IUiDispatcher uiDispatcher,
                                  ISettingsStore settingsStore,
-                                 IStartupRegistration startupRegistration,
                                  IModelStore modelStore,
                                  ITranscriber transcriber,
                                  IPushToTalkHotkey hotkey,
                                  IHostApplicationLifetime lifetime,
-                                 ILogger<SettingsViewModel> viewModelLogger)
+                                 ILogger<SettingsViewModel> viewModelLogger,
+                                 IStartupRegistration? startupRegistration = null)
     {
         _trayIcon = trayIcon;
         _uiDispatcher = uiDispatcher;

@@ -11,8 +11,6 @@ namespace Pisum.Transcribe;
 /// </summary>
 internal static class Program
 {
-    private const string SingleInstanceMutexName = @"Local\Pisum.Transcribe.SingleInstance";
-
     /// <summary>
     /// Runs the application on the STA UI thread.
     /// </summary>
@@ -21,7 +19,7 @@ internal static class Program
     [STAThread]
     public static int Main(string[] args)
     {
-        using var singleInstanceGuard = new SingleInstanceGuard(SingleInstanceMutexName);
+        using var singleInstanceGuard = CreateSingleInstanceGuard();
         if (!singleInstanceGuard.TryAcquire(SingleInstanceGuard.WaitTimeout))
         {
             // Another instance is running. Exit before the logger starts, because that instance holds today's log file open.
@@ -39,10 +37,17 @@ internal static class Program
                 ?.InformationalVersion;
             Log.Information("Pisum Transcribe {Version} starting", version);
 
-            // The Win32 backend and Skia explicitly, instead of UsePlatformDetect, which would ship the X11 and macOS
-            // backends too. The tray keeps the application running until ShutdownCoordinator ends it.
-            return AppBuilder.Configure(() => new App(paths))
-                .UseWin32()
+            // The platform's backend and Skia explicitly, instead of UsePlatformDetect, which would ship the other
+            // platforms' backends too. The tray keeps the application running until ShutdownCoordinator ends it.
+            var builder = AppBuilder.Configure(() => new App(paths));
+#if WINDOWS
+            builder = builder.UseWin32();
+#else
+            // No Dock icon when the app runs without its bundle. The bundle's LSUIElement does the same for a bundled
+            // start.
+            builder = builder.UseAvaloniaNative().With(new MacOSPlatformOptions {ShowInDock = false});
+#endif
+            return builder
                 .UseSkia()
                 .UseHarfBuzz()
                 .StartWithClassicDesktopLifetime(args, ShutdownMode.OnExplicitShutdown);
@@ -51,5 +56,18 @@ internal static class Program
         {
             Log.CloseAndFlush();
         }
+    }
+
+    private static SingleInstanceGuard CreateSingleInstanceGuard()
+    {
+#if WINDOWS
+        // One instance per Windows session.
+        return new SingleInstanceGuard(@"Local\Pisum.Transcribe.SingleInstance");
+#else
+        // One instance per user. A Local\ name is scoped to the Unix session, and Finder and launchd start apps in a
+        // session other than the terminal's.
+        return new SingleInstanceGuard("Pisum.Transcribe.SingleInstance",
+            new NamedWaitHandleOptions {CurrentUserOnly = true, CurrentSessionOnly = false});
+#endif
     }
 }

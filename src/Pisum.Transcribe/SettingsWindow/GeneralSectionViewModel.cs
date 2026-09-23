@@ -11,13 +11,20 @@ internal sealed partial class GeneralSectionViewModel : ObservableObject
     /// <summary>
     /// Initializes a new instance.
     /// </summary>
+    /// <param name="isStartWithWindowsAvailable">Whether the platform offers "Start with Windows".</param>
     /// <param name="startWithWindows">Whether Windows starts the application at sign-in now.</param>
     /// <param name="updates">The saved update check settings.</param>
-    public GeneralSectionViewModel(bool startWithWindows, UpdateSettings updates)
+    public GeneralSectionViewModel(bool isStartWithWindowsAvailable, bool startWithWindows, UpdateSettings updates)
     {
+        IsStartWithWindowsAvailable = isStartWithWindowsAvailable;
         StartWithWindows = startWithWindows;
         CheckForUpdates = updates.CheckAutomatically;
     }
+
+    /// <summary>
+    /// Whether the section shows "Start with Windows". It doesn't on macOS, until starting at login comes there.
+    /// </summary>
+    public bool IsStartWithWindowsAvailable { get; }
 
     /// <summary>
     /// Whether Windows starts the application when the user signs in.

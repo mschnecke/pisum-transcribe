@@ -11,10 +11,9 @@ namespace Pisum.Transcribe.Hosting;
 /// </summary>
 /// <remarks>
 /// Create it on the UI thread. The shutdown runs once: it starts a watchdog that ends the process after
-/// <see cref="ExitTimeout"/>, removes the tray icon (at once for <see cref="ShutdownReason.UserExit"/> and
-/// <see cref="ShutdownReason.SessionEnd"/>; for <see cref="ShutdownReason.Error"/> after the error notification and after
-/// the host has stopped), stops and disposes the host, and shuts down the Avalonia lifetime. The error notification is a
-/// Windows toast, which stays in the notification center after the process has ended.
+/// <see cref="ExitTimeout"/>, removes the tray icon (at once for every reason but <see cref="ShutdownReason.Error"/>; for
+/// that one after the error notification and after the host has stopped), stops and disposes the host, and shuts down
+/// the Avalonia lifetime. The error notification stays in the notification center after the process has ended.
 /// </remarks>
 internal sealed class ShutdownCoordinator
 {

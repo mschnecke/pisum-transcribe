@@ -21,7 +21,8 @@ public sealed class TextInserterHardwareTests : IDisposable
 
     public TextInserterHardwareTests()
     {
-        _sut = new TextInserter(_clipboard, _keyboard, _tracker, TimeProvider.System, NullLogger<TextInserter>.Instance);
+        _sut = new TextInserter(_clipboard, _keyboard, _tracker, TimeProvider.System, NullLogger<TextInserter>.Instance,
+            ProcessElevation.IsElevated((uint) Environment.ProcessId, out _) ?? false);
     }
 
     public void Dispose()

@@ -17,6 +17,8 @@ namespace Pisum.Transcribe.Tests.SettingsWindow;
 [Trait(Traits.Category, Traits.Categories.Unit)]
 public sealed class SettingsDialogTests : IDisposable
 {
+    private const int GeneralSection = 4;
+
     private readonly CancellationTokenSource _applicationStopping = new();
 
     public void Dispose()
@@ -73,6 +75,53 @@ public sealed class SettingsDialogTests : IDisposable
             sut.CanMaximize.ShouldBeFalse();
             sut.CanMinimize.ShouldBeTrue();
             sut.SizeToContent.ShouldBe(SizeToContent.WidthAndHeight);
+        });
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public Task Constructor_StartupRegistration_ShowsStartWithWindowsOnlyWithIt(bool hasRegistration)
+    {
+        return HeadlessUi.RunAsync(() =>
+        {
+            // Arrange
+            var viewModel = CreateViewModel(new FakeSettingsStore(new AppSettings()),
+                hasRegistration ? A.Fake<IStartupRegistration>() : null, CreateModelStore());
+
+            // Act
+            var sut = new SettingsDialog(viewModel);
+            sut.Show();
+            sut.Navigation.SelectedIndex = GeneralSection;
+            sut.UpdateLayout();
+
+            // Assert
+            sut.StartWithWindowsRow.IsVisible.ShouldBe(hasRegistration);
+            sut.Close();
+        });
+    }
+
+    [Fact]
+    public Task SaveCommand_WithoutStartupRegistration_SavesTheSettings()
+    {
+        return HeadlessUi.RunAsync(async () =>
+        {
+            // Arrange
+            var settingsStore = new FakeSettingsStore(new AppSettings());
+            var viewModel = CreateViewModel(settingsStore, null, CreateModelStore());
+            var sut = new SettingsDialog(viewModel);
+            sut.Show();
+            var checkForUpdates = !viewModel.General.CheckForUpdates;
+            viewModel.General.CheckForUpdates = checkForUpdates;
+
+            // Act
+            await viewModel.SaveCommand.ExecuteAsync(null);
+
+            // Assert
+            settingsStore.Saves.ShouldHaveSingleItem().Updates.CheckAutomatically.ShouldBe(checkForUpdates);
+            viewModel.SaveError.ShouldBeNull();
+            viewModel.HasChanges.ShouldBeFalse();
+            sut.Close();
         });
     }
 
@@ -270,13 +319,21 @@ public sealed class SettingsDialogTests : IDisposable
                                               IModelStore modelStore,
                                               Func<SpeechModel, bool>? confirmDelete = null)
     {
+        return CreateViewModel(new FakeSettingsStore(settings), A.Fake<IStartupRegistration>(), modelStore,
+            confirmDelete);
+    }
+
+    private SettingsViewModel CreateViewModel(ISettingsStore settingsStore,
+                                              IStartupRegistration? startupRegistration,
+                                              IModelStore modelStore,
+                                              Func<SpeechModel, bool>? confirmDelete = null)
+    {
         var transcriber = A.Fake<ITranscriber>();
         A.CallTo(() => transcriber.Status).Returns(TranscriberStatus.Ready);
         A.CallTo(() => transcriber.ActiveBackend).Returns("Vulkan");
         var lifetime = A.Fake<IHostApplicationLifetime>();
         A.CallTo(() => lifetime.ApplicationStopping).Returns(_applicationStopping.Token);
-        return new SettingsViewModel(new FakeSettingsStore(settings), A.Fake<IStartupRegistration>(), modelStore,
-            transcriber, A.Fake<IPushToTalkHotkey>(), lifetime, confirmDelete ?? (_ => false),
+        return new SettingsViewModel(settingsStore, startupRegistration, modelStore, transcriber, A.Fake<IPushToTalkHotkey>(), lifetime, confirmDelete ?? (_ => false),
             NullLogger<SettingsViewModel>.Instance, new InlineUiDispatcher());
     }
 

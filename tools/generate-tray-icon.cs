@@ -6,7 +6,8 @@
 // Renders the icons of src/Pisum.Transcribe/Tray from its two SVGs. Run it from the repository root after editing
 // either of them: dotnet run tools/generate-tray-icon.cs
 //
-// - TrayIcon.svg, the app icon, into TrayIcon.ico and TrayIcon.png (256 px).
+// - TrayIcon.svg, the app icon, into TrayIcon.ico and TrayIcon.png (256 px), and into MacOS/AppIcon.icns for the app
+//   bundle.
 // - TrayGlyph.svg, the status glyph, into the notification area ICOs in Windows/ and the menu bar PNGs in MacOS/.
 
 using System.Buffers.Binary;
@@ -31,6 +32,9 @@ using (var appIcon = LoadSvg($"{TrayDirectory}/TrayIcon.svg"))
     WriteIco($"{TrayDirectory}/TrayIcon.ico", appIconSizes.Select(size => Render(appIcon, size, size, null)));
     using var png = Render(appIcon, 256, 256, null);
     WritePng($"{TrayDirectory}/TrayIcon.png", png, null);
+
+    Directory.CreateDirectory($"{TrayDirectory}/MacOS");
+    WriteIcns($"{TrayDirectory}/MacOS/AppIcon.icns", appIcon);
 }
 
 using (var glyph = LoadSvg($"{TrayDirectory}/TrayGlyph.svg"))
@@ -152,6 +156,47 @@ static void WriteIco(string path, IEnumerable<SKBitmap> bitmaps)
     }
 
     Console.WriteLine($"Wrote {path} with {string.Join(", ", frames.Select(frame => frame.Size))} px.");
+}
+
+// An ICNS container of PNG entries, which macOS reads since 10.7: each size from 16 to 1024 px, rendered once and
+// stored under its @1x type and, where there is one, its @2x type.
+static void WriteIcns(string path, SKSvg svg)
+{
+    (int Size, string[] Types)[] entries =
+    [
+        (16, ["icp4"]),
+        (32, ["icp5", "ic11"]),
+        (64, ["icp6", "ic12"]),
+        (128, ["ic07"]),
+        (256, ["ic08", "ic13"]),
+        (512, ["ic09", "ic14"]),
+        (1024, ["ic10"]),
+    ];
+
+    var chunks = new List<(string Type, byte[] Data)>();
+    foreach (var (size, types) in entries)
+    {
+        using var bitmap = Render(svg, size, size, null);
+        var data = EncodePng(bitmap, null);
+        chunks.AddRange(types.Select(type => (type, data)));
+    }
+
+    // The header, 'icns' and the file length, then each entry: its type, its length including this 8-byte header, and
+    // its data. All numbers are big-endian.
+    using var stream = File.Create(path);
+    Span<byte> number = stackalloc byte[4];
+    stream.Write("icns"u8);
+    BinaryPrimitives.WriteUInt32BigEndian(number, (uint) (8 + chunks.Sum(chunk => 8 + chunk.Data.Length)));
+    stream.Write(number);
+    foreach (var (type, data) in chunks)
+    {
+        stream.Write(System.Text.Encoding.ASCII.GetBytes(type));
+        BinaryPrimitives.WriteUInt32BigEndian(number, (uint) (8 + data.Length));
+        stream.Write(number);
+        stream.Write(data);
+    }
+
+    Console.WriteLine($"Wrote {path} with {string.Join(", ", entries.Select(entry => entry.Size))} px.");
 }
 
 static byte[] IcoFrame(SKBitmap bitmap)

@@ -44,6 +44,7 @@ New-Item -ItemType Directory -Force -Path $outputDir | Out-Null
 # the three texts are in THIRD-PARTY-NOTICES.md.
 dotnet publish (Join-Path $root 'src' 'Pisum.Transcribe') `
     --configuration Release `
+    --framework net10.0-windows10.0.19041.0 `
     --runtime win-x64 `
     --self-contained true `
     -p:PublishReadyToRun=true `

@@ -1,4 +1,6 @@
-using System.Diagnostics;
+#if !WINDOWS
+using System.Runtime.InteropServices;
+#endif
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
@@ -11,7 +13,6 @@ using Pisum.Transcribe.Notifications;
 using Pisum.Transcribe.Settings;
 using Pisum.Transcribe.Tray;
 using Serilog;
-using Windows.Win32;
 
 namespace Pisum.Transcribe;
 
@@ -24,6 +25,13 @@ internal sealed partial class App : Application
 
     // Referenced for the lifetime of the application, so its watchdog timer stays alive.
     private ShutdownCoordinator? _shutdownCoordinator;
+
+#if !WINDOWS
+    private QuitEventSender? _quitEventSender;
+
+    // Referenced for the lifetime of the application, so the handler stays registered.
+    private PosixSignalRegistration? _terminationRequest;
+#endif
 
     /// <summary>
     /// Initializes a new instance with the default data folders, for the XAML loader.
@@ -67,6 +75,13 @@ internal sealed partial class App : Application
             host.Services.GetRequiredService<ILogger<ShutdownCoordinator>>());
         Dispatcher.UIThread.UnhandledException += _shutdownCoordinator.OnDispatcherUnhandledException;
         lifetime.ShutdownRequested += OnShutdownRequested;
+#if !WINDOWS
+        _quitEventSender = host.Services.GetRequiredService<QuitEventSender>();
+
+        // A termination request, for example from the installer, ends the application as Quit does, instead of the
+        // default handling, which ends the process at once.
+        _terminationRequest = PosixSignalRegistration.Create(PosixSignal.SIGTERM, OnTerminationRequested);
+#endif
 
         trayIcon.Show();
         host.Services.GetRequiredService<ISettingsStore>().Load();
@@ -76,10 +91,7 @@ internal sealed partial class App : Application
     private static void ExitProcess(int exitCode)
     {
         Log.CloseAndFlush();
-
-        // Not Environment.Exit: its process-exit handlers take about 330 ms, which would break the 5 s exit budget.
-        using var process = Process.GetCurrentProcess();
-        PInvoke.TerminateProcess(process.SafeHandle, (uint) exitCode);
+        ProcessTermination.Exit(exitCode);
     }
 
     private void OnShutdownRequested(object? sender, ShutdownRequestedEventArgs e)
@@ -89,9 +101,29 @@ internal sealed partial class App : Application
             return;
         }
 
+#if WINDOWS
         // On Windows this is always the end of the session, including Restart Manager's ENDSESSION_CLOSEAPP: Exit calls
-        // the coordinator directly, and there is no main window. Never cancelled, because that would veto the end of the
-        // session. Windows waits for this answer, so the shutdown finishes before the handler returns.
-        DispatcherWait.Until(_shutdownCoordinator.RequestShutdownAsync(ShutdownReason.SessionEnd));
+        // the coordinator directly, and there is no main window.
+        var reason = ShutdownReason.SessionEnd;
+#else
+        // On macOS it's a quit event: from loginwindow when the session ends, or from another app such as Activity
+        // Monitor. Quit Pisum Transcribe calls the coordinator directly.
+        var reason = _quitEventSender!.ReadReason();
+#endif
+
+        // Never cancelled, because that would veto the end of the session. The system waits for this answer, so the
+        // shutdown finishes before the handler returns.
+        DispatcherWait.Until(_shutdownCoordinator.RequestShutdownAsync(reason));
     }
+#if !WINDOWS
+
+    private void OnTerminationRequested(PosixSignalContext context)
+    {
+        // On a thread-pool thread. At the end of the session macOS sends SIGTERM while the shutdown for the quit event
+        // still runs; the coordinator then keeps that shutdown and its reason.
+        context.Cancel = true;
+        _ = Dispatcher.UIThread.InvokeAsync(
+            () => _shutdownCoordinator!.RequestShutdownAsync(ShutdownReason.TerminationRequest));
+    }
+#endif
 }
