@@ -283,6 +283,7 @@ Until the later macOS changes add their features, the Mac build registers only t
   - `add-macos-recording` replaces it with SharpHook and deletes it.
 - **Start at login:** `IStartupRegistration` has no macOS implementation until `add-macos-login-item`. `SettingsViewModel` takes it as optional, and hides the **Start with Windows** row when it's missing.
 - **Dictation and Text insertion sections:** they stay, and their settings are saved, but nothing reads them on macOS yet.
+- **Backend:** the default setting checks whether Vulkan is available and falls back to the CPU, so it works on macOS. The **Vulkan** choice stays in the list, and choosing it makes the model load fail with the "transcription failed" notification, because the macOS native package has no Vulkan backend. This is accepted until `add-metal-backend` replaces the choice with a GPU backend.
 
 **Win32 calls in shared files** move into `Windows/` subfolders, so the macOS compile never sees them:
 - `App.ExitProcess`: `TerminateProcess` on Windows and `_exit` on macOS (D5), each in its platform folder.
