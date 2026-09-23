@@ -38,6 +38,7 @@
     <ApplicationDefinition Remove="App.xaml"/>
     <Page Include="App.xaml"/>
     <EmbeddedResource Include="Tray\TrayIcon.ico"/>
+    <EmbeddedResource Include="Tray\Windows\*.ico"/>
     <None Include="VoiceActivity\Assets\silero_vad.onnx" CopyToOutputDirectory="PreserveNewest"/>
   </ItemGroup>
 </Project>

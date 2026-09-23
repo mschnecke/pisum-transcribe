@@ -11,7 +11,7 @@ Speech recognition runs on your computer with an NVIDIA Canary model and the [tr
 - **Text at the cursor:** the text is pasted through the clipboard, and the previous clipboard contents are put back. Typing the text as keyboard input is an option.
 - **Local and fast:** the model stays loaded between dictations. It runs on the GPU through Vulkan and falls back to the CPU when the GPU fails.
 - **Silence trimming:** [Silero VAD](https://github.com/snakers4/silero-vad) cuts the silence before and after your speech, and recordings without speech are not transcribed.
-- **Feedback:** an overlay shows the recording time and the transcription progress, and the tray icon shows the app state.
+- **Feedback:** an overlay shows the recording time and the transcription progress, and the tray icon, a monochrome microphone, shows the app state. When the app is ready, the icon is black on a light taskbar and white on a dark one, and it follows a change of the Windows mode at once. It is dimmed while no model is available, red while recording and amber while transcribing.
 
 ## Requirements
 
@@ -149,7 +149,7 @@ The app is a WPF app on the .NET Generic Host, with no main window. Each feature
 | Folder | Contents |
 |---|---|
 | `Hosting/` | Host setup, single instance, logging and shutdown |
-| `Tray/` | Tray icon and menu |
+| `Tray/` | Tray icon and menu, the app icon and the status glyph, whose icons `tools/generate-tray-icon.cs` renders |
 | `Settings/` | Settings model and JSON store |
 | `SpeechModels/` | Model catalog, download and verification, setup window |
 | `Transcription/` | transcribe.cpp engine with Vulkan and CPU fallback |

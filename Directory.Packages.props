@@ -33,6 +33,7 @@
     </ItemGroup>
 
     <ItemGroup Label="Tools">
-        <PackageVersion Include="Svg" Version="3.4.8" />
+        <PackageVersion Include="SkiaSharp" Version="4.152.1" />
+        <PackageVersion Include="Svg.Skia" Version="5.2.3" />
     </ItemGroup>
 </Project>

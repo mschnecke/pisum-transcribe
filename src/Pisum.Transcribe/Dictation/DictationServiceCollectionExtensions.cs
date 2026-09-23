@@ -18,7 +18,6 @@ internal static class DictationServiceCollectionExtensions
     public static IServiceCollection AddDictation(this IServiceCollection services)
     {
         services.TryAddSingleton(TimeProvider.System);
-        services.AddSingleton<DictationIcons>();
         services.AddSingleton<DictationFeedback>();
         services.AddSingleton<IDictationFeedback>(provider => provider.GetRequiredService<DictationFeedback>());
 
