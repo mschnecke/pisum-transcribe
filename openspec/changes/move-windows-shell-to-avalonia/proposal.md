@@ -22,7 +22,7 @@ The Windows app moves first, as a release of its own, before any macOS code: its
 - **Packaging:**
   - The MSI's payload changes: the WPF and Windows Forms runtime go out, and Avalonia, SkiaSharp, HarfBuzz and ANGLE come in.
   - `THIRD-PARTY-NOTICES.md` and the native dependency guard follow the new payload.
-- **Precondition:** a throwaway spike checks the parts that could sink the approach, on macOS first, before this change's implementation starts (design D3). The four preparing changes don't wait for it.
+- **Precondition:** a throwaway spike checks the parts that could sink the approach, on macOS first, before this change's implementation starts (design D3). It is done, and both halves are go: the macOS half on 2026-09-22 and the Windows half on 2026-09-23. The four preparing changes didn't wait for it.
 - **Release:** the change ships as a Windows minor release of its own.
 - Not included:
   - the seams, the clipboard, the tray icons and the toasts, which are the four preparing changes
@@ -38,13 +38,13 @@ The Windows app moves first, as a release of its own, before any macOS code: its
 ### Modified Capabilities
 - `settings-window`: "Opening the settings window" says a left click on the tray icon opens the window, instead of a double-click.
 
-The notices requirement of `packaging` keeps its wording, while the notices file covers the new payload. The spec delta is written after the spike, because W3 decides which click `Clicked` reports (design D3).
+The notices requirement of `packaging` keeps its wording, while the notices file covers the new payload. The spike's W3 settled the click: `Clicked` reports a left click, on the release (design D3, D4).
 
 ## Impact
 
 - **Depends on:**
   - `extract-ui-seams`, `use-win32-clipboard`, `add-monochrome-tray-icons` and `show-windows-notifications`, which must be done first
-  - the spike (D3)
+  - the spike (D3), which is done
 - **Code:**
   - `Program.cs`, `App.xaml(.cs)` and `GlobalUsing.cs`
   - `Hosting/`: `DispatcherWait`, `ShutdownCoordinator`, and the Avalonia implementation of `IUiDispatcher`

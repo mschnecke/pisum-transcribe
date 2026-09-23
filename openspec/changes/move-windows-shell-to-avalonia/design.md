@@ -34,7 +34,7 @@ Current state that the approach depends on:
   - Windows and the tray run on new STA threads: `SettingsDialogTests`, `RecordingOverlayWindowTests`, `DispatcherWaitTests` and `TrayIconServiceTests`.
   - xunit.v3 4.0.1 on Microsoft.Testing.Platform.
 - **Avalonia 12.1.1**, checked in the package's API docs:
-  - the tray: `TrayIcon` with `Menu`, `Clicked`, `ToolTipText` and `MacOSProperties.IsTemplateIcon`, and `NativeMenu` with `Opening` and `NeedsUpdate`
+  - the tray: `TrayIcon` with `Menu`, `Clicked`, `ToolTipText` and `MacOSProperties.IsTemplateIcon`, and `NativeMenu` with `Opening` and `NeedsUpdate`. The spike found that only the macOS backend raises `Opening` and `NeedsUpdate` (W3).
   - the lifetime: `IClassicDesktopStyleApplicationLifetime.ShutdownRequested`, and `ShutdownMode.OnExplicitShutdown`. `IsOSShutdown` is documented too, but the spike found it `internal`.
   - the dispatcher: `Dispatcher.PushFrame(DispatcherFrame)` and `Dispatcher.UnhandledException`
   - windows: `Window.ShowActivated`, `ShowInTaskbar`, `WindowDecorations`, and `TopLevel.TryGetPlatformHandle`
@@ -61,6 +61,23 @@ Current state that the approach depends on:
     - `Avalonia.Headless.XUnit` 12.1.1 fails test discovery on xunit.v3 4.0.1 with a `MissingMethodException` for `TestIntrospectionHelper.GetTestCaseDetails`.
     - Plain `[Fact]`s that run their body through `HeadlessUnitTestSession.Dispatch` pass. That includes the `DispatcherWait` pattern, a `DispatcherFrame` ended from another thread.
   - **One unexplained crash:** a startup abort from an unhandled managed exception, once in eight launches, not reproducible.
+- **Spike results, Windows half** (2026-09-23, Windows 11 build 26200, 150 % on a 3840 × 2160 monitor, Avalonia 12.1.1 with `UseWin32().UseSkia().UseHarfBuzz()`; same branch, `spike/WindowsSpike.cs`):
+  - **W1 ✓ with a catch:**
+    - `TryGetPlatformHandle()` returns the `HWND` before the first `Show`.
+    - **Avalonia resets the extended styles on every `Show`.** Set before it, they are gone after it (`TOPMOST|NOREDIRECTIONBITMAP` only). Set again right after each `Show`, they hold.
+    - With the four styles set that way, Notepad kept the foreground, text typed after the overlay hid landed in it, and the placement on the target window's monitor matched to the pixel.
+    - **`WS_EX_LAYERED` is needed.** With it, the overlay renders (`#E6202020` blends over white to `#363636`) and hit tests pass through it. Without it, it renders, but it takes the clicks.
+    - By hand: a click on the overlay lands in the window behind it, and the overlay is absent from Alt+Tab and the taskbar.
+  - **W2 ✓:**
+    - Avalonia's `AvaloniaMessageWindow` is a hidden **top-level** window, not a message-only one, so Windows' end-of-session messages reach it. `Win32Platform.WndProc` raises `ShutdownRequested` for `WM_QUERYENDSESSION`.
+    - `ENDSESSION_CLOSEAPP` and `ENDSESSION_LOGOFF`, sent from another process with no window created: the `DispatcherFrame` wait held the answer for 1.56 s, then `Exit` came with code 0, and the process ended 1.65 s after the message.
+    - `IsOSShutdown` read `false` both times. **Exit** through `Shutdown()` doesn't raise `ShutdownRequested`.
+  - **W3 ✓ with a catch:**
+    - A left click raises `Clicked` on the release. A right click opens the menu and raises nothing. A double-click raises `Clicked` twice, 86 ms apart.
+    - The icon and the tooltip update, and the 24 px frame of the status ICOs shows sharp at 150 % (`SM_CXSMICON` is 24).
+    - **`NativeMenu.Opening` and `NeedsUpdate` never run on Windows.** The menu is Avalonia's own popup, `TrayPopupRoot` with `TrayIconMenuFlyoutPresenter`, and only `Avalonia.Native` raises `Opening`.
+    - **Workaround, confirmed by hand:** a class handler on `Window.WindowOpenedEvent` that matches the type name `TrayPopupRoot`. Every open creates a new popup. The handler runs 27 to 415 ms before the presenter's `Loaded`, and headers and `IsVisible` set there show on that open without a flicker.
+  - **Not checked:** the placement at 100 %, and a real sign-out. Both are in the regression pass (Migration Plan).
 
 ## Goals / Non-Goals
 
@@ -100,7 +117,7 @@ A throwaway spike on a branch, not in `main`, runs before any task of this chang
 | M2 | With TextEdit focused, show an overlay window with `ShowActivated=false`, hide it, then post Cmd+V. Repeat with TextEdit in full screen, with `collectionBehavior` `.fullScreenAuxiliary` and `.canJoinAllSpaces` set through the window's NSWindow handle | TextEdit stays the frontmost app and receives the paste, and the overlay shows over the full-screen TextEdit on its Space | The macOS overlay becomes a native `NSPanel` (`nonactivatingPanel`), decided in the macOS dictation change |
 | M3 | SharpHook's global hook on its own thread while Avalonia runs the main loop, with and without the Accessibility permission | Press and release arrive with no deadlock. Without the permission, starting the hook fails with an error the app can detect | – |
 | M4 | **Quit** from the menu, and logging out | `ShutdownRequested` arrives, and a `PushFrame` wait inside it holds the quit until the shutdown ends | A handler on `applicationShouldTerminate` through Objective-C interop |
-| W1 | Overlay with the four extended styles through `TryGetPlatformHandle` | Notepad keeps the focus, clicks pass through, placement is correct on the target window's monitor at 100 % and 150 % | Drop `WS_EX_LAYERED` if it breaks Avalonia's renderer, and check click-through without it |
+| W1 | Overlay with the four extended styles through `TryGetPlatformHandle` | Notepad keeps the focus, clicks pass through, placement is correct on the target window's monitor at 100 % and 150 % | – |
 | W2 | Sign-out, and `ENDSESSION_CLOSEAPP` sent from another process as in `end-with-windows-session`, with no window shown | `ShutdownRequested` arrives. `IsOSShutdown` isn't public, so D7 treats every `ShutdownRequested` on Windows as the end of the session. The `DispatcherWait` inside it ends the app within 4.5 s, and Windows doesn't list the app as blocking | A hidden top-level window of the app's own (CsWin32 `RegisterClassEx` and `CreateWindowEx`) that routes `WM_QUERYENDSESSION` |
 | W3 | Tray on Win32 | `NativeMenu.Opening` runs before the menu shows. The spike notes which button raises `Clicked`, that a right click opens the menu, and that icon and tooltip updates show | – |
 | T1 | `Avalonia.Headless.XUnit` 12.1.1, built against `xunit.v3.extensibility.core` 3.2.2, with xunit.v3 4.0.1 on Microsoft.Testing.Platform | An `[AvaloniaFact]` opens a window and passes | A fixture of the project's own on `Avalonia.Headless`'s `HeadlessUnitTestSession` |
@@ -116,16 +133,27 @@ The former W4, a toast with only the registry AUMID, doesn't depend on Avalonia.
 
 **Result of the macOS half (2026-09-22): go.** M2 works without the `NSPanel` fallback, and M1, M3 and M4 work with the workarounds named in Context and in D7. T1 uses its fallback (D11).
 
-**Still open: W1–W3**, on a Windows machine. The spike branch holds the Mac half only, so W1–W3 need their code added there first. The spec delta and `tasks.md` of this change are written after W1–W3, because W3 decides the wording of the click in `settings-window`.
+**Result of the Windows half (2026-09-23): go.** W1–W3 pass without their fallbacks, with two changes to the design (Context):
+- The overlay sets its extended styles again after each `Show` (D8).
+- On Windows, the tray menu is updated when Avalonia's menu popup opens, instead of in `NativeMenu.Opening` (D4).
+
+The fallback planned for W1, dropping `WS_EX_LAYERED`, is ruled out: without it, the overlay takes the clicks. W3 decided the click in `settings-window`: a left click, raised on the release.
 
 ### D4: Avalonia's tray icon
 
 One `TrayIconService` over Avalonia's `TrayIcon` replaces the H.NotifyIcon one. `ITrayIconService` keeps its members from `extract-ui-seams`, including `SetStatus(TrayStatus, toolTip)`, with one exception:
 - `DoubleClicked` becomes `Clicked`, raised by Avalonia's `TrayIcon.Clicked`, and `SettingsWindowService` opens the window on it.
+  - On Windows, a left click raises it on the release. A right click only opens the menu.
+  - A double-click raises it twice. The second one finds the window open and brings it to the front, which is harmless.
 
 **The menu:**
 - It is a `NativeMenu`. **Exit** stays last.
-- The `Func<bool>` visibility and `Func<string>` header callbacks run in `NativeMenu.Opening`, as they run in `PreviewTrayContextMenuOpen` today. They stay cheap and run on the UI thread.
+- The `Func<bool>` visibility and `Func<string>` header callbacks run once each time the menu opens, as they run in `PreviewTrayContextMenuOpen` today. They stay cheap and run on the UI thread.
+- **On Windows, they run from a class handler on `Window.WindowOpenedEvent`** that matches Avalonia's menu popup by its type name, `TrayPopupRoot`. `NativeMenu.Opening` never runs on Windows, because the menu is Avalonia's own popup there and only the macOS backend raises `Opening` (spike W3, Context).
+  - Each open creates a new popup, and the handler runs before the popup's content is loaded. Headers and visibility set there show on that open.
+  - `TrayPopupRoot` is internal to `Avalonia.Win32`. A unit test checks that the type still exists under that name, so an Avalonia update that renames it fails the build's tests instead of freezing the menu unnoticed.
+  - macOS keeps `NativeMenu.Opening` (spike M1), in `add-macos-shell`.
+  - *Rejected:* updating the menu whenever the state behind an item changes, instead of when it opens. It works without an Avalonia internal, but every feature that adds an item would have to report its changes, and `ITrayIconService.AddMenuItem` would lose its callback contract. It stays the fallback if the class handler stops working.
 
 **The icon:**
 - It is created at startup, hidden until `Show`.
@@ -173,14 +201,17 @@ Moved to `show-windows-notifications`: WinRT toasts behind `INotifier`, and the 
   - On Windows, every `ShutdownRequested` is the end of the session. **Exit** calls `ShutdownCoordinator` directly, there is no main window, and `ShutdownMode.OnExplicitShutdown` is set, so nothing else raises it.
   - The handler calls `DispatcherWait.Until(RequestShutdownAsync(ShutdownReason.SessionEnd))`, as `OnSessionEnding` does.
   - It never cancels, because that would veto the end of the session.
-  - W2 confirms that Avalonia raises `ShutdownRequested` for `WM_QUERYENDSESSION`, including Restart Manager's `ENDSESSION_CLOSEAPP`. Its fallback is in D3.
+  - Avalonia raises `ShutdownRequested` for `WM_QUERYENDSESSION`, including Restart Manager's `ENDSESSION_CLOSEAPP`, with no window shown (spike W2). Its hidden `AvaloniaMessageWindow` is the top-level window that Windows and Restart Manager find, as WPF's hidden window is today, and the answer waits until the handler returns.
   - On macOS a `ShutdownRequested` can also be a plain quit. `add-macos-shell` D5 tells the two apart through the quit Apple event.
 
 ### D8: The windows
 
 - **Recording overlay:**
   - An Avalonia window with `ShowActivated=false`, `Topmost`, `ShowInTaskbar=false`, `WindowDecorations.None` and a transparent background.
-  - It gets the same extended styles through `TryGetPlatformHandle` before it's first shown, and the same placement code on the target HWND (W1).
+  - It gets the same four extended styles through `TryGetPlatformHandle`, **right after every `Show`**, and the same placement code on the target HWND (W1).
+    - Avalonia resets the extended styles on each `Show`, so styles set once before the first `Show` are lost (spike W1).
+    - `ShowActivated=false` already keeps the focus in the target window during the moment between `Show` and the styles.
+    - `WS_EX_LAYERED` stays: without it, the overlay takes the clicks.
   - The dot, the elapsed time and the spinner are ported with their timings.
 - **Settings window and model setup window:**
   - The XAML is ported control by control, and the view models keep their bindings.
@@ -255,8 +286,9 @@ Moved to `use-win32-clipboard`: `Win32ClipboardService` on the Win32 API, behind
 ## Risks / Trade-offs
 
 - [The macOS overlay activates the app, so the paste goes to the wrong app] → M2 checks it first, and the `NSPanel` fallback exists. If both fail, this change stops before the Windows shell is touched (D3).
-- [Avalonia doesn't raise `ShutdownRequested` for `WM_QUERYENDSESSION`, or raises it too late] → W2, with a hidden top-level window of the app's own as the fallback. The 4.5 s watchdog stays as the last line.
-- [`WS_EX_LAYERED` conflicts with Avalonia's renderer, so the overlay is invisible or not click-through] → W1, then drop `WS_EX_LAYERED`.
+- [Avalonia doesn't raise `ShutdownRequested` for `WM_QUERYENDSESSION`, or raises it too late] → W2 found it raised in time from another process. A real sign-out is in the regression pass, with a hidden top-level window of the app's own as the fallback. The 4.5 s watchdog stays as the last line.
+- [Avalonia resets the overlay's extended styles, so it takes the focus or the clicks] → It happened on every `Show` (W1). The overlay sets them again after each `Show` (D8), and the regression pass checks the focus and the click-through.
+- [The tray menu's workaround depends on `TrayPopupRoot`, a type internal to `Avalonia.Win32`, and an Avalonia update renames it or stops opening the menu as a `Window`] → The unit test from D4 fails on a rename. The menu then keeps its last state, which is wrong but not a crash. The fallback in D4 is updating the menu when the state changes.
 - [The Fluent look changes the windows' appearance] → Accepted (Non-Goals). A screenshot pass is part of the regression check.
 - [A bigger or smaller MSI, with more native DLLs to guard] → D12 measures it, and the guard covers the new DLLs.
 - [Avalonia's headless test package doesn't run on xunit.v3 4.x] → It happened (T1). The project's own session helper is in use (D11).
@@ -266,8 +298,9 @@ Moved to `use-win32-clipboard`: `Win32ClipboardService` on the Win32 API, behind
 ## Migration Plan
 
 1. **Spike** (D3), on branch `spike/avalonia-shell`, never merged:
-   - Done on 2026-09-22: M1–M6 on the development Mac, and T1. The results are in Context.
-   - Still to do: W1–W3 on Windows. Then write the spec delta and `tasks.md`.
+   - Done on 2026-09-22: M1–M6 on the development Mac, and T1.
+   - Done on 2026-09-23: W1–W3 on Windows. The results are in Context.
+   - Next: write the spec delta and `tasks.md`.
 2. **The four preparing changes** are done. They can run in parallel with the spike.
 3. **The Avalonia shell:**
    - the lifetime and `AvaloniaUiDispatcher`
@@ -276,9 +309,10 @@ Moved to `use-win32-clipboard`: `Win32ClipboardService` on the Win32 API, behind
 4. **Remove WPF and `H.NotifyIcon.Wpf`.**
 5. **Packaging, notices, guard, docs.** CI builds and validates the MSI.
 6. **Regression pass against the specs** on Windows 11 and Windows 10 22H2:
-   - dictation end to end, the overlay's focus, and insertion into an elevated window
-   - the clipboard restore, sign-out and restart
-   - every tray status and every notification
+   - dictation end to end, the overlay's focus and click-through, and insertion into an elevated window
+   - the overlay's placement at 100 % and 150 %, which the spike checked at 150 % only
+   - the clipboard restore, and a real sign-out and restart, which the spike didn't run
+   - every tray status and every notification, and the menu's items after each change of state
    - an upgrade from the previous MSI while the app runs, and an uninstall
 7. **Release:** a pre-release, then the minor release.
 
