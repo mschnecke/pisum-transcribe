@@ -21,7 +21,7 @@ See proposal.md for the motivation. The decisions come from the section "Decided
 - Windows behaves exactly as today: its setup window, its tests and its close rule stay the same.
 
 **Non-Goals:**
-- Starting the keyboard hook after the relaunch (`add-macos-recording`). This change relaunches the app; the new process does nothing new with the grant yet.
+- Starting the keyboard hook after the relaunch (`add-macos-recording`). This change relaunches the app; the new process does nothing new with the grant yet. `add-macos-recording` builds on this change (roadmap, 2026-09-23): it reads `IPermissions` and the helper's microphone status, relies on the relaunch instead of restarting the hook, and raises the helper ABI after this change's 2.
 - Checks before capture (a denied microphone, a muted device), which `add-macos-recording` owns. This change only shows the microphone's state in setup.
 - Delaying the relaunch while a dictation runs, because there is no dictation on macOS yet. `add-macos-dictation` adds that condition to the relaunch rule (D4).
 
