@@ -51,7 +51,7 @@ The order follows the design's Migration Plan. Group 1 makes the project compile
 
 ## 8. Continuous integration
 
-- [ ] 8.1 Add a `macos-latest` job to `ci.yml` (D13): checkout, `setup-dotnet` from `global.json`, restore, `dotnet build Pisum.Transcribe.slnx --no-restore` and `dotnet test Pisum.Transcribe.slnx`, with no artifact. The Windows job stays as it is. Verify: both jobs pass on the pull request, and the macOS job's log shows `swiftc` and the ad-hoc signing of the bundle.
+- [x] 8.1 Add a `macos-latest` job to `ci.yml` (D13): checkout, `setup-dotnet` from `global.json`, restore, `dotnet build Pisum.Transcribe.slnx --no-restore` and `dotnet test Pisum.Transcribe.slnx`, with no artifact. The Windows job stays as it is. Verify: both jobs pass on the pull request, and the macOS job's log shows `swiftc` and the ad-hoc signing of the bundle.
 
 ## 9. Documentation
 
