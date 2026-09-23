@@ -54,7 +54,7 @@ See proposal.md for the motivation. The decisions come from the section "Decided
 - **System Settings links:** they open through `Process.Start` with `UseShellExecute`, as the license links do:
   - `x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone`
   - `…?Privacy_Accessibility`
-  - the Paste from other apps page (Open Questions)
+  - `…?Privacy_Pasteboard`, the Paste from other apps page. On 2026-09-23 on macOS 27.0 (26A428), `SecurityPrivacyExtension.appex` declared this anchor next to `Privacy_Microphone` and `Privacy_Accessibility`, and `open` with the link showed the page.
 - **`NSMicrophoneUsageDescription`** in `MacOS/Info.plist`: "Pisum Transcribe records your voice while you hold the push-to-talk key and transcribes it on this Mac."
 
 ### D3: Helper ABI 2
@@ -176,7 +176,7 @@ It logs once that permissions are skipped outside an app bundle.
 ## Risks / Trade-offs
 
 - **[Ad hoc signed dev builds lose their grants at every build]** → shell D9's self-signed identity. `CLAUDE.md` already describes it, and the setup window now makes a lost grant visible instead of silent.
-- **[The Paste from other apps settings URL isn't documented]** → Open Questions. The fallback opens Privacy & Security.
+- **[The Paste from other apps link isn't documented by Apple, and a later macOS could rename the anchor]** → it was checked on macOS 27.0 (D2). Should it stop working, the page falls back to Privacy & Security.
 - **[The relaunch ends the settings window while it's open, like Quit]** → accepted. A grant while the settings window has unsaved edits is rare, and Quit behaves the same way today.
 - **[The notification prompt and the window appear together]** → that's the choice in close rule C. The prompt comes from macOS and doesn't block the window.
 - **[`AXIsProcessTrustedWithOptions`'s prompt doesn't appear again after the first time]** → macOS shows it once per app. The row's **Allow…** then also opens `Privacy_Accessibility` directly, so the button always leads somewhere.
@@ -185,7 +185,3 @@ It logs once that permissions are skipped outside an app bundle.
 ## Migration Plan
 
 There is no macOS release yet (`add-macos-packaging` comes later). The ABI moves from 1 to 2 in the same build as the C# side, so no mixed versions exist. Windows is unchanged. Rollback is reverting the change.
-
-## Open Questions
-
-- **The System Settings URL for Paste from other apps.** Candidates are `x-apple.systempreferences:com.apple.preference.security?Privacy_Pasteboard` and the extension-style `com.apple.settings.PrivacySecurity.extension?Privacy_Pasteboard`. It's checked on macOS 27 during implementation, with Privacy & Security as the fallback. This doesn't change the specs or the tasks.
