@@ -147,18 +147,19 @@ This design also records the decisions that hold for every macOS change, decided
 
 ### D5: Quit and the end of the session
 
-- **Quit:** **Quit Pisum Transcribe** calls `ShutdownCoordinator.RequestShutdownAsync(ShutdownReason.Exit)`, as **Exit** does.
+- **Quit:** **Quit Pisum Transcribe** calls `ShutdownCoordinator.RequestShutdownAsync(ShutdownReason.UserExit)`, as **Exit** does.
 - **The end of the session** (log out, shut down, restart):
   - macOS sends the app a quit event, and Avalonia turns it into `ShutdownRequested`.
   - The same handler as on Windows waits with `DispatcherWait.Until(RequestShutdownAsync(reason))` and never cancels, so the logout isn't blocked.
   - **The reason comes from the quit Apple event**, because Avalonia's `IsOSShutdown` is `internal` (spike, Context):
     - The handler asks the helper for `pisum_current_quit_reason()`, which reads `'why?'` from `NSAppleEventManager.currentAppleEvent`.
-    - `'rlgo'` or `'logo'` (log out), `'rest'` (restart) and `'shut'` (shut down) mean `SessionEnd`. No reason means `Exit`, as when a user quits the app in Activity Monitor.
+    - `'rlgo'` or `'logo'` (log out), `'rest'` (restart) and `'shut'` (shut down) mean `SessionEnd`. No reason means `UserExit`, as when a user quits the app in Activity Monitor.
   - The log says the app ended because the macOS session ended.
 - **Ending the process:** on macOS, `ExitProcess` calls libc's `_exit(code)` after `Log.CloseAndFlush()`. It's the counterpart of `TerminateProcess`: no process-exit handlers, so the 5 s budget holds.
 - **A real logout** is still to be checked by hand, because the spike sent the logout-reason event itself. If a real logout carries no reason, the fallback is `NSWorkspace.willPowerOffNotification` through the helper, which marks the next `ShutdownRequested` as `SessionEnd`. The spec requires only the outcome.
 - **`SIGTERM`:**
-  - On macOS, the app registers `PosixSignalRegistration` for `SIGTERM`. The handler cancels the default handling and calls `ShutdownCoordinator.RequestShutdownAsync(ShutdownReason.Exit)`, the same path as **Quit**, within 5 s.
+  - On macOS, the app registers `PosixSignalRegistration` for `SIGTERM`. The handler cancels the default handling and calls `ShutdownCoordinator.RequestShutdownAsync(ShutdownReason.TerminationRequest)`, the same path as **Quit**, within 5 s.
+  - `TerminationRequest` is a new `ShutdownReason`, handled like `UserExit` (exit code 0, the icon removed at once). It exists so that the log's `Shutting down, reason "TerminationRequest"` names the termination request, as the `app-shell` spec's "Termination request on macOS" requires.
   - This serves the `.pkg`'s `preinstall`, which ends a running app before its files are replaced (see `add-macos-packaging` below). It also backs up the end of the session, because launchd sends `SIGTERM` to processes that are still running.
   - It calls `ShutdownCoordinator` directly, not `lifetime.Shutdown()`, which skips `ShutdownRequested` and with it the wait for background work.
   - A test sends `SIGTERM` to the dev bundle and checks the log entry and the time to exit. The spike's handler ended the process in 0.11 s.
@@ -252,6 +253,53 @@ This constrains `add-macos-packaging`, and it is recorded here because CI starts
   - It uploads no artifact.
 - **The Windows job** stays as it is, and now also compiles the macOS framework (D2).
 - **Hardware tests** run in neither job, as the `packaging` spec requires.
+
+### D14: The Mac build runs only the shell
+
+Until the later macOS changes add their features, the Mac build registers only the shell. Every feature folder still compiles for both frameworks, because `Settings` and `SettingsWindow` use the types of the skipped features (`Hotkey`, `InsertionMethod`, `IPushToTalkHotkey`). Only the `Windows/` and `MacOS/` subfolders are left out (D2).
+
+**Registration in `AppHost.Create`:**
+
+| Feature | macOS in this change | Added on macOS by |
+|---|---|---|
+| Tray | yes, the menu bar icon (D4) | – |
+| Notifications | `MacNotifier` (D8) | – |
+| Settings, Updates | yes | – |
+| SpeechModels | yes: the setup window and **Download model…** | – |
+| Transcription | yes, CPU only: it loads and warms up the model, which checks the `osx-arm64` native package early | `add-metal-backend` |
+| SettingsWindow | yes, with the gaps below | – |
+| Recording | only the inactive hotkey (below) | `add-macos-recording` |
+| VoiceActivity, Dictation | no | `add-macos-dictation` |
+| TextInsertion | no | `add-macos-text-insertion` |
+
+- `AppHost.Create` skips the four features with `#if WINDOWS`, which the Windows framework defines and `net10.0` doesn't.
+- Inside each `Add<Feature>()`, the registrations of `Windows/` types sit under `#if WINDOWS` as well (D2), so the methods compile on macOS.
+- The menu on macOS therefore has no **Cancel transcription** yet. That item belongs to Dictation.
+
+**The settings window on macOS in this change:**
+- **Hotkey:**
+  - `SettingsApplier` and the hotkey editor need `IPushToTalkHotkey`. SharpHook isn't started on macOS yet, because its hook needs the Accessibility grant (spike M3), which `add-macos-setup` asks for (Non-Goals).
+  - macOS registers `InactivePushToTalkHotkey` in `Recording/MacOS/`. It accepts `SetHotkey`, `Suspend` and `Resume`, and raises no events, so the hotkey editor records nothing.
+  - `add-macos-recording` replaces it with SharpHook and deletes it.
+- **Start at login:** `IStartupRegistration` has no macOS implementation until `add-macos-login-item`. `SettingsViewModel` takes it as optional, and hides the **Start with Windows** row when it's missing.
+- **Dictation and Text insertion sections:** they stay, and their settings are saved, but nothing reads them on macOS yet.
+
+**Win32 calls in shared files** move into `Windows/` subfolders, so the macOS compile never sees them:
+- `App.ExitProcess`: `TerminateProcess` on Windows and `_exit` on macOS (D5), each in its platform folder.
+- `TextInsertion/SharpHookKeyboardInput` (`GetAsyncKeyState`) moves to `TextInsertion/Windows/`. `add-macos-text-insertion` adds the macOS counterpart.
+- `TextInserter`'s default for `isSelfElevated`, which calls `ProcessElevation`, moves into the Windows registration.
+- `RecordingOverlayWindow`: the placement on the target window's monitor and the extended styles move into `Dictation/Windows/`, behind a seam that the window calls. `add-macos-dictation` adds the macOS side (`pisum_overlay_configure`).
+- `TrayIconService`: the icon choice moves behind a per-platform icon set. Each status maps to a `WindowIcon` and a template flag, and the set raises `Changed` when the icon has to be reloaded.
+  - Windows: `TrayIcons` and `TaskbarModeWatcher`, as today. `ITaskbarModeWatcher` and `TaskbarMode` move to `Tray/Windows/`.
+  - macOS: the PNGs in `Tray/MacOS/`, with the template flag for ready and unavailable (D4). They never change, because macOS tints template images itself.
+  - `TrayIconService` sets `Icon` and `MacOSProperties.IsTemplateIcon` together.
+
+**Tests** follow the same folder rule. A test file that calls Win32 or tests `Windows/` code moves into a `Windows/` folder of the test project, and the macOS build leaves it out. `SharpHookKeyboardInputTests` is one of them. Tests of platform-neutral code, such as `DictationController` or `TextInserter` with fakes, keep running on both platforms.
+
+*Rejected:*
+- **An "unavailable" stub for every interface of the skipped features:** each stub would be written only to be deleted by a later change, and the tray would claim a dictation feature that doesn't exist yet.
+- **CsWin32 on both frameworks, so that the shared files compile unchanged:** a Win32 call in shared code would then fail at runtime on a Mac instead of at build time. That's the check D2 exists for.
+- **No settings window on macOS in this change:** choosing the model or the language would need edits to `settings.json`. The two gaps above are smaller.
 
 ## Decided for later macOS changes
 
@@ -411,7 +459,7 @@ These were decided in explore mode on 2026-09-22, and each change's own design p
 
 1. After `move-windows-shell-to-avalonia` has shipped, and using its spike results: write the spec deltas (D11) and `tasks.md`.
 2. Implement in order:
-   - the second framework, with Windows still green
+   - the second framework, with the moves and the registration of D14, and Windows still green
    - paths and the single-instance guard
    - the Swift helper with `pisum_abi_version`
    - the dev `.app`
