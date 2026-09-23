@@ -1,12 +1,12 @@
 // Notifications through UNUserNotificationCenter (design D8 of add-macos-shell). It needs an app bundle with a bundle
 // identifier and crashes without one, so every function checks for it first and returns a status instead.
 //
-// Call pisum_notifications_start and pisum_notify on the main thread, because the first sets the center's delegate.
+// Call the functions on the main thread, because pisum_notifications_start sets the center's delegate.
 
 import Foundation
 import UserNotifications
 
-/// The request was accepted. For pisum_notifications_start's callback: the user allowed notifications.
+/// The request was accepted. For pisum_notifications_request's callback: the user allowed notifications.
 let pisumNotificationsOk: Int32 = 0
 /// The process doesn't run as an app bundle, so it can't show notifications.
 let pisumNotificationsNoBundle: Int32 = 1
@@ -27,26 +27,60 @@ private final class NotificationDelegate: NSObject, UNUserNotificationCenterDele
 // The center keeps only a weak reference to its delegate.
 private let notificationDelegate = NotificationDelegate()
 
-private var hasBundleIdentifier: Bool {
-    return Bundle.main.bundleIdentifier != nil
-}
-
-/// Sets the delegate and asks for permission to show alerts with sound. macOS asks the user once and remembers the
-/// answer, so later calls only report it. The callback runs later on a background thread with the context and
-/// pisumNotificationsOk, pisumNotificationsDenied or pisumNotificationsFailed.
+/// Sets the delegate, so notifications show as banners while the app is active too. It doesn't ask for permission; that
+/// is pisum_notifications_request, which the setup window calls (design D7 of add-macos-setup).
 ///
-/// Returns pisumNotificationsOk when the request was made, or pisumNotificationsNoBundle without calling the callback.
+/// Returns pisumNotificationsOk, or pisumNotificationsNoBundle.
 @_cdecl("pisum_notifications_start")
-public func pisumNotificationsStart(_ callback: @convention(c) (UnsafeMutableRawPointer?, Int32) -> Void,
-                                    _ context: UnsafeMutableRawPointer?) -> Int32 {
+public func pisumNotificationsStart() -> Int32 {
     guard hasBundleIdentifier else {
         return pisumNotificationsNoBundle
     }
 
-    let center = UNUserNotificationCenter.current()
-    center.delegate = notificationDelegate
-    center.requestAuthorization(options: [.alert, .sound]) { granted, error in
+    UNUserNotificationCenter.current().delegate = notificationDelegate
+    return pisumNotificationsOk
+}
+
+/// Asks for permission to show alerts with sound. macOS asks the user once and remembers the answer, so later calls only
+/// report it. The callback runs later on a background thread with the context and pisumNotificationsOk,
+/// pisumNotificationsDenied or pisumNotificationsFailed.
+///
+/// Returns pisumNotificationsOk when the request was made, or pisumNotificationsNoBundle without calling the callback.
+@_cdecl("pisum_notifications_request")
+public func pisumNotificationsRequest(_ callback: @convention(c) (UnsafeMutableRawPointer?, Int32) -> Void,
+                                      _ context: UnsafeMutableRawPointer?) -> Int32 {
+    guard hasBundleIdentifier else {
+        return pisumNotificationsNoBundle
+    }
+
+    UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { granted, error in
         callback(context, granted ? pisumNotificationsOk : (error == nil ? pisumNotificationsDenied : pisumNotificationsFailed))
+    }
+    return pisumNotificationsOk
+}
+
+/// Reads whether the user allowed notifications. The callback runs later on a background thread with the context and 0
+/// when the user hasn't answered yet, 2 when they refused, or 3 when they allowed them, also provisionally.
+///
+/// Returns pisumNotificationsOk when the settings are read, or pisumNotificationsNoBundle without calling the callback.
+@_cdecl("pisum_notifications_status")
+public func pisumNotificationsStatus(_ callback: @convention(c) (UnsafeMutableRawPointer?, Int32) -> Void,
+                                     _ context: UnsafeMutableRawPointer?) -> Int32 {
+    guard hasBundleIdentifier else {
+        return pisumNotificationsNoBundle
+    }
+
+    UNUserNotificationCenter.current().getNotificationSettings { settings in
+        let status: Int32
+        switch settings.authorizationStatus {
+        case .notDetermined:
+            status = 0
+        case .denied:
+            status = 2
+        default:
+            status = 3
+        }
+        callback(context, status)
     }
     return pisumNotificationsOk
 }

@@ -1,5 +1,7 @@
 using System.Net;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Time.Testing;
+using Pisum.Transcribe.Permissions;
 using Pisum.Transcribe.Settings;
 using Pisum.Transcribe.SpeechModels;
 
@@ -16,6 +18,15 @@ public sealed class ModelSetupViewModelTests : IDisposable
     private readonly CancellationTokenSource _applicationStopping = new();
     private readonly TaskCompletionSource _install = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly List<CancellationToken> _installTokens = [];
+    private readonly IPermissions _permissions = A.Fake<IPermissions>();
+    private readonly Dictionary<Permission, PermissionState> _permissionStates = new()
+    {
+        [Permission.Accessibility] = PermissionState.NotDetermined,
+        [Permission.Microphone] = PermissionState.NotDetermined,
+        [Permission.PasteFromOtherApps] = PermissionState.NotDetermined,
+    };
+
+    private bool _accessibilityGrantedAtStart;
     private int _closeRequests;
 
     public ModelSetupViewModelTests()
@@ -29,6 +40,10 @@ public sealed class ModelSetupViewModelTests : IDisposable
                 _installTokens.Add(token);
                 return _install.Task.WaitAsync(token);
             });
+        A.CallTo(() => _permissions.GetState(A<Permission>._))
+            .ReturnsLazily((Permission permission) => _permissionStates[permission]);
+        A.CallTo(() => _permissions.GetNotificationsStateAsync()).Returns(PermissionState.NotDetermined);
+        A.CallTo(() => _permissions.IsAccessibilityGrantedAtStart).ReturnsLazily(() => _accessibilityGrantedAtStart);
     }
 
     public void Dispose()
@@ -268,11 +283,156 @@ public sealed class ModelSetupViewModelTests : IDisposable
         await download.WaitAsync(SignalTimeout, TestContext.Current.CancellationToken);
     }
 
-    private ModelSetupViewModel CreateSut()
+    [Fact]
+    public async Task DownloadCommand_RequiredPermissionsGrantedFirst_RequestsCloseAfterDownload()
     {
-        var sut = new ModelSetupViewModel(_modelStore, _settingsStore, _lifetime);
+        // Arrange
+        GrantRequiredPermissions();
+        var sut = CreateSut(CreatePermissions());
+        _install.SetResult();
+
+        // Act
+        await sut.DownloadCommand.ExecuteAsync(null).WaitAsync(SignalTimeout, TestContext.Current.CancellationToken);
+
+        // Assert
+        _closeRequests.ShouldBe(1);
+        sut.IsComplete.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task DownloadCommand_AccessibilityMissing_KeepsWindowOpenUntilGranted()
+    {
+        // Arrange
+        _permissionStates[Permission.Microphone] = PermissionState.Granted;
+        var permissions = CreatePermissions();
+        var sut = CreateSut(permissions);
+        _install.SetResult();
+        await sut.DownloadCommand.ExecuteAsync(null).WaitAsync(SignalTimeout, TestContext.Current.CancellationToken);
+        var closeRequestsAfterDownload = _closeRequests;
+
+        // Act
+        _permissionStates[Permission.Accessibility] = PermissionState.Granted;
+        await permissions.RefreshAsync();
+
+        // Assert
+        closeRequestsAfterDownload.ShouldBe(0);
+        sut.IsModelInstalled.ShouldBeTrue();
+        sut.IsComplete.ShouldBeFalse();
+        _closeRequests.ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task RefreshAsync_ModelInstalledFirstThenMicrophoneGranted_RequestsClose()
+    {
+        // Arrange
+        GrantAccessibilityAtStart();
+        InstallSelectedModel();
+        var permissions = CreatePermissions();
+        var sut = CreateSut(permissions);
+        var closeRequestsBefore = _closeRequests;
+
+        // Act
+        _permissionStates[Permission.Microphone] = PermissionState.Granted;
+        await permissions.RefreshAsync();
+
+        // Assert
+        closeRequestsBefore.ShouldBe(0);
+        _closeRequests.ShouldBe(1);
+        sut.IsComplete.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task RefreshAsync_OnlyOptionalPermissionsMissing_RequestsClose()
+    {
+        // Arrange: notifications and pasteboard access stay not determined.
+        GrantAccessibilityAtStart();
+        InstallSelectedModel();
+        var permissions = CreatePermissions();
+        CreateSut(permissions);
+
+        // Act
+        _permissionStates[Permission.Microphone] = PermissionState.Granted;
+        await permissions.RefreshAsync();
+
+        // Assert
+        permissions.Notifications.State.ShouldBe(PermissionState.NotDetermined);
+        permissions.PasteFromOtherApps.State.ShouldBe(PermissionState.NotDetermined);
+        _closeRequests.ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task Dispose_WindowClosed_NoLongerFollowsPermissions()
+    {
+        // Arrange
+        GrantAccessibilityAtStart();
+        InstallSelectedModel();
+        var permissions = CreatePermissions();
+        var sut = CreateSut(permissions);
+
+        // Act
+        sut.Dispose();
+        _permissionStates[Permission.Microphone] = PermissionState.Granted;
+        await permissions.RefreshAsync();
+
+        // Assert
+        _closeRequests.ShouldBe(0);
+    }
+
+    [Fact]
+    public void Constructor_WithoutPermissions_ShowsModelHeading()
+    {
+        // Act
+        var sut = CreateSut();
+
+        // Assert
+        sut.HasPermissions.ShouldBeFalse();
+        sut.Heading.ShouldBe("Download a speech model");
+    }
+
+    [Fact]
+    public void Constructor_WithPermissionsAndModelInstalled_ShowsSetupHeadingAndInstalledModel()
+    {
+        // Arrange
+        InstallSelectedModel();
+
+        // Act
+        var sut = CreateSut(CreatePermissions());
+
+        // Assert
+        sut.HasPermissions.ShouldBeTrue();
+        sut.Heading.ShouldBe("Set up Pisum Transcribe");
+        sut.IsModelInstalled.ShouldBeTrue();
+        sut.InstalledModelText.ShouldBe("Speech model: Canary 1B v2 (Q8_0), installed");
+        sut.DownloadCommand.CanExecute(null).ShouldBeFalse();
+    }
+
+    private ModelSetupViewModel CreateSut(PermissionsViewModel? permissions = null)
+    {
+        var sut = new ModelSetupViewModel(_modelStore, _settingsStore, _lifetime, permissions);
         sut.CloseRequested += (_, _) => _closeRequests++;
         return sut;
+    }
+
+    private PermissionsViewModel CreatePermissions()
+    {
+        return new PermissionsViewModel(_permissions, new InlineUiDispatcher(), new FakeTimeProvider(), _ => { });
+    }
+
+    private void GrantRequiredPermissions()
+    {
+        GrantAccessibilityAtStart();
+        _permissionStates[Permission.Microphone] = PermissionState.Granted;
+    }
+
+    private void GrantAccessibilityAtStart()
+    {
+        _permissionStates[Permission.Accessibility] = PermissionState.Granted;
+        _accessibilityGrantedAtStart = true;
+    }
+
+    private void InstallSelectedModel()
+    {
+        A.CallTo(() => _modelStore.IsInstalled(A<SpeechModel>._)).Returns(true);
     }
 
     private static void SelectModel(ModelSetupViewModel sut, string modelId)

@@ -9,9 +9,6 @@ internal sealed class PisumNotificationCenter : INotificationCenter
 {
     private readonly MacNativeLibrary _library;
 
-    // Referenced, so the delegate isn't collected while the helper may still call it.
-    private PisumMac.NotificationsStartCallback? _callback;
-
     /// <summary>
     /// Initializes a new instance.
     /// </summary>
@@ -22,20 +19,43 @@ internal sealed class PisumNotificationCenter : INotificationCenter
     }
 
     /// <inheritdoc />
-    public NotificationStatus Start(Action<NotificationStatus> authorizationCompleted)
+    public NotificationStatus Start()
     {
-        if (!_library.IsAvailable)
-        {
-            return NotificationStatus.Unavailable;
-        }
+        return _library.IsAvailable ? (NotificationStatus) PisumMac.NotificationsStart() : NotificationStatus.Unavailable;
+    }
 
-        _callback = (_, status) => authorizationCompleted((NotificationStatus) status);
-        return (NotificationStatus) PisumMac.NotificationsStart(_callback, 0);
+    /// <inheritdoc />
+    public NotificationStatus RequestAuthorization(Action<NotificationStatus> completed)
+    {
+        return CallWithCallback(PisumMac.NotificationsRequest, status => completed((NotificationStatus) status));
+    }
+
+    /// <inheritdoc />
+    public NotificationStatus ReadAuthorization(Action<NotificationAuthorization> completed)
+    {
+        return CallWithCallback(PisumMac.NotificationsStatus, status => completed((NotificationAuthorization) status));
     }
 
     /// <inheritdoc />
     public NotificationStatus Notify(string title, string message)
     {
         return _library.IsAvailable ? (NotificationStatus) PisumMac.Notify(title, message) : NotificationStatus.Unavailable;
+    }
+
+    private NotificationStatus CallWithCallback(Func<PisumMac.StatusCallback, nint, int> function, Action<int> completed)
+    {
+        if (!_library.IsAvailable)
+        {
+            return NotificationStatus.Unavailable;
+        }
+
+        var context = PisumMac.CreateContext(completed);
+        var status = (NotificationStatus) function(PisumMac.Callback, context);
+        if (status == NotificationStatus.Unavailable)
+        {
+            PisumMac.FreeContext(context);
+        }
+
+        return status;
     }
 }

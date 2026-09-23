@@ -10,7 +10,8 @@ namespace Pisum.Transcribe.SpeechModels;
 
 /// <summary>
 /// Stores the catalog models in <see cref="AppPaths.ModelsDirectory"/>. At startup it deletes <c>*.partial</c> files
-/// that a crash or the shutdown watchdog left behind.
+/// that a crash or the shutdown watchdog left behind. At startup and before each download it excludes the folder from
+/// backups, where the platform has an exclusion.
 /// </summary>
 internal sealed class ModelStore : IModelStore, IHostedService
 {
@@ -41,6 +42,7 @@ internal sealed class ModelStore : IModelStore, IHostedService
     private readonly CancellationToken _applicationStopping;
     private readonly ILogger<ModelStore> _logger;
     private readonly Func<string, long> _getAvailableFreeSpace;
+    private readonly Action<string>? _excludeFromBackup;
 
     // The identifiers of the models being downloaded.
     private readonly Lock _downloadsLock = new();
@@ -55,14 +57,18 @@ internal sealed class ModelStore : IModelStore, IHostedService
     /// <param name="settingsStore">The settings store, which names the selected model that cannot be deleted.</param>
     /// <param name="logger">The logger.</param>
     /// <param name="getAvailableFreeSpace">
-    /// Returns the free bytes on the volume of a folder, for tests. <see langword="null"/> uses <see cref="DriveInfo"/>.
+    /// Returns the free bytes on the volume of a folder. <see langword="null"/> uses <see cref="DriveInfo"/>.
+    /// </param>
+    /// <param name="excludeFromBackup">
+    /// Excludes the existing models folder from backups, or <see langword="null"/> for none. A failure is logged.
     /// </param>
     public ModelStore(AppPaths paths,
                       IHttpClientFactory httpClientFactory,
                       IHostApplicationLifetime lifetime,
                       ISettingsStore settingsStore,
                       ILogger<ModelStore> logger,
-                      Func<string, long>? getAvailableFreeSpace = null)
+                      Func<string, long>? getAvailableFreeSpace = null,
+                      Action<string>? excludeFromBackup = null)
     {
         _modelsDirectory = paths.ModelsDirectory;
         _httpClientFactory = httpClientFactory;
@@ -70,10 +76,26 @@ internal sealed class ModelStore : IModelStore, IHostedService
         _applicationStopping = lifetime.ApplicationStopping;
         _logger = logger;
         _getAvailableFreeSpace = getAvailableFreeSpace ?? (path => new DriveInfo(path).AvailableFreeSpace);
+        _excludeFromBackup = excludeFromBackup;
     }
 
     /// <inheritdoc />
     public event EventHandler<SpeechModel>? ModelInstalled;
+
+    /// <inheritdoc />
+    public event EventHandler? DownloadStateChanged;
+
+    /// <inheritdoc />
+    public bool IsDownloading
+    {
+        get
+        {
+            lock (_downloadsLock)
+            {
+                return _downloads.Count > 0;
+            }
+        }
+    }
 
     /// <inheritdoc />
     public string GetModelPath(SpeechModel model)
@@ -93,6 +115,7 @@ internal sealed class ModelStore : IModelStore, IHostedService
                                    IProgress<DownloadProgress> progress,
                                    CancellationToken cancellationToken)
     {
+        bool isFirst;
         lock (_downloadsLock)
         {
             // Checked first, so the running download keeps its partial file.
@@ -101,17 +124,31 @@ internal sealed class ModelStore : IModelStore, IHostedService
                 _logger.LogInformation("Model {ModelId} is already downloading", model.Id);
                 throw new ModelDownloadInProgressException(model.Id);
             }
+
+            isFirst = _downloads.Count == 1;
         }
 
         try
         {
+            if (isFirst)
+            {
+                DownloadStateChanged?.Invoke(this, EventArgs.Empty);
+            }
+
             await DownloadAndInstallAsync(model, progress, cancellationToken).ConfigureAwait(false);
         }
         finally
         {
+            bool isLast;
             lock (_downloadsLock)
             {
                 _downloads.Remove(model.Id);
+                isLast = _downloads.Count == 0;
+            }
+
+            if (isLast)
+            {
+                DownloadStateChanged?.Invoke(this, EventArgs.Empty);
             }
         }
     }
@@ -146,6 +183,7 @@ internal sealed class ModelStore : IModelStore, IHostedService
         var token = cancellation.Token;
 
         Directory.CreateDirectory(_modelsDirectory);
+        ExcludeFromBackup();
         var requiredBytes = model.SizeBytes + FreeSpaceReserveBytes;
         var availableBytes = _getAvailableFreeSpace(_modelsDirectory);
         if (availableBytes < requiredBytes)
@@ -195,13 +233,13 @@ internal sealed class ModelStore : IModelStore, IHostedService
     /// <inheritdoc />
     public Task StartAsync(CancellationToken cancellationToken)
     {
-        if (Directory.Exists(_modelsDirectory))
+        // Created here, so the exclusion also covers a folder that an earlier version created without it.
+        Directory.CreateDirectory(_modelsDirectory);
+        ExcludeFromBackup();
+        foreach (var partialFile in Directory.EnumerateFiles(_modelsDirectory, "*" + PartialExtension))
         {
-            foreach (var partialFile in Directory.EnumerateFiles(_modelsDirectory, "*" + PartialExtension))
-            {
-                _logger.LogInformation("Deleting the unfinished download {PartialFile}", partialFile);
-                TryDelete(partialFile);
-            }
+            _logger.LogInformation("Deleting the unfinished download {PartialFile}", partialFile);
+            TryDelete(partialFile);
         }
 
         return Task.CompletedTask;
@@ -286,6 +324,24 @@ internal sealed class ModelStore : IModelStore, IHostedService
         catch (OperationCanceledException) when (inactivity.IsCancellationRequested && !token.IsCancellationRequested)
         {
             throw new TimeoutException($"No data was received from {model.DownloadUrl.Host} for {InactivityTimeout}.");
+        }
+    }
+
+    private void ExcludeFromBackup()
+    {
+        if (_excludeFromBackup is null)
+        {
+            return;
+        }
+
+        try
+        {
+            _excludeFromBackup(_modelsDirectory);
+        }
+        catch (Exception exception)
+        {
+            // A model can always be downloaded again, so a backup of it only costs space.
+            _logger.LogWarning(exception, "Could not exclude the models folder from backups");
         }
     }
 

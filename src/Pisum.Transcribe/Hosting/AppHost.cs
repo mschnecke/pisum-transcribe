@@ -11,6 +11,9 @@ using Pisum.Transcribe.SpeechModels;
 using Pisum.Transcribe.Transcription;
 using Pisum.Transcribe.Tray;
 using Pisum.Transcribe.Updates;
+#if !WINDOWS
+using Pisum.Transcribe.Permissions;
+#endif
 #if WINDOWS
 using Pisum.Transcribe.Dictation;
 using Pisum.Transcribe.TextInsertion;
@@ -27,7 +30,8 @@ internal static class AppHost
 {
     /// <summary>
     /// Creates the host. Each feature registers its services with one <c>services.Add&lt;Feature&gt;()</c> call here.
-    /// On macOS only the shell runs so far: no recording, voice activity detection, text insertion or dictation.
+    /// On macOS only the shell and the setup with its permissions run so far: no recording, voice activity detection,
+    /// text insertion or dictation.
     /// Call it on the UI thread.
     /// </summary>
     /// <param name="paths">The application data folders.</param>
@@ -55,6 +59,9 @@ internal static class AppHost
         builder.Services.AddTray();
         builder.Services.AddNotifications();
         builder.Services.AddSettings();
+#if !WINDOWS
+        builder.Services.AddPermissions();
+#endif
         builder.Services.AddSpeechModels();
         builder.Services.AddTranscription();
         builder.Services.AddRecording();

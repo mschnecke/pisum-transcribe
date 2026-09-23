@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Pisum.Transcribe.Hosting;
 using Pisum.Transcribe.Notifications;
+using Pisum.Transcribe.Permissions;
 using Pisum.Transcribe.Settings;
 using Pisum.Transcribe.Tray;
 
@@ -37,6 +38,10 @@ public sealed class AppHostMacTests : IDisposable
             settingsStore.ShouldNotBeNull();
             host.Services.GetRequiredService<QuitEventSender>().ShouldNotBeNull();
             host.Services.GetRequiredService<IHostLifetime>().ShouldBeOfType<SignalFreeHostLifetime>();
+
+            // The test host doesn't run as an app bundle, so the permissions are skipped.
+            host.Services.GetRequiredService<IPermissions>().ShouldBeOfType<MacPermissions>();
+            host.Services.GetService<PermissionsViewModel>().ShouldBeNull();
             trayIcon.Remove();
         });
     }

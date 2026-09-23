@@ -11,7 +11,7 @@ internal sealed class MacNativeLibrary
     /// <summary>
     /// The ABI version this build expects, the value of <c>pisum_abi_version</c> in <c>Abi.swift</c>.
     /// </summary>
-    public const int ExpectedAbiVersion = 1;
+    public const int ExpectedAbiVersion = 2;
 
     /// <summary>
     /// Initializes a new instance with the helper next to the executable.

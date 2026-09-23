@@ -31,5 +31,8 @@
     <true/>
     <key>NSHighResolutionCapable</key>
     <true/>
+    <!-- Without it, macOS ends the app when it asks for the microphone (design D2 of add-macos-setup). -->
+    <key>NSMicrophoneUsageDescription</key>
+    <string>Pisum Transcribe records your voice while you hold the push-to-talk key and transcribes it on this Mac.</string>
 </dict>
 </plist>

@@ -6,7 +6,8 @@ using Pisum.Transcribe.Dialogs;
 namespace Pisum.Transcribe.SpeechModels;
 
 /// <summary>
-/// The setup window that downloads a speech model. Closing it during a download asks for confirmation.
+/// The setup window that downloads a speech model, and on macOS asks for the permissions. Closing it during a download
+/// asks for confirmation.
 /// </summary>
 internal sealed partial class ModelSetupWindow : Window
 {
@@ -26,12 +27,13 @@ internal sealed partial class ModelSetupWindow : Window
     /// <summary>
     /// Initializes a new instance.
     /// </summary>
-    /// <param name="viewModel">The view model, used by this window only.</param>
+    /// <param name="viewModel">The view model, used by this window only, which disposes it when it has closed.</param>
     public ModelSetupWindow(ModelSetupViewModel viewModel)
         : this()
     {
         DataContext = viewModel;
         viewModel.CloseRequested += (_, _) => Close();
+        Closed += (_, _) => viewModel.Dispose();
         ConfirmDialog.AskBeforeClosing(this, ConfirmCloseMessage, viewModel.ConfirmClose);
     }
 

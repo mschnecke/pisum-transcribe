@@ -193,6 +193,68 @@ public sealed class ShutdownCoordinatorTests : IDisposable
         _logger.Entries.ShouldContain(entry => entry.Level == LogLevel.Error && entry.Exception == exception);
     }
 
+    [Fact]
+    public async Task RequestShutdownAsync_Relaunch_StartsNewInstanceBeforeStoppingHostAndExitsWithCode0()
+    {
+        // Arrange
+        var launcher = A.Fake<Action>();
+        var sut = CreateSutWithLauncher(launcher);
+
+        // Act
+        await sut.RequestShutdownAsync(ShutdownReason.Relaunch)
+            .WaitAsync(SignalTimeout, TestContext.Current.CancellationToken);
+
+        // Assert
+        _applicationShutdowns.ShouldBe([0]);
+        A.CallTo(() => launcher.Invoke()).MustHaveHappenedOnceExactly()
+            .Then(A.CallTo(() => _trayIcon.Remove()).MustHaveHappenedOnceExactly())
+            .Then(A.CallTo(() => _host.StopAsync(A<CancellationToken>._)).MustHaveHappenedOnceExactly())
+            .Then(A.CallTo(() => _host.Dispose()).MustHaveHappenedOnceExactly());
+        A.CallTo(() => _notifier.Show(A<string>._, A<string>._)).MustNotHaveHappened();
+    }
+
+    [Fact]
+    public async Task RequestShutdownAsync_RelaunchLauncherThrows_LogsAndFinishesShutdown()
+    {
+        // Arrange
+        var exception = new InvalidOperationException("The bundle was moved");
+        var sut = CreateSutWithLauncher(() => throw exception);
+
+        // Act
+        await sut.RequestShutdownAsync(ShutdownReason.Relaunch)
+            .WaitAsync(SignalTimeout, TestContext.Current.CancellationToken);
+
+        // Assert
+        _applicationShutdowns.ShouldBe([0]);
+        A.CallTo(() => _host.StopAsync(A<CancellationToken>._)).MustHaveHappenedOnceExactly();
+        _logger.Entries.ShouldContain(entry => entry.Level == LogLevel.Error && entry.Exception == exception);
+    }
+
+    [Theory]
+    [InlineData(nameof(ShutdownReason.UserExit))]
+    [InlineData(nameof(ShutdownReason.SessionEnd))]
+    [InlineData(nameof(ShutdownReason.TerminationRequest))]
+    [InlineData(nameof(ShutdownReason.Error))]
+    public async Task RequestShutdownAsync_OtherReason_DoesNotStartNewInstance(string reasonName)
+    {
+        // Arrange
+        var launcher = A.Fake<Action>();
+        var sut = CreateSutWithLauncher(launcher);
+
+        // Act
+        await sut.RequestShutdownAsync(Enum.Parse<ShutdownReason>(reasonName))
+            .WaitAsync(SignalTimeout, TestContext.Current.CancellationToken);
+
+        // Assert
+        A.CallTo(() => launcher.Invoke()).MustNotHaveHappened();
+    }
+
+    private ShutdownCoordinator CreateSutWithLauncher(Action launcher)
+    {
+        return new ShutdownCoordinator(_host, _lifetime, _trayIcon, _notifier, _timeProvider,
+            _applicationShutdowns.Add, _processExits.Add, _logger, launcher);
+    }
+
     /// <summary>
     /// Advances the fake time in small steps, because the shutdown may run on another thread and start waiting later.
     /// </summary>

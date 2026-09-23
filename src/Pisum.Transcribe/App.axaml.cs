@@ -10,6 +10,9 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Pisum.Transcribe.Hosting;
 using Pisum.Transcribe.Notifications;
+#if !WINDOWS
+using Pisum.Transcribe.Permissions;
+#endif
 using Pisum.Transcribe.Settings;
 using Pisum.Transcribe.Tray;
 using Serilog;
@@ -64,6 +67,13 @@ internal sealed partial class App : Application
         var lifetime = (IClassicDesktopStyleApplicationLifetime) ApplicationLifetime!;
         var host = AppHost.Create(_paths);
         var trayIcon = host.Services.GetRequiredService<ITrayIconService>();
+#if WINDOWS
+        Action? startNewInstance = null;
+#else
+        Action startNewInstance = () => AppBundle.StartNewInstance(AppBundle.FindPath(AppContext.BaseDirectory)
+                                                                   ?? throw new InvalidOperationException(
+                                                                       "No app bundle encloses the application."));
+#endif
         _shutdownCoordinator = new ShutdownCoordinator(
             host,
             host.Services.GetRequiredService<IHostApplicationLifetime>(),
@@ -72,11 +82,14 @@ internal sealed partial class App : Application
             TimeProvider.System,
             lifetime.Shutdown,
             ExitProcess,
-            host.Services.GetRequiredService<ILogger<ShutdownCoordinator>>());
+            host.Services.GetRequiredService<ILogger<ShutdownCoordinator>>(),
+            startNewInstance);
         Dispatcher.UIThread.UnhandledException += _shutdownCoordinator.OnDispatcherUnhandledException;
         lifetime.ShutdownRequested += OnShutdownRequested;
 #if !WINDOWS
         _quitEventSender = host.Services.GetRequiredService<QuitEventSender>();
+        host.Services.GetRequiredService<RelaunchService>().RelaunchRequested +=
+            (_, _) => _ = _shutdownCoordinator.RequestShutdownAsync(ShutdownReason.Relaunch);
 
         // A termination request, for example from the installer, ends the application as Quit does, instead of the
         // default handling, which ends the process at once.

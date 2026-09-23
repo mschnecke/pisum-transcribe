@@ -4,6 +4,7 @@
         xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="using:Pisum.Transcribe.SpeechModels"
+        xmlns:permissions="using:Pisum.Transcribe.Permissions"
         Title="Pisum Transcribe"
         Icon="/Tray/TrayIcon.ico"
         Width="560"
@@ -27,56 +28,61 @@
     </Window.Styles>
 
     <StackPanel Margin="16">
-        <TextBlock FontSize="16" FontWeight="SemiBold" Text="Download a speech model" />
-        <TextBlock Margin="0,4,0,12" TextWrapping="Wrap"
-                   Text="Pisum Transcribe needs a speech model before you can dictate. Choose a model and download it. The model runs on this computer." />
+        <TextBlock FontSize="16" FontWeight="SemiBold" Text="{Binding Heading}" />
+        <TextBlock Margin="0,4,0,12" TextWrapping="Wrap" Text="{Binding IntroText}" />
 
-        <ListBox ItemsSource="{Binding Models}"
-                 SelectedItem="{Binding SelectedModel}"
-                 IsEnabled="{Binding !IsDownloading}"
-                 ScrollViewer.HorizontalScrollBarVisibility="Disabled">
-            <ListBox.ItemTemplate>
-                <DataTemplate x:DataType="local:ModelOption">
-                    <!-- The list item handles clicks and keys; the radio button only shows the selection. -->
-                    <RadioButton IsChecked="{Binding $parent[ListBoxItem].IsSelected, Mode=OneWay}"
-                                 IsHitTestVisible="False"
-                                 Focusable="False">
-                        <StackPanel>
-                            <TextBlock FontWeight="SemiBold" Text="{Binding Model.DisplayName}" />
-                            <TextBlock TextWrapping="Wrap">
-                                <Run Text="Download size: " /><Run Text="{Binding SizeText}" />
-                            </TextBlock>
-                            <TextBlock TextWrapping="Wrap">
-                                <Run Text="Languages: " /><Run Text="{Binding LanguagesText}" />
-                            </TextBlock>
-                        </StackPanel>
-                    </RadioButton>
-                </DataTemplate>
-            </ListBox.ItemTemplate>
-        </ListBox>
+        <!-- A window opened only for a permission doesn't offer a download. -->
+        <TextBlock x:Name="InstalledModelLine" IsVisible="{Binding IsModelInstalled}" TextWrapping="Wrap"
+                   Text="{Binding InstalledModelText}" />
 
-        <!-- The group box of the WPF window: a header above a border. -->
-        <TextBlock Margin="0,12,0,4" FontWeight="SemiBold" Text="License" />
-        <Border Padding="8" BorderThickness="1" CornerRadius="4"
-                BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}">
-            <StackPanel>
-                <TextBlock TextWrapping="Wrap">
-                    <Run Text="Created by " /><Run Text="{Binding SelectedModel.Model.Creator}" /><Run
-                        Text=", licensed under " /><InlineUIContainer BaselineAlignment="TextBottom">
-                        <HyperlinkButton x:Name="LicenseLink" Padding="0"
-                                         Content="{Binding SelectedModel.Model.LicenseName}"
-                                         Tag="{Binding SelectedModel.Model.LicenseUrl}"
-                                         Click="OnLicenseClick" />
-                    </InlineUIContainer><Run Text="." />
-                </TextBlock>
-                <TextBlock Margin="0,4,0,0" TextWrapping="Wrap">
-                    <Run Text="Changes: " /><Run Text="{Binding SelectedModel.Model.Changes}" />
-                </TextBlock>
-                <TextBlock Margin="0,4,0,0" TextWrapping="Wrap">
-                    <Run Text="Source: " /><Run Text="{Binding SelectedModel.Model.SourceRepository}" />
-                </TextBlock>
-            </StackPanel>
-        </Border>
+        <StackPanel x:Name="ModelPart" IsVisible="{Binding !IsModelInstalled}">
+            <ListBox ItemsSource="{Binding Models}"
+                     SelectedItem="{Binding SelectedModel}"
+                     IsEnabled="{Binding !IsDownloading}"
+                     ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                <ListBox.ItemTemplate>
+                    <DataTemplate x:DataType="local:ModelOption">
+                        <!-- The list item handles clicks and keys; the radio button only shows the selection. -->
+                        <RadioButton IsChecked="{Binding $parent[ListBoxItem].IsSelected, Mode=OneWay}"
+                                     IsHitTestVisible="False"
+                                     Focusable="False">
+                            <StackPanel>
+                                <TextBlock FontWeight="SemiBold" Text="{Binding Model.DisplayName}" />
+                                <TextBlock TextWrapping="Wrap">
+                                    <Run Text="Download size: " /><Run Text="{Binding SizeText}" />
+                                </TextBlock>
+                                <TextBlock TextWrapping="Wrap">
+                                    <Run Text="Languages: " /><Run Text="{Binding LanguagesText}" />
+                                </TextBlock>
+                            </StackPanel>
+                        </RadioButton>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+
+            <!-- The group box of the WPF window: a header above a border. -->
+            <TextBlock Margin="0,12,0,4" FontWeight="SemiBold" Text="License" />
+            <Border Padding="8" BorderThickness="1" CornerRadius="4"
+                    BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}">
+                <StackPanel>
+                    <TextBlock TextWrapping="Wrap">
+                        <Run Text="Created by " /><Run Text="{Binding SelectedModel.Model.Creator}" /><Run
+                            Text=", licensed under " /><InlineUIContainer BaselineAlignment="TextBottom">
+                            <HyperlinkButton x:Name="LicenseLink" Padding="0"
+                                             Content="{Binding SelectedModel.Model.LicenseName}"
+                                             Tag="{Binding SelectedModel.Model.LicenseUrl}"
+                                             Click="OnLicenseClick" />
+                        </InlineUIContainer><Run Text="." />
+                    </TextBlock>
+                    <TextBlock Margin="0,4,0,0" TextWrapping="Wrap">
+                        <Run Text="Changes: " /><Run Text="{Binding SelectedModel.Model.Changes}" />
+                    </TextBlock>
+                    <TextBlock Margin="0,4,0,0" TextWrapping="Wrap">
+                        <Run Text="Source: " /><Run Text="{Binding SelectedModel.Model.SourceRepository}" />
+                    </TextBlock>
+                </StackPanel>
+            </Border>
+        </StackPanel>
 
         <StackPanel Margin="0,12,0,0" IsVisible="{Binding IsDownloading}">
             <ProgressBar Height="16" Maximum="100" Value="{Binding ProgressPercent, Mode=OneWay}" />
@@ -90,9 +96,37 @@
                        Text="{Binding ErrorMessage}" />
         </DockPanel>
 
+        <!-- macOS only: the permissions, below the model part. -->
+        <StackPanel x:Name="PermissionPart" Margin="0,12,0,0" IsVisible="{Binding HasPermissions}">
+            <TextBlock FontWeight="SemiBold" Text="Permissions" />
+            <ItemsControl x:Name="PermissionRows" ItemsSource="{Binding Permissions.Rows}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="permissions:PermissionRowViewModel">
+                        <DockPanel Margin="0,8,0,0">
+                            <Button DockPanel.Dock="Right" VerticalAlignment="Top" Classes="dialog"
+                                    Content="{Binding ActionText}" Command="{Binding ActionCommand}"
+                                    IsVisible="{Binding HasAction}" />
+                            <StackPanel>
+                                <TextBlock TextWrapping="Wrap">
+                                    <Run FontWeight="SemiBold" Text="{Binding Name}" /><Run Text=" (" /><Run
+                                        Text="{Binding RequiredText}" /><Run Text="): " /><Run
+                                        Text="{Binding StatusText}" />
+                                </TextBlock>
+                                <TextBlock TextWrapping="Wrap" Text="{Binding Description}" />
+                                <TextBlock TextWrapping="Wrap" FontWeight="SemiBold" IsVisible="{Binding HasNote}"
+                                           Text="{Binding Note}" />
+                            </StackPanel>
+                        </DockPanel>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </StackPanel>
+
         <StackPanel Margin="0,16,0,0" HorizontalAlignment="Right" Orientation="Horizontal">
-            <Button Classes="dialog" IsDefault="True" Content="_Download" Command="{Binding DownloadCommand}" />
-            <Button Classes="dialog" Content="_Cancel" Command="{Binding CancelCommand}" />
+            <Button Classes="dialog" IsDefault="True" Content="_Download" Command="{Binding DownloadCommand}"
+                    IsVisible="{Binding !IsModelInstalled}" />
+            <Button Classes="dialog" Content="_Cancel" Command="{Binding CancelCommand}"
+                    IsVisible="{Binding !IsModelInstalled}" />
             <Button Classes="dialog" IsCancel="True" Content="C_lose" Command="{Binding CloseCommand}" />
         </StackPanel>
     </StackPanel>
