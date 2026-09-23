@@ -35,11 +35,16 @@
 
 ## 6. Check by hand and documentation
 
-- [ ] 6.1 Check by hand, installed from the MSI and started with `dotnet run`:
+- [x] 6.1 Check by hand, installed from the MSI and started with `dotnet run`:
   - Every notification the specs name shows as a toast from "Pisum Transcribe" with its icon.
   - The error toast stays in the notification center after the process ended.
   - With notifications turned off for the app, nothing shows and the app keeps running.
   - An upgrade keeps the registry key and the user's notification setting, and an uninstall removes the key.
+
+  Done on Windows 11 (build 26200) on 2026-09-23, with two items skipped (see the pull request's test plan):
+  - Checked with the update notice only, installed and with `dotnet run`: it showed as a toast from "Pisum Transcribe" with its icon. The dictation, push-to-talk and model-failure notifications were skipped; they reach `INotifier` through the same calls as before.
+  - The error toast was skipped, because nothing outside the app can trigger the error. The D3 spike showed that a toast outlives its process.
+  - Notifications were turned off by writing `Enabled` = 0 in the registry, not in Settings. Only the toggle in Settings turned them back on.
 - [x] 6.2 Update the documentation. Verify by reading it:
   - `README.md`: the minimum is Windows 10 version 2004 or Windows 11, x64.
   - `CLAUDE.md`: the target framework, the `Notifications/` folder with `ToastNotifier` and `AddNotifications()`, and the `Tray/` entry without `TrayBalloonNotifier`.
