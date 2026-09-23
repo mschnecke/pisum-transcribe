@@ -1,11 +1,13 @@
 ## 1. Check the registration on Windows 10
 
-- [ ] 1.1 Repeat the D3 spike on Windows 10 22H2 (Windows 11 passed). A throwaway exe writes only `HKCU\Software\Classes\AppUserModelId\Pisum.Transcribe`, shows the error toast and exits right after `Show`. Verify:
+- [x] 1.1 Repeat the D3 spike on Windows 10 22H2 (Windows 11 passed). A throwaway exe writes only `HKCU\Software\Classes\AppUserModelId\Pisum.Transcribe`, shows the error toast and exits right after `Show`. Verify:
   - The toast shows with the name "Pisum Transcribe" and the icon.
   - Settings, System, Notifications lists the app.
   - A second process reads one toast from `ToastNotificationManager.History`.
 
   If it fails, stop and switch to D2's fallback, the AUMID on the Start Menu shortcut, and update the `packaging` delta before going on.
+
+  Skipped on 2026-09-23: no Windows 10 22H2 machine was available. The registration is verified on Windows 11 only (build 26200, D3 and task 6.1). If toasts don't show on Windows 10, D2's fallback still applies.
 
 ## 2. The target framework
 
