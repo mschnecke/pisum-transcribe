@@ -37,6 +37,13 @@ Current state:
 - **Busy clipboard:**
   - `OpenClipboard` is retried 10 times, 100 ms apart. After that the service returns the failed result.
   - That keeps the "about 1 second" that WPF provided before.
+  - Between retries the thread waits with `MsgWaitForMultipleObjectsEx` for `QS_SENDMESSAGE`, and handles sent messages with `PeekMessage`. Posted messages, such as the work queue's `WM_APP`, stay queued.
+  - The owner window has to answer while it waits: the process that holds the clipboard open may be the one calling `EmptyClipboard`, which sends `WM_DESTROYCLIPBOARD` to the owner. If Windows sends it synchronously, a plain sleep would stall that process's copy for about a second.
+- **Failures:**
+  - The service never throws for a Win32 failure. It returns `false` or `null`, so a paste falls back to typing instead of failing the dictation. Only calls after `Dispose` throw `ObjectDisposedException`, as today.
+  - A format the snapshot can't read is skipped. An unreadable history value counts as `0`, the safe side, as today.
+  - A write that fails after `EmptyClipboard`, in `GlobalAlloc` or `SetClipboardData`, empties the clipboard again, closes it and returns `false`. A transcript is never left on the clipboard without its exclusion formats, where clipboard history would pick it up.
+  - The log says "The clipboard was busy, could not {Action}" for a busy clipboard and "Could not {Action}" otherwise, each with the Win32 error code from `Marshal.GetLastPInvokeError()`.
 - **Snapshot:**
   - Formats are copied in the order `EnumClipboardFormats` returns them, which is the order the source placed them, most descriptive first. Paste targets take the first format they understand, so the restore keeps that order.
   - Copied: registered formats (`0xC000` and above), and standard formats whose data is plain `HGLOBAL` memory, such as `CF_UNICODETEXT`, `CF_DIB`, `CF_DIBV5`, `CF_HDROP` and `CF_LOCALE`.
@@ -58,6 +65,8 @@ Current state:
 - **Keeping WPF's clipboard on its STA thread:** it would keep WPF in the build after the Avalonia shell.
 - **A window class of its own with a managed window procedure:** more interop for nothing the owner needs.
 - **The built-in `Message` class:** Windows documents it as reserved for the system.
+- **A plain `Thread.Sleep` between retries:** whether Windows sends `WM_DESTROYCLIPBOARD` synchronously isn't verified, and the pumping wait costs a few lines either way.
+- **Retrying through the message loop with a timer:** every item would need its own attempt count, and other items could run between its attempts.
 
 ### D2: Tests
 
@@ -97,6 +106,8 @@ Current state:
 - [The Win32 snapshot sees formats that OLE's list hid, and restoring some of them could do harm] → D1 skips them explicitly. The hardware tests put formats on the clipboard with plain Win32 calls, so they never show OLE's formats. The manual check of task 2.1 copies through OLE instead: a file in Explorer, and text or cells in Word or Excel.
 - [Global memory handling leaks or double-frees] → Every `GlobalAlloc` has one owner. After a successful `SetClipboardData` the system owns the memory, and otherwise the service frees it. That's covered by the restore tests, which run many times.
 - [Another process holds the clipboard longer than 1 second] → Unchanged behavior: the busy-clipboard fallback of the spec.
+- [A write fails after `EmptyClipboard`, for example when memory runs out] → The clipboard ends empty, the user's previous content is lost, and the transcript is typed. That's rare: a busy clipboard fails in `OpenClipboard`, before anything is emptied.
+- [A source that renders formats only on request is slow or hung] → `GetClipboardData` waits for it without a time limit, and later clipboard calls queue behind it. Unchanged from today, where WPF's `GetData` ends in the same call or in a COM call into the source. The filter of D1 skips images and metafiles by ID, so they are never rendered for the snapshot, and they are the expensive formats of a large Office selection.
 
 ## Migration Plan
 

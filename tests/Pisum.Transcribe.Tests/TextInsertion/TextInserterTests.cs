@@ -1,5 +1,4 @@
-using System.Windows;
-using Microsoft.Extensions.Logging;
+﻿using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Time.Testing;
 using Pisum.Transcribe.Settings;
 using Pisum.Transcribe.TextInsertion;
@@ -23,7 +22,7 @@ public sealed class TextInserterTests
     private readonly IForegroundWindowTracker _tracker = A.Fake<IForegroundWindowTracker>();
     private readonly FakeTimeProvider _time = new();
     private readonly CapturingLogger<TextInserter> _logger = new();
-    private readonly ClipboardSnapshot _snapshot = new(new DataObject(DataFormats.UnicodeText, "invoice 4711"), false);
+    private readonly ClipboardSnapshot _snapshot = new TextSnapshot("invoice 4711");
     private readonly long _start;
     private readonly TextInserter _sut;
     private uint _sequenceNumber = 1;
@@ -402,17 +401,17 @@ public sealed class TextInserterTests
     public async Task InsertAsync_TwoPastesInARow_RestoresOriginalTextBothTimes()
     {
         // Arrange: a clipboard that holds what was last set or restored.
-        var content = new DataObject(DataFormats.UnicodeText, "invoice 4711");
-        A.CallTo(() => _clipboard.TrySnapshotAsync()).ReturnsLazily(() => new ClipboardSnapshot(content, false));
+        var content = "invoice 4711";
+        A.CallTo(() => _clipboard.TrySnapshotAsync()).ReturnsLazily(() => new TextSnapshot(content));
         A.CallTo(() => _clipboard.TrySetTextAsync(A<string>._, A<bool>._)).ReturnsLazily((string text, bool _) =>
         {
-            content = new DataObject(DataFormats.UnicodeText, text);
+            content = text;
             _sequenceNumber++;
             return true;
         });
         A.CallTo(() => _clipboard.TryRestoreAsync(A<ClipboardSnapshot>._)).ReturnsLazily((ClipboardSnapshot snapshot) =>
         {
-            content = snapshot.Data;
+            content = ((TextSnapshot) snapshot).Text;
             _sequenceNumber++;
             return true;
         });
@@ -420,7 +419,7 @@ public sealed class TextInserterTests
         // Act
         var first = await InsertAsync(Paste);
         await CompletePendingRestoreAsync();
-        var afterFirst = content.GetData(DataFormats.UnicodeText);
+        var afterFirst = content;
         var second = await InsertAsync(Paste);
         await CompletePendingRestoreAsync();
 
@@ -428,7 +427,7 @@ public sealed class TextInserterTests
         first.ShouldBe(InsertionOutcome.Inserted);
         second.ShouldBe(InsertionOutcome.Inserted);
         afterFirst.ShouldBe("invoice 4711");
-        content.GetData(DataFormats.UnicodeText).ShouldBe("invoice 4711");
+        content.ShouldBe("invoice 4711");
         A.CallTo(() => _keyboard.SendPaste()).MustHaveHappenedTwiceExactly();
     }
 
@@ -531,26 +530,26 @@ public sealed class TextInserterTests
     public async Task InsertAsync_SecondPaste300MsAfterFirst_SnapshotsAfterFirstRestoreAndEndsWithOriginalContent()
     {
         // Arrange: a clipboard that holds what was last set or restored.
-        var content = new DataObject(DataFormats.UnicodeText, "invoice 4711");
-        var snapshots = new List<(object? Text, TimeSpan At)>();
+        var content = "invoice 4711";
+        var snapshots = new List<(string Text, TimeSpan At)>();
         A.CallTo(() => _clipboard.TrySnapshotAsync()).ReturnsLazily(() =>
         {
             lock (snapshots)
             {
-                snapshots.Add((content.GetData(DataFormats.UnicodeText), Elapsed));
+                snapshots.Add((content, Elapsed));
             }
 
-            return new ClipboardSnapshot(content, false);
+            return new TextSnapshot(content);
         });
         A.CallTo(() => _clipboard.TrySetTextAsync(A<string>._, A<bool>._)).ReturnsLazily((string text, bool _) =>
         {
-            content = new DataObject(DataFormats.UnicodeText, text);
+            content = text;
             _sequenceNumber++;
             return true;
         });
         A.CallTo(() => _clipboard.TryRestoreAsync(A<ClipboardSnapshot>._)).ReturnsLazily((ClipboardSnapshot snapshot) =>
         {
-            content = snapshot.Data;
+            content = ((TextSnapshot) snapshot).Text;
             _sequenceNumber++;
             return true;
         });
@@ -575,7 +574,7 @@ public sealed class TextInserterTests
         snapshotsWhileRestorePending.ShouldBe(1);
         snapshots.Select(snapshot => snapshot.Text).ShouldBe(["invoice 4711", "invoice 4711"]);
         snapshots[1].At.ShouldBeGreaterThanOrEqualTo(TextInserter.RestoreDelay);
-        content.GetData(DataFormats.UnicodeText).ShouldBe("invoice 4711");
+        content.ShouldBe("invoice 4711");
         A.CallTo(() => _clipboard.TryRestoreAsync(A<ClipboardSnapshot>._)).MustHaveHappenedTwiceExactly();
     }
 
@@ -696,4 +695,10 @@ public sealed class TextInserterTests
         A.CallTo(() => _keyboard.SendPaste()).MustNotHaveHappened();
         A.CallTo(() => _keyboard.TypeText(A<string>._)).MustNotHaveHappened();
     }
+
+    /// <summary>
+    /// A snapshot of a clipboard that holds nothing but text. <see cref="TextInserter"/> only reads
+    /// <see cref="ClipboardSnapshot.IsSensitive"/> and hands the snapshot back, so its contents are the test's own.
+    /// </summary>
+    private sealed record TextSnapshot(string Text, bool IsSensitive = false) : ClipboardSnapshot(IsSensitive);
 }

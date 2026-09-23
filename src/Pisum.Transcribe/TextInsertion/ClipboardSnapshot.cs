@@ -1,13 +1,11 @@
 namespace Pisum.Transcribe.TextInsertion;
 
 /// <summary>
-/// A copy of the clipboard contents, taken before a paste to restore them afterwards.
+/// A copy of the clipboard contents, taken before a paste to restore them afterwards. Each clipboard implementation
+/// derives its own type, because what a clipboard holds differs per platform.
 /// </summary>
-/// <param name="Data">
-/// The copied formats, without the history-exclusion and restore markers. Empty when the clipboard was empty.
-/// </param>
 /// <param name="IsSensitive">
 /// Whether the source marked the content as excluded from clipboard monitoring, clipboard history or the cloud
 /// clipboard, as password managers do. Sensitive content is never restored.
 /// </param>
-internal sealed record ClipboardSnapshot(DataObject Data, bool IsSensitive);
+internal abstract record ClipboardSnapshot(bool IsSensitive);
