@@ -53,11 +53,16 @@ The order follows the dependencies. First the helper ABI and the CoreFoundation 
   - a grant while the window is closed relaunches within 10 s
   - no relaunch without a bundle
 - [ ] 5.3 Show the row texts of the relaunch in the window ("Restarts when the download is finished", "Pisum Transcribe restarts to turn on the hotkey"). Verify: headless tests see each text in its state.
-- [ ] 5.4 Add a macOS `Hardware` test (`Explicit`) that starts the dev bundle, triggers the relaunch through a test hook, and sees exactly one running instance with a new pid afterwards. Verify: it passes on the dev Mac.
+- [ ] 5.4 Add a macOS `Integration` test of the relaunch's parts that touch the system (D10). There is no test-only switch in the app.
+  - The bundle path resolves to `…/Pisum Transcribe.app` from the dev bundle's `Contents/MacOS/` folder, and to nothing from a folder without an enclosing `.app`.
+  - The launcher's `open -n` on the real dev bundle starts a new process, which the test finds by the bundle ID with a new pid, then ends with `SIGTERM`.
+  - The test calls `Assert.SkipWhen` when the dev bundle hasn't been built.
+
+  Verify: it passes on the dev Mac.
 
 ## 6. End to end and docs
 
-- [ ] 6.1 Run the first start on the dev Mac after `tccutil reset All io.github.mschnecke.pisum-transcribe` and deleting the models folder:
+- [ ] 6.1 Run the first start on the dev Mac after `tccutil reset All io.github.mschnecke.pisum-transcribe` and deleting the models folder. This is the only check of the whole relaunch chain, from a real grant to one running instance (D10):
   - the window opens with four rows and the notification prompt
   - granting the microphone updates the row within 2 s
   - granting Accessibility during the download shows the waiting text, and the app relaunches after the download

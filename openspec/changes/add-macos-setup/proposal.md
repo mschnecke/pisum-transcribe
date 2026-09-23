@@ -58,5 +58,5 @@ Tracked in issue #16. The decisions come from the section "Decided for later mac
   - `Notifications/MacOS/MacNotifier`: no longer asks for permission at every start.
   - `MacOS/Info.plist`: `NSMicrophoneUsageDescription`, without which macOS ends the app when it asks for the microphone.
 - **Swift helper:** new functions for the microphone's authorization, the notification settings and the pasteboard's `accessBehavior`, and a raised `pisum_abi_version`. The Accessibility, CoreFoundation and Time Machine calls are C APIs, called through `DllImport`.
-- **Tests:** unit tests for the window's open and close rules and for the relaunch rule, which use fakes for the grants. macOS `Integration` tests call the new helper functions. A `Hardware` test covers the relaunch.
+- **Tests:** unit tests for the window's open and close rules and for the relaunch rule, which use fakes for the grants. macOS `Integration` tests call the new helper functions, and cover the relaunch's bundle path and its start of a new process. The whole relaunch after a real grant is checked by hand.
 - **Docs:** `CLAUDE.md` (layout, the permissions on a dev Mac) and `docs/roadmap.md`.

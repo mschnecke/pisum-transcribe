@@ -170,7 +170,10 @@ It logs once that permissions are skipped outside an app bundle.
   - `PermissionsViewModel`: row states from fake states, the notification request only when not determined, and the probe only at state 0.
 - **`ShutdownCoordinator`:** `Relaunch` starts the new process first (a fake launcher), then stops the host, with exit code 0.
 - **macOS `Integration`:** each new helper function returns a valid value from the test host. The test host has no bundle, so `pisum_has_bundle` returns 0. The CoreFoundation free space is at least `DriveInfo`'s. The exclusion on a `TempDirectory` shows in `tmutil isexcluded`.
-- **`Hardware`, macOS, `Explicit`:** the relaunch from the dev bundle ends with one running instance.
+- **macOS `Integration`, the relaunch:** the bundle path from the dev bundle's build output, and the launcher's `open -n` starting a new process of the real dev bundle. Skipped when the bundle hasn't been built.
+- **The whole relaunch chain** is checked by hand in the first-run check (task 6.1), because a test can't grant Accessibility.
+
+*Rejected:* a test-only switch in the app (an environment variable or a signal) to trigger the relaunch in a `Hardware` test. It would stay in the shipped app for good, and it would add little. The rules are covered by unit tests, the waiting for the old instance by `SingleInstanceGuard`'s tests, and the system parts by the test above.
 - **Manual:** the whole first run on a Mac after `tccutil reset All io.github.mschnecke.pisum-transcribe`.
 
 ## Risks / Trade-offs
