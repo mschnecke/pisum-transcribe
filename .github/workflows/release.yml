@@ -41,7 +41,7 @@ jobs:
     outputs:
       version: ${{ steps.bump.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           # The tags, so an existing one is refused here rather than by the push at the end of this
           # job — after the version has already been committed to the branch.
@@ -119,13 +119,13 @@ jobs:
     env:
       VERSION: ${{ needs.version.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           # The tag, which on a dispatch run is a commit made minutes ago by the bump job and is not
           # what this run was started against.
           ref: ${{ needs.version.outputs.tag }}
 
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
 
@@ -138,7 +138,7 @@ jobs:
         run: ./packaging/windows/build-msi.ps1 -Version $env:VERSION
         shell: pwsh
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: msi
           path: artifacts/*.msi
@@ -153,7 +153,7 @@ jobs:
     if: ${{ !cancelled() && needs.build.result == 'success' }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           path: artifacts
           merge-multiple: true
@@ -175,7 +175,7 @@ jobs:
       - name: List what will be published
         run: ls -la artifacts
 
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ needs.version.outputs.tag }}
           name: Pisum Transcribe v${{ needs.version.outputs.version }}
