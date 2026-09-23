@@ -19,7 +19,9 @@ src/Pisum.Transcribe/            WPF tray app (WinExe, net10.0-windows, win-x64)
   App.xaml(.cs)                  Builds and starts the host, creates ShutdownCoordinator, handles the end of the Windows session
   NativeMethods.txt              Win32 functions that CsWin32 generates into Windows.Win32.PInvoke
   Hosting/                       AppHost, AppPaths, SingleInstanceGuard, ShutdownCoordinator, DispatcherWait, IUiDispatcher (WpfUiDispatcher), logging setup
-  Tray/                          ITrayIconService (menu items, TrayStatus icon), TrayIconService (H.NotifyIcon), TrayBalloonNotifier, TrayIcon.svg (the app icon) and the TrayIcon.ico generated from it
+  Tray/                          ITrayIconService (menu items, TrayStatus icon), TrayIconService (H.NotifyIcon, status icons per taskbar mode), TrayBalloonNotifier, ITaskbarModeWatcher; TrayIcon.svg (the app icon) with the TrayIcon.ico and TrayIcon.png (256 px) generated from it, and TrayGlyph.svg (the monochrome status glyph)
+    Windows/                     The status ICOs generated from TrayGlyph.svg (embedded), TaskbarModeWatcher (SystemUsesLightTheme, RegNotifyChangeKeyValue)
+    MacOS/                       The menu bar PNGs generated from TrayGlyph.svg (@1x and @2x, templates for ready and unavailable), not referenced by the project yet
   Notifications/                 INotifier, which shows a notification from any thread
   Settings/                      AppSettings and its section records, ISettingsStore, JsonSettingsStore
   SpeechModels/                  ModelCatalog, IModelStore/ModelStore (download, verify), setup window, tray item
@@ -27,11 +29,11 @@ src/Pisum.Transcribe/            WPF tray app (WinExe, net10.0-windows, win-x64)
   Recording/                     Push-to-talk hotkey (SharpHook), microphone capture (NAudio WASAPI), AudioRecorder
   VoiceActivity/                 Silero VAD on ONNX Runtime (Assets/silero_vad.onnx), AudioTrimmer
   TextInsertion/                 TextInserter: clipboard paste with restore or typed input, foreground window and elevation checks
-  Dictation/                     DictationController (the hold-to-talk loop), recording overlay, tray icons and notifications
+  Dictation/                     DictationController (the hold-to-talk loop), recording overlay, tray status and notifications
   SettingsWindow/                Settings dialog and section view models, SettingsApplier (live apply), autostart
   Updates/                       UpdateCheckService (the daily update check against GitHub's latest release, tray notice), ReleaseVersion
 tests/Pisum.Transcribe.Tests/    xunit v3 on Microsoft.Testing.Platform, Shouldly, FakeItEasy, FakeTimeProvider; folders mirror src
-tools/generate-tray-icon.cs      Renders Tray/TrayIcon.svg into TrayIcon.ico (a .NET file-based app)
+tools/generate-tray-icon.cs      Renders Tray/TrayIcon.svg and Tray/TrayGlyph.svg into the app icon, the status ICOs and the macOS PNGs (a .NET file-based app on SkiaSharp)
 .github/workflows/               ci.yml (build, test and MSI on every PR and push to main), release.yml (bump, tag, test, publish the MSI)
 .config/dotnet-tools.json        Local tool manifest that pins WiX (`wix`), restored by build-msi.ps1
 packaging/                       bump-version.sh, windows/build-msi.ps1 with the MSI's WiX source Pisum.Transcribe.wxs and the guard assert-native-dependencies.ps1, third-party/ (the notices of ONNX Runtime and .NET); see packaging/README.md
@@ -71,7 +73,7 @@ dotnet test Pisum.Transcribe.slnx --filter-method "*.Load_FileMissing_UsesDefaul
 dotnet test Pisum.Transcribe.slnx --filter-trait "Category=Unit"                      # one category
 dotnet test Pisum.Transcribe.slnx --filter-trait "Category=Hardware" --explicit on    # hardware tests: microphone, GPU, model, desktop
 dotnet run --project src/Pisum.Transcribe                                             # start the tray app
-dotnet run tools/generate-tray-icon.cs                                                # rebuild TrayIcon.ico after editing TrayIcon.svg
+dotnet run tools/generate-tray-icon.cs                                                # rebuild the tray icons after editing TrayIcon.svg or TrayGlyph.svg
 dotnet sln Pisum.Transcribe.slnx add <path/to/Project.csproj>                        # register a new project
 ./packaging/windows/build-msi.ps1 -Version 0.1.0-dev.1                               # the release MSI, built and validated, into artifacts\ (PowerShell 7)
 ./packaging/bump-version.sh patch                                                    # write the next version into Directory.Build.props (Git Bash)

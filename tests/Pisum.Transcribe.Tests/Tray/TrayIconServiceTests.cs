@@ -1,7 +1,10 @@
+using System.Drawing;
 using System.Runtime.ExceptionServices;
 using System.Windows.Controls;
-using Pisum.Transcribe.Dictation;
+using Pisum.Transcribe.Hosting;
 using Pisum.Transcribe.Tray;
+using Windows.Win32;
+using Windows.Win32.UI.WindowsAndMessaging;
 
 namespace Pisum.Transcribe.Tests.Tray;
 
@@ -9,21 +12,65 @@ namespace Pisum.Transcribe.Tests.Tray;
 public sealed class TrayIconServiceTests
 {
     [Fact]
-    public void IconFor_EachStatus_ReturnsItsIcon()
+    public void IconFor_EachStatusAndMode_ReturnsMatchingIcon()
     {
         // Arrange
-        var icons = new DictationIcons();
+        var icons = TrayIconService.LoadIcons();
 
         // Act
-        var iconsByStatus = Enum.GetValues<TrayStatus>()
-            .ToDictionary(status => status, status => TrayIconService.IconFor(status, icons));
+        var iconsByStatusAndMode = Enum.GetValues<TrayStatus>()
+            .SelectMany(_ => Enum.GetValues<TaskbarMode>(), (status, mode) => (status, mode))
+            .ToDictionary(key => key, key => TrayIconService.IconFor(key.status, key.mode, icons));
 
         // Assert
-        iconsByStatus.Count.ShouldBe(4);
-        iconsByStatus[TrayStatus.Ready].ShouldBeSameAs(icons.Ready);
-        iconsByStatus[TrayStatus.Recording].ShouldBeSameAs(icons.Recording);
-        iconsByStatus[TrayStatus.Transcribing].ShouldBeSameAs(icons.Transcribing);
-        iconsByStatus[TrayStatus.Unavailable].ShouldBeSameAs(icons.Unavailable);
+        iconsByStatusAndMode.Count.ShouldBe(8);
+        iconsByStatusAndMode[(TrayStatus.Ready, TaskbarMode.Light)].ShouldBeSameAs(icons.ReadyLight);
+        iconsByStatusAndMode[(TrayStatus.Ready, TaskbarMode.Dark)].ShouldBeSameAs(icons.ReadyDark);
+        iconsByStatusAndMode[(TrayStatus.Unavailable, TaskbarMode.Light)].ShouldBeSameAs(icons.UnavailableLight);
+        iconsByStatusAndMode[(TrayStatus.Unavailable, TaskbarMode.Dark)].ShouldBeSameAs(icons.UnavailableDark);
+        iconsByStatusAndMode[(TrayStatus.Recording, TaskbarMode.Light)].ShouldBeSameAs(icons.Recording);
+        iconsByStatusAndMode[(TrayStatus.Recording, TaskbarMode.Dark)].ShouldBeSameAs(icons.Recording);
+        iconsByStatusAndMode[(TrayStatus.Transcribing, TaskbarMode.Light)].ShouldBeSameAs(icons.Transcribing);
+        iconsByStatusAndMode[(TrayStatus.Transcribing, TaskbarMode.Dark)].ShouldBeSameAs(icons.Transcribing);
+    }
+
+    [Fact]
+    public void LoadIcons_Always_LoadsSmallIconSize()
+    {
+        // Arrange
+        var smallIconSize = PInvoke.GetSystemMetrics(SYSTEM_METRICS_INDEX.SM_CXSMICON);
+
+        // Act
+        var icons = TrayIconService.LoadIcons();
+
+        // Assert
+        Icon[] all =
+        [
+            icons.ReadyLight, icons.ReadyDark, icons.UnavailableLight, icons.UnavailableDark, icons.Recording,
+            icons.Transcribing,
+        ];
+        all.ShouldAllBe(icon => icon.Width == smallIconSize && icon.Height == smallIconSize);
+    }
+
+    [Fact]
+    public void TaskbarModeChanged_WhileReady_AppliesIconForNewMode()
+    {
+        RunOnStaThread(() =>
+        {
+            // Arrange
+            var taskbarMode = A.Fake<ITaskbarModeWatcher>();
+            A.CallTo(() => taskbarMode.Current).Returns(TaskbarMode.Light);
+            var sut = new TrayIconService(taskbarMode, new InlineUiDispatcher());
+            sut.SetStatus(TrayStatus.Ready, "Pisum Transcribe – Ready (CPU)");
+            A.CallTo(() => taskbarMode.Current).Returns(TaskbarMode.Dark);
+
+            // Act
+            taskbarMode.Changed += Raise.WithEmpty();
+
+            // Assert
+            sut.ShownIcon.ShouldBeSameAs(sut.Icons.ReadyDark);
+            sut.Remove();
+        });
     }
 
     [Fact]
@@ -32,7 +79,7 @@ public sealed class TrayIconServiceTests
         RunOnStaThread(() =>
         {
             // Arrange
-            var sut = new TrayIconService(new DictationIcons());
+            var sut = CreateSut();
             sut.SetStatus(TrayStatus.Ready, "Pisum Transcribe – Ready (CPU)");
             sut.SetStatus(TrayStatus.Recording, "Pisum Transcribe – Recording…");
 
@@ -46,20 +93,20 @@ public sealed class TrayIconServiceTests
     }
 
     [Fact]
-    public void Remove_AfterSetStatus_LeavesDictationIconsUsable()
+    public void Remove_AfterSetStatus_LeavesLoadedIconsUsable()
     {
         RunOnStaThread(() =>
         {
             // Arrange
-            var icons = new DictationIcons();
-            var sut = new TrayIconService(icons);
+            var sut = CreateSut();
             sut.SetStatus(TrayStatus.Ready, "Pisum Transcribe – Ready (CPU)");
+            var shown = sut.ShownIcon!;
 
             // Act
             sut.Remove();
 
             // Assert
-            Should.NotThrow(() => icons.Ready.Handle);
+            Should.NotThrow(() => shown.Handle);
         });
     }
 
@@ -70,7 +117,7 @@ public sealed class TrayIconServiceTests
         {
             // Arrange
             var header = "A";
-            var sut = new TrayIconService(new DictationIcons());
+            var sut = CreateSut();
             sut.AddMenuItem(() => header, () => { });
             var item = (MenuItem) sut.ContextMenu.Items[0];
 
@@ -86,6 +133,11 @@ public sealed class TrayIconServiceTests
             second.ShouldBe("B");
             sut.Remove();
         });
+    }
+
+    private static TrayIconService CreateSut()
+    {
+        return new TrayIconService(A.Fake<ITaskbarModeWatcher>(), new InlineUiDispatcher());
     }
 
     /// <summary>

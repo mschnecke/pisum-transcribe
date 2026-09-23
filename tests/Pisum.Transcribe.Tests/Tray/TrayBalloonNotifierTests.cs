@@ -1,5 +1,4 @@
 using System.Runtime.ExceptionServices;
-using Pisum.Transcribe.Dictation;
 using Pisum.Transcribe.Hosting;
 using Pisum.Transcribe.Tray;
 
@@ -15,7 +14,7 @@ public sealed class TrayBalloonNotifierTests
         {
             // Arrange
             var uiDispatcher = A.Fake<IUiDispatcher>();
-            var trayIcon = new TrayIconService(new DictationIcons());
+            var trayIcon = new TrayIconService(A.Fake<ITaskbarModeWatcher>(), A.Fake<IUiDispatcher>());
             var sut = new TrayBalloonNotifier(uiDispatcher, trayIcon);
             var caller = new Thread(() => sut.Show("Title", "Message"));
 

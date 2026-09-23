@@ -1,7 +1,9 @@
 using System.Drawing;
 using System.Windows.Controls;
 using H.NotifyIcon;
-using Pisum.Transcribe.Dictation;
+using Pisum.Transcribe.Hosting;
+using Windows.Win32;
+using Windows.Win32.UI.WindowsAndMessaging;
 
 namespace Pisum.Transcribe.Tray;
 
@@ -12,21 +14,30 @@ internal sealed class TrayIconService : ITrayIconService
 {
     private const string ProductName = "Pisum Transcribe";
     private const string IconResourceName = "Pisum.Transcribe.Tray.TrayIcon.ico";
+    private const string StatusIconResourcePrefix = "Pisum.Transcribe.Tray.Windows.TrayGlyph.";
 
-    private readonly DictationIcons _icons;
+    private readonly ITaskbarModeWatcher _taskbarMode;
+    private readonly IUiDispatcher _uiDispatcher;
     private readonly TaskbarIcon _taskbarIcon;
     private readonly ContextMenu _contextMenu = new();
     private readonly MenuItem _exitItem = new() {Header = "Exit"};
     private readonly Separator _exitSeparator = new();
     private readonly List<(MenuItem Item, Func<string> Header, Func<bool>? IsVisible)> _menuItems = [];
+    private TrayStatus? _status;
+    private bool _removed;
 
     /// <summary>
-    /// Initializes a new instance with the app icon and a context menu with <b>Exit</b>. The icon is not shown yet.
+    /// Initializes a new instance with the app icon and a context menu with <b>Exit</b>, and loads the status icons.
+    /// The icon is not shown yet.
     /// </summary>
-    /// <param name="icons">The icons of the statuses.</param>
-    public TrayIconService(DictationIcons icons)
+    /// <param name="taskbarMode">The taskbar's mode, which the icon at rest follows.</param>
+    /// <param name="uiDispatcher">Moves a change of the taskbar's mode to the UI thread.</param>
+    public TrayIconService(ITaskbarModeWatcher taskbarMode, IUiDispatcher uiDispatcher)
     {
-        _icons = icons;
+        _taskbarMode = taskbarMode;
+        _uiDispatcher = uiDispatcher;
+        Icons = LoadIcons();
+        _taskbarMode.Changed += OnTaskbarModeChanged;
         _exitItem.Click += (_, _) => ExitRequested?.Invoke(this, EventArgs.Empty);
         _contextMenu.Items.Add(_exitItem);
 
@@ -53,6 +64,16 @@ internal sealed class TrayIconService : ITrayIconService
     /// The context menu, for tests.
     /// </summary>
     internal ContextMenu ContextMenu => _contextMenu;
+
+    /// <summary>
+    /// The status icons, for tests.
+    /// </summary>
+    internal TrayIcons Icons { get; }
+
+    /// <summary>
+    /// The status icon that the tray shows a copy of, or <see langword="null"/> before the first status, for tests.
+    /// </summary>
+    internal Icon? ShownIcon { get; private set; }
 
     /// <inheritdoc />
     public void Show()
@@ -88,8 +109,8 @@ internal sealed class TrayIconService : ITrayIconService
     /// <inheritdoc />
     public void SetStatus(TrayStatus status, string toolTip)
     {
-        // H.NotifyIcon disposes the icon it replaces and the icon it holds when it is disposed, so it gets a copy.
-        _taskbarIcon.Icon = (Icon) IconFor(status, _icons).Clone();
+        _status = status;
+        ApplyIcon(status);
         _taskbarIcon.ToolTipText = toolTip;
     }
 
@@ -107,25 +128,76 @@ internal sealed class TrayIconService : ITrayIconService
     /// <inheritdoc />
     public void Remove()
     {
+        _removed = true;
+        _taskbarMode.Changed -= OnTaskbarModeChanged;
         _taskbarIcon.Dispose();
     }
 
     /// <summary>
-    /// The icon of a status.
+    /// The icon of a status on a taskbar.
     /// </summary>
     /// <param name="status">The status.</param>
-    /// <param name="icons">The icons of the statuses.</param>
+    /// <param name="mode">The taskbar's mode.</param>
+    /// <param name="icons">The status icons.</param>
     /// <returns>One of <paramref name="icons"/>, which the caller must not dispose.</returns>
-    internal static Icon IconFor(TrayStatus status, DictationIcons icons)
+    internal static Icon IconFor(TrayStatus status, TaskbarMode mode, TrayIcons icons)
     {
-        return status switch
+        return (status, mode) switch
         {
-            TrayStatus.Ready => icons.Ready,
-            TrayStatus.Recording => icons.Recording,
-            TrayStatus.Transcribing => icons.Transcribing,
-            TrayStatus.Unavailable => icons.Unavailable,
-            _ => throw new ArgumentOutOfRangeException(nameof(status), status, null),
+            (TrayStatus.Ready, TaskbarMode.Light) => icons.ReadyLight,
+            (TrayStatus.Ready, TaskbarMode.Dark) => icons.ReadyDark,
+            (TrayStatus.Unavailable, TaskbarMode.Light) => icons.UnavailableLight,
+            (TrayStatus.Unavailable, TaskbarMode.Dark) => icons.UnavailableDark,
+            (TrayStatus.Recording, _) => icons.Recording,
+            (TrayStatus.Transcribing, _) => icons.Transcribing,
+            _ => throw new ArgumentOutOfRangeException(nameof(status), (status, mode), null),
         };
+    }
+
+    /// <summary>
+    /// Loads the status icons from the embedded ICOs, each at the small icon size of the primary display's scaling
+    /// (<c>SM_CXSMICON</c>, as <c>SystemInformation.SmallIconSize</c> reads it). H.NotifyIcon hands the icon to the tray
+    /// as it is, so the frame chosen here is the one that Windows shows.
+    /// </summary>
+    /// <returns>The status icons.</returns>
+    internal static TrayIcons LoadIcons()
+    {
+        var size = PInvoke.GetSystemMetrics(SYSTEM_METRICS_INDEX.SM_CXSMICON);
+        return new TrayIcons(
+            Load("Ready.Light"),
+            Load("Ready.Dark"),
+            Load("Unavailable.Light"),
+            Load("Unavailable.Dark"),
+            Load("Recording"),
+            Load("Transcribing"));
+
+        Icon Load(string name)
+        {
+            var resourceName = $"{StatusIconResourcePrefix}{name}.ico";
+            using var stream = typeof(TrayIconService).Assembly.GetManifestResourceStream(resourceName)
+                               ?? throw new InvalidOperationException($"Embedded resource {resourceName} is missing.");
+            return new Icon(stream, size, size);
+        }
+    }
+
+    private void OnTaskbarModeChanged(object? sender, EventArgs e)
+    {
+        // Raised on the watcher's thread.
+        _ = _uiDispatcher.InvokeAsync(() =>
+        {
+            if (!_removed && _status is { } status)
+            {
+                ApplyIcon(status);
+            }
+        });
+    }
+
+    private void ApplyIcon(TrayStatus status)
+    {
+        ShownIcon = IconFor(status, _taskbarMode.Current, Icons);
+
+        // H.NotifyIcon disposes the icon it replaces and the icon it holds when it is disposed, so it gets a copy.
+        _taskbarIcon.Icon = (Icon) ShownIcon.Clone();
     }
 
     /// <summary>

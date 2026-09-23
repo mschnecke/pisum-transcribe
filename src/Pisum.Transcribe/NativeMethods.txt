@@ -37,6 +37,8 @@ HWND_MESSAGE
 CLIPBOARD_FORMAT
 WM_APP
 WM_QUIT
+RegNotifyChangeKeyValue
+GetSystemMetrics
 
 // Test helpers
 TranslateMessage
