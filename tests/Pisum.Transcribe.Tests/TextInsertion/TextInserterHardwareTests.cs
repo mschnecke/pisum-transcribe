@@ -1,12 +1,11 @@
-using System.Windows;
-using Microsoft.Extensions.Logging.Abstractions;
+﻿using Microsoft.Extensions.Logging.Abstractions;
 using Pisum.Transcribe.Settings;
 using Pisum.Transcribe.TextInsertion;
 
 namespace Pisum.Transcribe.Tests.TextInsertion;
 
 /// <summary>
-/// Inserts text into a WPF window of the test process with real keystrokes and the real clipboard, whose contents the
+/// Inserts text into a window of the test process with real keystrokes and the real clipboard, whose contents the
 /// tests replace. Needs an interactive desktop; leave the keyboard and mouse alone while it runs.
 /// </summary>
 [Trait(Traits.Category, Traits.Categories.Hardware)]
@@ -15,7 +14,7 @@ public sealed class TextInserterHardwareTests : IDisposable
 {
     private static readonly TimeSpan InputTimeout = TimeSpan.FromSeconds(5);
 
-    private readonly WpfClipboardService _clipboard = new(NullLogger<WpfClipboardService>.Instance);
+    private readonly Win32ClipboardService _clipboard = new(NullLogger<Win32ClipboardService>.Instance);
     private readonly SharpHookKeyboardInput _keyboard = new(NullLogger<SharpHookKeyboardInput>.Instance);
     private readonly ForegroundWindowTracker _tracker = new(NullLogger<ForegroundWindowTracker>.Instance);
     private readonly TextInserter _sut;
@@ -38,7 +37,7 @@ public sealed class TextInserterHardwareTests : IDisposable
         const string transcript = "Grüße aus Köln – 5 €";
         using var window = TestWindow.Open();
         TextInsertionTestAssertions.ShouldBeForeground(window);
-        RawClipboard.Set(new DataObject(DataFormats.UnicodeText, "invoice 4711"));
+        RawClipboard.SetText("invoice 4711");
         var target = _tracker.CaptureForeground();
 
         // Act: the restore finishes after InsertAsync returns, and StopAsync waits for it.
@@ -58,7 +57,7 @@ public sealed class TextInserterHardwareTests : IDisposable
         // Arrange
         using var window = TestWindow.Open();
         TextInsertionTestAssertions.ShouldBeForeground(window);
-        RawClipboard.Set(new DataObject(DataFormats.UnicodeText, "invoice 4711"));
+        RawClipboard.SetText("invoice 4711");
         var target = _tracker.CaptureForeground();
 
         // Act

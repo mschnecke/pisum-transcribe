@@ -1,36 +1,44 @@
-using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Interop;
-using System.Windows.Threading;
+using Windows.Win32;
+using Windows.Win32.Foundation;
+using Windows.Win32.UI.WindowsAndMessaging;
 
 namespace Pisum.Transcribe.Tests.TextInsertion;
 
 /// <summary>
-/// A WPF window with a focused multi-line <see cref="TextBox"/>, on its own STA thread in the test process.
+/// A top-level multi-line <c>EDIT</c> window on its own thread in the test process, focused and on top.
 /// </summary>
+/// <remarks>
+/// The window is its own edit control, so the focus needs no forwarding. Its message loop translates key messages,
+/// which turns Ctrl+V into the control's paste and SharpHook's <c>VK_PACKET</c> input into characters.
+/// </remarks>
 internal sealed class TestWindow : IDisposable
 {
-    private readonly Dispatcher _dispatcher;
-    private readonly Window _window;
-    private readonly TextBox _textBox;
+    private readonly uint _threadId;
+    private readonly HWND _window;
 
-    private TestWindow(Dispatcher dispatcher, Window window, TextBox textBox, nint handle)
+    private TestWindow(uint threadId, HWND window)
     {
-        _dispatcher = dispatcher;
+        _threadId = threadId;
         _window = window;
-        _textBox = textBox;
-        Handle = handle;
     }
 
     /// <summary>
     /// The window handle.
     /// </summary>
-    public nint Handle { get; }
+    public nint Handle => _window;
 
     /// <summary>
-    /// The text box contents.
+    /// The window contents. A multi-line edit control stores a line break as CR LF.
     /// </summary>
-    public string Text => _dispatcher.Invoke(() => _textBox.Text);
+    public string Text
+    {
+        get
+        {
+            var buffer = new char[PInvoke.GetWindowTextLength(_window) + 1];
+            var length = PInvoke.GetWindowText(_window, buffer);
+            return new string(buffer, 0, length);
+        }
+    }
 
     /// <summary>
     /// Opens the window and tries to bring it to the foreground. Windows may refuse that for a test process.
@@ -38,39 +46,21 @@ internal sealed class TestWindow : IDisposable
     public static TestWindow Open()
     {
         var opened = new TaskCompletionSource<TestWindow>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var thread = new Thread(() =>
-        {
-            var textBox = new TextBox {AcceptsReturn = true};
-            var window = new Window
-            {
-                Title = "Pisum Transcribe text insertion test",
-                Width = 400,
-                Height = 200,
-                Topmost = true,
-                Content = textBox,
-            };
-            window.Show();
-            window.Activate();
-            textBox.Focus();
-            opened.SetResult(new TestWindow(Dispatcher.CurrentDispatcher, window, textBox,
-                new WindowInteropHelper(window).Handle));
-            Dispatcher.Run();
-        }) {IsBackground = true, Name = "Test window"};
-        thread.SetApartmentState(ApartmentState.STA);
+        var thread = new Thread(() => Run(opened)) {IsBackground = true, Name = "Test window"};
         thread.Start();
         return opened.Task.WaitAsync(TimeSpan.FromSeconds(10)).GetAwaiter().GetResult();
     }
 
     /// <summary>
-    /// Clears the text box.
+    /// Clears the window contents.
     /// </summary>
     public void Clear()
     {
-        _dispatcher.Invoke(() => _textBox.Clear());
+        PInvoke.SetWindowText(_window, string.Empty);
     }
 
     /// <summary>
-    /// Waits until the text box holds the expected text, or returns its last contents after the timeout.
+    /// Waits until the window holds the expected text, or returns its last contents after the timeout.
     /// </summary>
     public async Task<string> WaitForTextAsync(string expected, TimeSpan timeout)
     {
@@ -85,7 +75,31 @@ internal sealed class TestWindow : IDisposable
 
     public void Dispose()
     {
-        _dispatcher.Invoke(() => _window.Close());
-        _dispatcher.InvokeShutdown();
+        PInvoke.PostThreadMessage(_threadId, PInvoke.WM_QUIT, default, default);
+    }
+
+    private static unsafe void Run(TaskCompletionSource<TestWindow> opened)
+    {
+        // No window name: for an edit control that is its contents, not a title, and the window starts empty.
+        var window = PInvoke.CreateWindowEx(WINDOW_EX_STYLE.WS_EX_TOPMOST, "EDIT", null,
+            WINDOW_STYLE.WS_OVERLAPPEDWINDOW | WINDOW_STYLE.WS_VISIBLE | (WINDOW_STYLE) PInvoke.ES_MULTILINE,
+            100, 100, 400, 200, default);
+        if (window.IsNull)
+        {
+            opened.SetException(new InvalidOperationException("The test window could not be created."));
+            return;
+        }
+
+        PInvoke.SetForegroundWindow(window);
+        PInvoke.SetFocus(window);
+        opened.SetResult(new TestWindow(PInvoke.GetCurrentThreadId(), window));
+
+        while (PInvoke.GetMessage(out var message, default, 0, 0))
+        {
+            PInvoke.TranslateMessage(message);
+            PInvoke.DispatchMessage(message);
+        }
+
+        PInvoke.DestroyWindow(window);
     }
 }

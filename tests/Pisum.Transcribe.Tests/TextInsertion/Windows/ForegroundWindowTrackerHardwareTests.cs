@@ -13,7 +13,7 @@ public sealed class ForegroundWindowTrackerHardwareTests
     private readonly ForegroundWindowTracker _sut = new(NullLogger<ForegroundWindowTracker>.Instance);
 
     [Fact(Explicit = true)]
-    public void CaptureForeground_OwnWpfWindow_ReturnsWindowAndProcess()
+    public void CaptureForeground_OwnWindow_ReturnsWindowAndProcess()
     {
         // Arrange
         using var window = TestWindow.Open();
@@ -29,7 +29,7 @@ public sealed class ForegroundWindowTrackerHardwareTests
     }
 
     [Fact(Explicit = true)]
-    public void CaptureForeground_OwnWpfWindowWithUacOn_ReportsNotElevated()
+    public void CaptureForeground_OwnWindowWithUacOn_ReportsNotElevated()
     {
         // Arrange
         Assert.SkipWhen(ProcessElevation.IsElevated((uint) Environment.ProcessId, out _) != false,

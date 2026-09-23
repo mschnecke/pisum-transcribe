@@ -19,7 +19,7 @@ internal static class TextInsertionServiceCollectionExtensions
     {
         services.TryAddSingleton(TimeProvider.System);
         services.AddSingleton<IForegroundWindowTracker, ForegroundWindowTracker>();
-        services.AddSingleton<IClipboardService, WpfClipboardService>();
+        services.AddSingleton<IClipboardService, Win32ClipboardService>();
         services.AddSingleton<IKeyboardInput, SharpHookKeyboardInput>();
         services.AddSingleton<TextInserter>();
         services.AddSingleton<ITextInserter>(provider => provider.GetRequiredService<TextInserter>());

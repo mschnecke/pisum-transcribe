@@ -1,11 +1,14 @@
 using System.Diagnostics;
-using System.Runtime.InteropServices;
-using System.Windows;
+using System.Text;
+using Windows.Win32;
+using Windows.Win32.Foundation;
+using Windows.Win32.System.Memory;
+using Windows.Win32.System.Ole;
 
 namespace Pisum.Transcribe.Tests.TextInsertion;
 
 /// <summary>
-/// Reads and holds the Windows clipboard with plain Win32 calls, the way other applications see it.
+/// Reads, writes and holds the Windows clipboard with plain Win32 calls, the way other applications see it.
 /// </summary>
 internal static class RawClipboard
 {
@@ -17,32 +20,96 @@ internal static class RawClipboard
     /// <returns>The bytes, or <see langword="null"/> if the clipboard does not hold the format.</returns>
     public static byte[]? Read(string format)
     {
-        var formatId = RegisterClipboardFormatW(format);
+        return Read(PInvoke.RegisterClipboardFormat(format));
+    }
+
+    /// <summary>
+    /// Reads the bytes of a clipboard format.
+    /// </summary>
+    /// <returns>The bytes, or <see langword="null"/> if the clipboard does not hold the format.</returns>
+    public static unsafe byte[]? Read(uint format)
+    {
         Open();
         try
         {
-            var handle = GetClipboardData(formatId);
-            if (handle == 0)
+            var handle = PInvoke.GetClipboardData(format);
+            if (handle.IsNull)
             {
                 return null;
             }
 
-            var bytes = new byte[(int) GlobalSize(handle)];
-            var pointer = GlobalLock(handle);
+            var memory = (HGLOBAL) (nint) handle;
+            var bytes = new byte[(int) PInvoke.GlobalSize(memory)];
+            var pointer = PInvoke.GlobalLock(memory);
             try
             {
-                Marshal.Copy(pointer, bytes, 0, bytes.Length);
+                new ReadOnlySpan<byte>(pointer, bytes.Length).CopyTo(bytes);
             }
             finally
             {
-                GlobalUnlock(handle);
+                PInvoke.GlobalUnlock(memory);
             }
 
             return bytes;
         }
         finally
         {
-            CloseClipboard();
+            PInvoke.CloseClipboard();
+        }
+    }
+
+    /// <summary>
+    /// Reads the Unicode text on the clipboard, without its terminating null.
+    /// </summary>
+    public static string GetText()
+    {
+        var bytes = Read((uint) CLIPBOARD_FORMAT.CF_UNICODETEXT);
+        if (bytes is null)
+        {
+            return string.Empty;
+        }
+
+        var text = Encoding.Unicode.GetString(bytes);
+        var end = text.IndexOf('\0');
+        return end < 0 ? text : text[..end];
+    }
+
+    /// <summary>
+    /// Places text on the clipboard as Unicode text.
+    /// </summary>
+    public static void SetText(string text)
+    {
+        Set([((uint) CLIPBOARD_FORMAT.CF_UNICODETEXT, Encoding.Unicode.GetBytes(text + '\0'))]);
+    }
+
+    /// <summary>
+    /// Replaces the clipboard contents with the given formats and their bytes, in their order.
+    /// </summary>
+    public static unsafe void Set(IReadOnlyList<(uint Format, byte[] Bytes)> formats)
+    {
+        // SetClipboardData fails after EmptyClipboard when the clipboard was opened without an owner window. The
+        // window goes again right away, so nothing has to pump messages for it.
+        var owner = PInvoke.CreateWindowEx(default, "STATIC", null, default, 0, 0, 0, 0, HWND.HWND_MESSAGE);
+        owner.IsNull.ShouldBeFalse("The test could not create a clipboard owner window.");
+        try
+        {
+            Open(owner);
+            try
+            {
+                ((bool) PInvoke.EmptyClipboard()).ShouldBeTrue("The test could not empty the clipboard.");
+                foreach (var (format, bytes) in formats)
+                {
+                    Put(format, bytes);
+                }
+            }
+            finally
+            {
+                PInvoke.CloseClipboard();
+            }
+        }
+        finally
+        {
+            PInvoke.DestroyWindow(owner);
         }
     }
 
@@ -58,96 +125,35 @@ internal static class RawClipboard
             Open();
             opened.Set();
             release.Wait();
-            CloseClipboard();
+            PInvoke.CloseClipboard();
         }) {IsBackground = true};
         thread.Start();
         opened.Wait(OpenTimeout * 2).ShouldBeTrue("The test could not open the clipboard.");
         return new Holder(release, thread);
     }
 
-    /// <summary>
-    /// Runs a WPF call on a new STA thread, as <see cref="Clipboard"/> requires.
-    /// </summary>
-    public static T OnSta<T>(Func<T> action)
+    private static unsafe void Put(uint format, byte[] bytes)
     {
-        var result = default(T);
-        Exception? error = null;
-        var thread = new Thread(() =>
-        {
-            try
-            {
-                result = action();
-            }
-            catch (Exception exception)
-            {
-                error = exception;
-            }
-        });
-        thread.SetApartmentState(ApartmentState.STA);
-        thread.Start();
-        thread.Join();
-        if (error is not null)
-        {
-            throw new InvalidOperationException("The clipboard call failed.", error);
-        }
+        var memory = PInvoke.GlobalAlloc(GLOBAL_ALLOC_FLAGS.GMEM_MOVEABLE, (nuint) bytes.Length);
+        memory.IsNull.ShouldBeFalse("The test could not allocate clipboard memory.");
+        bytes.CopyTo(new Span<byte>(PInvoke.GlobalLock(memory), bytes.Length));
+        PInvoke.GlobalUnlock(memory);
 
-        return result!;
+        // The system owns the memory once the call succeeds.
+        PInvoke.SetClipboardData(format, (HANDLE) (nint) memory).IsNull
+            .ShouldBeFalse("The test could not put a format on the clipboard.");
     }
 
-    /// <summary>
-    /// Places data on the clipboard through WPF.
-    /// </summary>
-    public static void Set(DataObject data)
-    {
-        OnSta(() =>
-        {
-            Clipboard.SetDataObject(data, true);
-            return true;
-        });
-    }
-
-    /// <summary>
-    /// Reads the Unicode text on the clipboard through WPF.
-    /// </summary>
-    public static string GetText()
-    {
-        return OnSta(Clipboard.GetText);
-    }
-
-    private static void Open()
+    private static void Open(HWND owner = default)
     {
         // Clipboard monitors, such as the clipboard history service, open the clipboard briefly after every change.
         var stopwatch = Stopwatch.StartNew();
-        while (!OpenClipboard(0))
+        while (!PInvoke.OpenClipboard(owner))
         {
             stopwatch.Elapsed.ShouldBeLessThan(OpenTimeout, "The test could not open the clipboard.");
             Thread.Sleep(10);
         }
     }
-
-    [DllImport("user32.dll", CharSet = CharSet.Unicode, ExactSpelling = true)]
-    private static extern uint RegisterClipboardFormatW(string format);
-
-    [DllImport("user32.dll")]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool OpenClipboard(nint newOwner);
-
-    [DllImport("user32.dll")]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool CloseClipboard();
-
-    [DllImport("user32.dll")]
-    private static extern nint GetClipboardData(uint format);
-
-    [DllImport("kernel32.dll")]
-    private static extern nuint GlobalSize(nint memory);
-
-    [DllImport("kernel32.dll")]
-    private static extern nint GlobalLock(nint memory);
-
-    [DllImport("kernel32.dll")]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool GlobalUnlock(nint memory);
 
     private sealed class Holder(ManualResetEventSlim release, Thread thread) : IDisposable
     {
