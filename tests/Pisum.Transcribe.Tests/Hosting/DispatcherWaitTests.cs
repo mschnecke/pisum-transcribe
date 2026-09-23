@@ -1,5 +1,4 @@
-using System.Runtime.ExceptionServices;
-using System.Windows.Threading;
+using Avalonia.Threading;
 using Pisum.Transcribe.Hosting;
 
 namespace Pisum.Transcribe.Tests.Hosting;
@@ -8,23 +7,36 @@ namespace Pisum.Transcribe.Tests.Hosting;
 public sealed class DispatcherWaitTests
 {
     [Fact]
-    public void Until_TaskCompletesInDispatcherOperation_ReturnsBeforeOperationQueuedByIt()
+    public Task Until_TaskCompletesInDispatcherOperation_ReturnsWithoutFurtherOperation()
     {
-        RunOnStaThread(dispatcher =>
+        return HeadlessUi.RunAsync(() =>
         {
-            // Arrange
-            var events = new List<string>();
+            // Arrange: nothing is queued after the operation that completes the task, so only the synchronous
+            // continuation can end the frame.
             var shutdown = new TaskCompletionSource();
-            dispatcher.BeginInvoke(DispatcherPriority.Normal, () =>
-            {
-                dispatcher.BeginInvoke(DispatcherPriority.Normal, () => events.Add("queued operation"));
-                shutdown.SetResult();
-            });
+            Dispatcher.UIThread.Post(() => shutdown.SetResult());
 
             // Act
             DispatcherWait.Until(shutdown.Task);
+
+            // Assert
+            shutdown.Task.IsCompleted.ShouldBeTrue();
+        });
+    }
+
+    [Fact]
+    public Task Until_TaskAlreadyCompleted_ReturnsWithoutRunningQueuedOperations()
+    {
+        return HeadlessUi.RunAsync(() =>
+        {
+            // Arrange
+            var events = new List<string>();
+            Dispatcher.UIThread.Post(() => events.Add("queued operation"));
+
+            // Act
+            DispatcherWait.Until(Task.CompletedTask);
             events.Add("wait returned");
-            ProcessQueuedOperations(dispatcher);
+            Dispatcher.UIThread.RunJobs();
 
             // Assert
             events.ShouldBe(["wait returned", "queued operation"]);
@@ -32,59 +44,19 @@ public sealed class DispatcherWaitTests
     }
 
     [Fact]
-    public void Until_TaskAlreadyCompleted_ReturnsWithoutRunningQueuedOperations()
+    public Task Until_TaskCompletesOnOtherThread_ReturnsAfterIt()
     {
-        RunOnStaThread(dispatcher =>
+        return HeadlessUi.RunAsync(() =>
         {
             // Arrange
-            var events = new List<string>();
-            dispatcher.BeginInvoke(DispatcherPriority.Normal, () => events.Add("queued operation"));
+            var work = Task.Run(() => Task.Delay(TimeSpan.FromMilliseconds(100)));
 
             // Act
-            DispatcherWait.Until(Task.CompletedTask);
-            events.Add("wait returned");
-            ProcessQueuedOperations(dispatcher);
+            DispatcherWait.Until(work);
 
             // Assert
-            events.ShouldBe(["wait returned", "queued operation"]);
+            work.IsCompleted.ShouldBeTrue();
+            Dispatcher.UIThread.CheckAccess().ShouldBeTrue();
         });
-    }
-
-    /// <summary>
-    /// Runs the operations queued so far, by waiting for one queued behind them.
-    /// </summary>
-    private static void ProcessQueuedOperations(Dispatcher dispatcher)
-    {
-        dispatcher.Invoke(() => { }, DispatcherPriority.Background);
-    }
-
-    /// <summary>
-    /// Runs the test body on an STA thread with its own dispatcher, set as the synchronization context as on the UI
-    /// thread, so that an await would resume through the dispatcher.
-    /// </summary>
-    private static void RunOnStaThread(Action<Dispatcher> action)
-    {
-        Exception? failure = null;
-        var thread = new Thread(() =>
-        {
-            try
-            {
-                var dispatcher = Dispatcher.CurrentDispatcher;
-                SynchronizationContext.SetSynchronizationContext(new DispatcherSynchronizationContext(dispatcher));
-                action(dispatcher);
-            }
-            catch (Exception exception)
-            {
-                failure = exception;
-            }
-        });
-        thread.SetApartmentState(ApartmentState.STA);
-        thread.Start();
-        thread.Join();
-
-        if (failure is not null)
-        {
-            ExceptionDispatchInfo.Throw(failure);
-        }
     }
 }

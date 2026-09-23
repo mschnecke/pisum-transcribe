@@ -11,9 +11,10 @@ internal interface ITrayIconService
     event EventHandler? ExitRequested;
 
     /// <summary>
-    /// Raised on the UI thread when the user double-clicks the icon.
+    /// Raised on the UI thread when the user clicks the icon with the left button, on the release. A double-click
+    /// raises it twice. A right click opens the menu and doesn't raise it.
     /// </summary>
-    event EventHandler? DoubleClicked;
+    event EventHandler? Clicked;
 
     /// <summary>
     /// Shows the icon in the notification area.

@@ -9,6 +9,9 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Avalonia.Headless"/>
+    <!-- Turns off Avalonia's build telemetry, which Avalonia.Headless pulls in again (see Directory.Packages.props). -->
+    <PackageReference Include="Avalonia.BuildServices" ExcludeAssets="all" PrivateAssets="all"/>
     <PackageReference Include="FakeItEasy"/>
     <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing"/>
     <PackageReference Include="SharpHook.Testing"/>

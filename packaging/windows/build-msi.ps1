@@ -53,19 +53,22 @@ dotnet publish (Join-Path $root 'src' 'Pisum.Transcribe') `
     --output $appDir
 if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed with exit code $LASTEXITCODE" }
 
-# 2. Import libraries, needed only to link against onnxruntime.dll, never at run time.
+# 2. Import libraries, needed only to link against onnxruntime.dll, never at run time, and the debug symbols of the
+# Skia and HarfBuzz libraries (about 100 MB), which only a native debugger reads. Pisum.Transcribe.pdb stays.
 Get-ChildItem -LiteralPath $appDir -Filter '*.lib' -File | Remove-Item -Force
+Get-ChildItem -LiteralPath $appDir -Filter 'lib*.pdb' -File | Remove-Item -Force
 
 # 3. The project's license, over the flattened one from the native package.
 Copy-Item -LiteralPath (Join-Path $root 'LICENSE') -Destination (Join-Path $appDir 'LICENSE') -Force
 
-# 4. The notices (design D5), and the notices of ONNX Runtime and .NET for the components they bundle.
+# 4. The notices (design D5), and the notices of ONNX Runtime, .NET, Avalonia and SkiaSharp for the components
+# they bundle.
 Copy-Item -LiteralPath (Join-Path $root 'THIRD-PARTY-NOTICES.md') -Destination $appDir
 $notices = [ordered]@{
-    'onnxruntime-ThirdPartyNotices.txt'       = 'ThirdPartyNotices-OnnxRuntime.txt'
-    'dotnet-runtime-THIRD-PARTY-NOTICES.txt'  = 'ThirdPartyNotices-DotNet.txt'
-    'dotnet-wpf-THIRD-PARTY-NOTICES.txt'      = 'ThirdPartyNotices-Wpf.txt'
-    'dotnet-winforms-THIRD-PARTY-NOTICES.txt' = 'ThirdPartyNotices-WinForms.txt'
+    'onnxruntime-ThirdPartyNotices.txt'      = 'ThirdPartyNotices-OnnxRuntime.txt'
+    'dotnet-runtime-THIRD-PARTY-NOTICES.txt' = 'ThirdPartyNotices-DotNet.txt'
+    'avalonia-NOTICE.txt'                    = 'ThirdPartyNotices-Avalonia.txt'
+    'skiasharp-THIRD-PARTY-NOTICES.txt'      = 'ThirdPartyNotices-SkiaSharp.txt'
 }
 foreach ($source in $notices.Keys) {
     Copy-Item -LiteralPath (Join-Path $root 'packaging' 'third-party' $source) `
@@ -113,7 +116,7 @@ while ($missing = @(& $guard -Path $appDir -ListMissing 6>$null)) {
     }
 }
 
-# 6. The guard: every Visual C++ runtime import is in the folder.
+# 6. The guard: every Visual C++ runtime import and every native library loaded by name is in the folder.
 & $guard -Path $appDir
 if ($LASTEXITCODE -ne 0) { throw "$guard failed with exit code $LASTEXITCODE" }
 

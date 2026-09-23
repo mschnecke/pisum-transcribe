@@ -1,7 +1,8 @@
 #!/usr/bin/env pwsh
 <#
 .SYNOPSIS
-    Fails when a library in a folder imports a Visual C++ runtime file the folder doesn't contain.
+    Fails when a library in a folder imports a Visual C++ runtime file the folder doesn't contain, or
+    when a native library that is loaded by name is missing from it.
 
 .DESCRIPTION
     Reads the import table and the delay-load import table of every .dll and .exe in the folder.
@@ -16,6 +17,10 @@
     Only the VC++ runtime family is checked. The UCRT (api-ms-win-crt-*, ucrtbase.dll) is part of
     Windows 10 and later, vulkan-1.dll comes with the GPU driver and is optional by design, and an
     allowlist of Windows' own DLLs would break with the next Windows version.
+
+    The native libraries of the Avalonia shell (libSkiaSharp.dll, libHarfBuzzSharp.dll and
+    av_libglesv2.dll) are loaded by name at run time, so no import table names them. They must be
+    files in the folder too. Their own imports go through the same scan.
 
     The PE reader is here rather than dumpbin, which exists only where Visual Studio does, or
     objdump, which is neither on the runner nor in Git for Windows.
@@ -37,6 +42,9 @@ param(
 $ErrorActionPreference = 'Stop'
 
 $runtimePattern = '^(vcruntime|msvcp|concrt|vcomp|vccorlib)'
+
+# Loaded by name at run time: SkiaSharp and HarfBuzzSharp by P/Invoke, ANGLE by Avalonia.Win32.
+$loadedByName = 'libSkiaSharp.dll', 'libHarfBuzzSharp.dll', 'av_libglesv2.dll'
 
 # The names of the DLLs a PE file imports, from its import directory (entry 1) and its delay-load
 # import directory (entry 13). Returns $null for a file that isn't a PE image.
@@ -181,10 +189,28 @@ if ($ListMissing) {
     $missing
     exit 0
 }
+
+Write-Host "Checked the native libraries that are loaded by name."
+$absent = @()
+foreach ($name in $loadedByName) {
+    if ($present.Contains($name)) {
+        Write-Host "  ok       $name"
+    }
+    else {
+        Write-Host "  MISSING  $name"
+        $absent += $name
+    }
+}
+
 if ($missing.Count -gt 0) {
     Write-Host "Missing Visual C++ runtime files: $($missing -join ', '). A machine without the Visual C++ Redistributable can't load the files that import them."
+}
+if ($absent.Count -gt 0) {
+    Write-Host "Missing native libraries: $($absent -join ', '). The app can't show its windows or its tray without them."
+}
+if ($missing.Count -gt 0 -or $absent.Count -gt 0) {
     exit 1
 }
-Write-Host "All Visual C++ runtime imports are present."
+Write-Host "All Visual C++ runtime imports and native libraries are present."
 # Explicit, so a caller that checks $LASTEXITCODE never sees a value left over from an earlier command.
 exit 0

@@ -38,7 +38,7 @@ CLIPBOARD_FORMAT
 WM_APP
 WM_QUIT
 RegNotifyChangeKeyValue
-GetSystemMetrics
+TerminateProcess
 
 // Test helpers
 TranslateMessage

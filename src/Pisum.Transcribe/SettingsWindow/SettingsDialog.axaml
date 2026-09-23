@@ -1,0 +1,262 @@
+<Window x:Class="Pisum.Transcribe.SettingsWindow.SettingsDialog"
+        x:ClassModifier="internal"
+        x:DataType="local:SettingsViewModel"
+        xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="using:Pisum.Transcribe.SettingsWindow"
+        xmlns:models="using:Pisum.Transcribe.SpeechModels"
+        Title="Pisum Transcribe Settings"
+        Icon="/Tray/TrayIcon.ico"
+        CanResize="False"
+        CanMaximize="False"
+        SizeToContent="WidthAndHeight"
+        WindowStartupLocation="CenterScreen">
+    <Window.Styles>
+        <Style Selector="Button.dialog">
+            <Setter Property="MinWidth" Value="80" />
+            <Setter Property="Padding" Value="12,4" />
+            <Setter Property="Margin" Value="8,0,0,0" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+        </Style>
+        <Style Selector="TextBlock.sectionTitle">
+            <Setter Property="FontSize" Value="16" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Margin" Value="0,0,0,8" />
+        </Style>
+        <Style Selector="TextBlock.fieldLabel">
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Margin" Value="0,12,0,4" />
+        </Style>
+        <Style Selector="TextBlock.hint">
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="Foreground" Value="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
+            <Setter Property="Margin" Value="0,2,0,0" />
+        </Style>
+        <!-- Shows a message in red and hides the line while there is none. -->
+        <Style Selector="TextBlock.error">
+            <Setter Property="Foreground" Value="{DynamicResource SystemControlErrorTextForegroundBrush}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="Margin" Value="0,4,0,0" />
+            <Setter Property="IsVisible"
+                    Value="{Binding $self.Text, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+        </Style>
+        <Style Selector="RadioButton.option">
+            <Setter Property="Margin" Value="0,2,0,2" />
+        </Style>
+    </Window.Styles>
+
+    <!-- A fixed size that shows every section without scrolling (see SettingsDialogTests), also with downloads running
+         in the model section, and fits a 1280 × 800 screen (1920 × 1200 at 150 %). -->
+    <Grid Width="868" Height="680" Margin="16" ColumnDefinitions="160,*" RowDefinitions="*,Auto,Auto">
+        <ListBox x:Name="Navigation" Grid.Row="0" Grid.Column="0" SelectedIndex="0"
+                 AutomationProperties.Name="Sections">
+            <ListBox.Styles>
+                <Style Selector="ListBoxItem">
+                    <Setter Property="Padding" Value="8,6" />
+                </Style>
+            </ListBox.Styles>
+            <ListBoxItem Content="Dictation" />
+            <ListBoxItem Content="Model" />
+            <ListBoxItem Content="Engine" />
+            <ListBoxItem Content="Text insertion" />
+            <ListBoxItem Content="General" />
+        </ListBox>
+
+        <ScrollViewer x:Name="SectionContent" Grid.Row="0" Grid.Column="1" Margin="16,0,0,0"
+                      VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled">
+            <Panel>
+                <!-- Dictation -->
+                <Panel DataContext="{Binding Dictation}"
+                       IsVisible="{Binding #Navigation.SelectedIndex, Converter={x:Static local:SectionIndexConverter.Instance}, ConverterParameter=0}">
+                    <StackPanel x:DataType="local:DictationSectionViewModel">
+                        <TextBlock Classes="sectionTitle" Text="Dictation" />
+
+                        <TextBlock Classes="fieldLabel" Text="Push-to-talk hotkey" />
+                        <DockPanel>
+                            <Button DockPanel.Dock="Right" Classes="dialog" Content="C_hange…"
+                                    Command="{Binding ChangeHotkeyCommand}" />
+                            <TextBlock VerticalAlignment="Center" Text="{Binding HotkeyName}" />
+                        </DockPanel>
+                        <TextBlock Classes="hint" IsVisible="{Binding IsRecordingHotkey}"
+                                   Text="Hold the new key combination, then release it. Press Esc to cancel." />
+                        <TextBlock Classes="error" Text="{Binding HotkeyError}" />
+
+                        <TextBlock Classes="fieldLabel" Text="Task" />
+                        <RadioButton Classes="option" GroupName="Task"
+                                     Content="_Translate into another language" IsChecked="{Binding IsTranslate}" />
+                        <RadioButton Classes="option" GroupName="Task"
+                                     Content="T_ranscribe in the spoken language" IsChecked="{Binding IsTranscribe}" />
+
+                        <TextBlock Classes="fieldLabel" Text="Spoken language" />
+                        <ComboBox ItemsSource="{Binding SourceOptions}"
+                                  DisplayMemberBinding="{Binding Name, x:DataType=local:LanguageOption}"
+                                  SelectedItem="{Binding SelectedSource}"
+                                  AutomationProperties.Name="Spoken language" />
+                        <TextBlock Classes="error" Text="{Binding SourceLanguageError}" />
+
+                        <StackPanel IsVisible="{Binding IsTranslate}">
+                            <TextBlock Classes="fieldLabel" Text="Translate into" />
+                            <ComboBox ItemsSource="{Binding TargetOptions}"
+                                      DisplayMemberBinding="{Binding Name, x:DataType=local:LanguageOption}"
+                                      SelectedItem="{Binding SelectedTarget}"
+                                      AutomationProperties.Name="Translate into" />
+                            <TextBlock Classes="error" Text="{Binding TargetLanguageError}" />
+                        </StackPanel>
+
+                        <CheckBox Margin="0,16,0,0" Content="Tri_m silence before transcription"
+                                  IsChecked="{Binding TrimSilence}" />
+                        <TextBlock Classes="hint"
+                                   Text="Cuts the silence before and after your speech. Recordings without speech are not transcribed." />
+                    </StackPanel>
+                </Panel>
+
+                <!-- Model -->
+                <Panel DataContext="{Binding Model}"
+                       IsVisible="{Binding #Navigation.SelectedIndex, Converter={x:Static local:SectionIndexConverter.Instance}, ConverterParameter=1}">
+                    <StackPanel x:DataType="local:ModelSectionViewModel">
+                        <TextBlock Classes="sectionTitle" Text="Speech model" />
+                        <TextBlock Classes="hint" Margin="0,0,0,8"
+                                   Text="Select an installed model to use it. Downloads and deletes take effect at once." />
+
+                        <ItemsControl ItemsSource="{Binding Items}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="local:ModelItemViewModel">
+                                    <Border Margin="0,0,0,6" Padding="8,6" BorderThickness="1"
+                                            BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}">
+                                        <StackPanel>
+                                            <DockPanel>
+                                                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal"
+                                                            VerticalAlignment="Top">
+                                                    <Button Classes="dialog" Content="Download"
+                                                            Command="{Binding DownloadCommand}"
+                                                            AutomationProperties.Name="{Binding Model.DisplayName, StringFormat='Download {0}'}">
+                                                        <Button.IsVisible>
+                                                            <MultiBinding Converter="{x:Static BoolConverters.And}">
+                                                                <Binding Path="!IsInstalled" />
+                                                                <Binding Path="!Download.IsDownloading" />
+                                                            </MultiBinding>
+                                                        </Button.IsVisible>
+                                                    </Button>
+                                                    <Button Classes="dialog" Content="Cancel"
+                                                            Command="{Binding CancelDownloadCommand}"
+                                                            IsVisible="{Binding Download.IsDownloading}"
+                                                            AutomationProperties.Name="{Binding Model.DisplayName, StringFormat='Cancel the download of {0}'}" />
+                                                    <Button Classes="dialog" Content="Delete"
+                                                            Command="{Binding DeleteCommand}"
+                                                            IsVisible="{Binding ShowsDelete}"
+                                                            AutomationProperties.Name="{Binding Model.DisplayName, StringFormat='Delete {0}'}" />
+                                                </StackPanel>
+                                                <RadioButton GroupName="Model" IsChecked="{Binding IsSelected}"
+                                                             IsEnabled="{Binding IsInstalled}"
+                                                             AutomationProperties.Name="{Binding Model.DisplayName}">
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <TextBlock FontWeight="SemiBold" Text="{Binding Model.DisplayName}" />
+                                                        <TextBlock Margin="8,0,0,0" Text="(active)"
+                                                                   IsVisible="{Binding IsActive}" />
+                                                    </StackPanel>
+                                                </RadioButton>
+                                            </DockPanel>
+
+                                            <StackPanel Margin="0,4,0,0" Orientation="Horizontal">
+                                                <TextBlock>
+                                                    <Run Text="Download size: " /><Run Text="{Binding Option.SizeText}" />
+                                                </TextBlock>
+                                                <TextBlock Text=" · " />
+                                                <TextBlock Text="Installed" IsVisible="{Binding IsInstalled}" />
+                                                <TextBlock Text="Not installed" IsVisible="{Binding !IsInstalled}" />
+                                            </StackPanel>
+                                            <TextBlock TextWrapping="Wrap">
+                                                <Run Text="Languages: " /><Run Text="{Binding Option.LanguagesText}" />
+                                            </TextBlock>
+
+                                            <StackPanel Margin="0,4,0,0" IsVisible="{Binding Download.IsDownloading}">
+                                                <ProgressBar Height="12" Maximum="100"
+                                                             Value="{Binding Download.ProgressPercent, Mode=OneWay}" />
+                                                <TextBlock Margin="0,2,0,0" Text="{Binding Download.ProgressText}" />
+                                            </StackPanel>
+                                            <TextBlock Classes="error" Text="{Binding Download.ErrorMessage}" />
+                                            <TextBlock Classes="error" Text="{Binding DeleteError}" />
+
+                                            <TextBlock Classes="hint" Margin="0,4,0,0">
+                                                <Run Text="Created by " /><Run Text="{Binding Model.Creator}" /><Run
+                                                    Text=", licensed under " /><InlineUIContainer BaselineAlignment="TextBottom">
+                                                    <HyperlinkButton Padding="0"
+                                                                     Content="{Binding Model.LicenseName}"
+                                                                     Tag="{Binding Model.LicenseUrl}"
+                                                                     Click="OnLicenseClick" />
+                                                </InlineUIContainer><Run Text=". Changes: " /><Run
+                                                    Text="{Binding Model.Changes}" /><Run Text=". Source: " /><Run
+                                                    Text="{Binding Model.SourceRepository}" />
+                                            </TextBlock>
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Panel>
+
+                <!-- Engine: the backend belongs to the model section's view model. -->
+                <Panel DataContext="{Binding Model}"
+                       IsVisible="{Binding #Navigation.SelectedIndex, Converter={x:Static local:SectionIndexConverter.Instance}, ConverterParameter=2}">
+                    <StackPanel x:DataType="local:ModelSectionViewModel">
+                        <TextBlock Classes="sectionTitle" Text="Engine" />
+                        <TextBlock Classes="fieldLabel" Text="Compute backend" />
+                        <RadioButton Classes="option" GroupName="Backend"
+                                     Content="_Auto: the GPU when it works, otherwise the CPU"
+                                     IsChecked="{Binding IsAutoBackend}" />
+                        <RadioButton Classes="option" GroupName="Backend"
+                                     Content="_Vulkan (GPU) only" IsChecked="{Binding IsVulkanBackend}" />
+                        <RadioButton Classes="option" GroupName="Backend"
+                                     Content="C_PU only" IsChecked="{Binding IsCpuBackend}" />
+                        <TextBlock Margin="0,8,0,0" TextWrapping="Wrap">
+                            <Run Text="Status: " /><Run Text="{Binding EngineStatusText}" />
+                        </TextBlock>
+                    </StackPanel>
+                </Panel>
+
+                <!-- Text insertion -->
+                <Panel DataContext="{Binding TextInsertion}"
+                       IsVisible="{Binding #Navigation.SelectedIndex, Converter={x:Static local:SectionIndexConverter.Instance}, ConverterParameter=3}">
+                    <StackPanel x:DataType="local:TextInsertionSectionViewModel">
+                        <TextBlock Classes="sectionTitle" Text="Text insertion" />
+                        <RadioButton Classes="option" GroupName="Insertion"
+                                     Content="_Paste via clipboard" IsChecked="{Binding IsClipboardPaste}" />
+                        <CheckBox Margin="20,2,0,2" Content="_Restore clipboard after paste"
+                                  IsChecked="{Binding RestoreClipboard}" IsEnabled="{Binding CanRestoreClipboard}" />
+                        <RadioButton Classes="option" GroupName="Insertion"
+                                     Content="T_ype text" IsChecked="{Binding IsTypeText}" />
+                        <TextBlock Classes="hint"
+                                   Text="Typing leaves the clipboard alone but is slower for long text." />
+                    </StackPanel>
+                </Panel>
+
+                <!-- General -->
+                <Panel DataContext="{Binding General}"
+                       IsVisible="{Binding #Navigation.SelectedIndex, Converter={x:Static local:SectionIndexConverter.Instance}, ConverterParameter=4}">
+                    <StackPanel x:DataType="local:GeneralSectionViewModel">
+                        <TextBlock Classes="sectionTitle" Text="General" />
+                        <CheckBox Content="Start with _Windows" IsChecked="{Binding StartWithWindows}" />
+                        <TextBlock Classes="hint"
+                                   Text="Starts Pisum Transcribe when you sign in to Windows. Applies to your user account only." />
+
+                        <CheckBox Margin="0,16,0,0" Content="Check for _updates automatically"
+                                  IsChecked="{Binding CheckForUpdates}" />
+                        <TextBlock Classes="hint"
+                                   Text="Asks GitHub once a day whether a new version of Pisum Transcribe exists. Nothing else is sent." />
+                    </StackPanel>
+                </Panel>
+            </Panel>
+        </ScrollViewer>
+
+        <TextBlock Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" Classes="error"
+                   Margin="0,12,0,0" Text="{Binding SaveError}" />
+
+        <StackPanel Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2" Margin="0,16,0,0"
+                    HorizontalAlignment="Right" Orientation="Horizontal">
+            <Button Classes="dialog" IsDefault="True" Content="_Save" Command="{Binding SaveCommand}" />
+            <Button Classes="dialog" IsCancel="True" Content="_Close" Click="OnCloseClick" />
+        </StackPanel>
+    </Grid>
+</Window>

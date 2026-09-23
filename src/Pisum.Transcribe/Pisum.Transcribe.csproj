@@ -2,18 +2,22 @@
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
-    <UseWPF>true</UseWPF>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <Product>Pisum Transcribe</Product>
     <StartupObject>Pisum.Transcribe.Program</StartupObject>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <!-- Also the icon of every window without its own, such as the settings dialog: WPF falls back to the exe icon. -->
     <ApplicationIcon>Tray\TrayIcon.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Avalonia"/>
+    <!-- Turns off Avalonia's build telemetry (see Directory.Packages.props). -->
+    <PackageReference Include="Avalonia.BuildServices" ExcludeAssets="all" PrivateAssets="all"/>
+    <PackageReference Include="Avalonia.HarfBuzz"/>
+    <PackageReference Include="Avalonia.Skia"/>
+    <PackageReference Include="Avalonia.Themes.Fluent"/>
+    <PackageReference Include="Avalonia.Win32"/>
     <PackageReference Include="CommunityToolkit.Mvvm"/>
-    <PackageReference Include="H.NotifyIcon.Wpf"/>
     <PackageReference Include="Microsoft.Extensions.Hosting"/>
     <PackageReference Include="Microsoft.Extensions.Http"/>
     <PackageReference Include="Microsoft.ML.OnnxRuntime"/>
@@ -34,10 +38,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- A Page instead of an ApplicationDefinition, so WPF generates no second Main next to Program.Main. -->
-    <ApplicationDefinition Remove="App.xaml"/>
-    <Page Include="App.xaml"/>
     <EmbeddedResource Include="Tray\TrayIcon.ico"/>
+    <!-- The title bar and taskbar icon of the windows, which Avalonia doesn't take from the exe. -->
+    <AvaloniaResource Include="Tray\TrayIcon.ico"/>
     <EmbeddedResource Include="Tray\Windows\*.ico"/>
     <None Include="VoiceActivity\Assets\silero_vad.onnx" CopyToOutputDirectory="PreserveNewest"/>
     <!-- The icon of the notification registration, which Windows reads from a file next to the exe. -->
