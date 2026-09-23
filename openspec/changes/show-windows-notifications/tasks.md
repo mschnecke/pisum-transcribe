@@ -30,7 +30,7 @@
 
 ## 5. Packaging
 
-- [ ] 5.1 Add an uninstall-only removal of `HKCU\Software\Classes\AppUserModelId\Pisum.Transcribe` to `Pisum.Transcribe.wxs`: `reg.exe delete ... /f` through `WixQuietExec64`, with `Return="ignore"` and the condition `REMOVE="ALL" AND NOT UPGRADINGPRODUCTCODE`, as for the startup entry. Verify: `build-msi.ps1` builds and validates the MSI, and the check in task 6.1 passes.
+- [x] 5.1 Add an uninstall-only removal of `HKCU\Software\Classes\AppUserModelId\Pisum.Transcribe` to `Pisum.Transcribe.wxs`: `reg.exe delete ... /f` through `WixQuietExec64`, with `Return="ignore"` and the condition `REMOVE="ALL" AND NOT UPGRADINGPRODUCTCODE`, as for the startup entry. Verify: `build-msi.ps1` builds and validates the MSI, and the check in task 6.1 passes.
 - [x] 5.2 Add the Windows SDK projection (`Microsoft.Windows.SDK.NET`) and C#/WinRT (`WinRT.Runtime`) to `THIRD-PARTY-NOTICES.md`, with the license texts their packages carry. Verify: both files in the published folder have an entry, as the `packaging` notices requirement asks.
 
 ## 6. Check by hand and documentation
