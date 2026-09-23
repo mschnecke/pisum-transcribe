@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Pisum.Transcribe.SettingsWindow;
 
@@ -17,7 +18,8 @@ internal static class SettingsWindowServiceCollectionExtensions
     /// <returns>The same service collection, for chaining.</returns>
     public static IServiceCollection AddSettingsWindow(this IServiceCollection services)
     {
-        services.AddSingleton<IUserRegistry, UserRegistry>();
+        // Shared with the notification registration.
+        services.TryAddSingleton<IUserRegistry, UserRegistry>();
         services.AddSingleton<StartupRegistration>();
         services.AddSingleton<IStartupRegistration>(provider => provider.GetRequiredService<StartupRegistration>());
         services.AddHostedService(provider => provider.GetRequiredService<StartupRegistration>());

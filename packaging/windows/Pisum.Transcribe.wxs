@@ -102,6 +102,22 @@
         Impersonate="yes"
         Return="ignore" />
 
+    <!-- The same for the notification registration, the AppUserModelID key the app writes at every
+         start (show-windows-notifications, design D2). An upgrade keeps it, and with it the user's
+         notification setting for the app. -->
+    <SetProperty
+        Id="RemoveNotificationRegistration"
+        Before="RemoveNotificationRegistration"
+        Sequence="execute"
+        Value="&quot;[System64Folder]reg.exe&quot; delete &quot;HKCU\Software\Classes\AppUserModelId\Pisum.Transcribe&quot; /f" />
+    <CustomAction
+        Id="RemoveNotificationRegistration"
+        BinaryRef="Wix4UtilCA_X64"
+        DllEntry="WixQuietExec64"
+        Execute="deferred"
+        Impersonate="yes"
+        Return="ignore" />
+
     <!-- A tray app shows nothing after a plain install, and an upgrade has closed the running one,
          so an interactive install starts the app when it finishes (design D9). UILevel is 5 when
          the package is opened, and 2 or 3 for /qn and /passive, which don't start it. A failed
@@ -125,6 +141,10 @@
           Condition="REMOVE=&quot;ALL&quot; AND NOT UPGRADINGPRODUCTCODE" />
       <Custom
           Action="RemoveStartupApproved"
+          Before="InstallFinalize"
+          Condition="REMOVE=&quot;ALL&quot; AND NOT UPGRADINGPRODUCTCODE" />
+      <Custom
+          Action="RemoveNotificationRegistration"
           Before="InstallFinalize"
           Condition="REMOVE=&quot;ALL&quot; AND NOT UPGRADINGPRODUCTCODE" />
       <Custom

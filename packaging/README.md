@@ -82,10 +82,10 @@ The spike on 2026-09-22 installed the package by opening it: Windows Installer r
 
 ### Uninstall cleanup
 
-The app, not the MSI, owns "Start with Windows": the value `Pisum Transcribe` under `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`, and the value of the same name that Task Manager writes under `…\Explorer\StartupApproved\Run` to disable it. On uninstall, two deferred, impersonated `WixQuietExec64` custom actions delete both values with `reg.exe`.
+The app, not the MSI, owns "Start with Windows": the value `Pisum Transcribe` under `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`, and the value of the same name that Task Manager writes under `…\Explorer\StartupApproved\Run` to disable it. On uninstall, two deferred, impersonated `WixQuietExec64` custom actions delete both values with `reg.exe`. The app also owns its notification registration, the key `HKCU\Software\Classes\AppUserModelId\Pisum.Transcribe` that it writes at every start, and a third custom action of the same kind deletes that key.
 
-- They run only on a real uninstall (`REMOVE="ALL" AND NOT UPGRADINGPRODUCTCODE`), so an upgrade keeps the entry.
-- They ignore failures: `reg.exe` exits with 1 when a value doesn't exist, and a failed cleanup must never block an uninstall.
+- They run only on a real uninstall (`REMOVE="ALL" AND NOT UPGRADINGPRODUCTCODE`), so an upgrade keeps the entry, the key and the user's notification setting for the app.
+- They ignore failures: `reg.exe` exits with 1 when a value or key doesn't exist, and a failed cleanup must never block an uninstall.
 - `%LOCALAPPDATA%\Pisum Transcribe\`, with the settings, the logs and the models, isn't the MSI's and stays. A reinstall uses it again.
 
 ### The pins

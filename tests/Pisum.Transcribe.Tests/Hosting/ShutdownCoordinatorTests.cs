@@ -87,22 +87,18 @@ public sealed class ShutdownCoordinatorTests : IDisposable
     }
 
     [Fact]
-    public async Task RequestShutdownAsync_Error_KeepsIconForNotificationDurationAfterStoppingHost()
+    public async Task RequestShutdownAsync_Error_NotifiesStopsHostThenRemovesIconWithoutWaiting()
     {
         // Act
-        var shutdown = _sut.RequestShutdownAsync(ShutdownReason.Error);
-        _timeProvider.Advance(ShutdownCoordinator.ErrorNotificationDuration - TimeSpan.FromTicks(1));
-        var removedBeforeDuration =
-            Fake.GetCalls(_trayIcon).Any(call => call.Method.Name == nameof(ITrayIconService.Remove));
-        _timeProvider.Advance(TimeSpan.FromTicks(1));
-        await shutdown.WaitAsync(SignalTimeout, TestContext.Current.CancellationToken);
+        await _sut.RequestShutdownAsync(ShutdownReason.Error)
+            .WaitAsync(SignalTimeout, TestContext.Current.CancellationToken);
 
         // Assert
-        removedBeforeDuration.ShouldBeFalse();
         _applicationShutdowns.ShouldBe([1]);
         A.CallTo(() => _notifier.Show(A<string>._, A<string>._)).MustHaveHappenedOnceExactly()
             .Then(A.CallTo(() => _host.StopAsync(A<CancellationToken>._)).MustHaveHappenedOnceExactly())
-            .Then(A.CallTo(() => _trayIcon.Remove()).MustHaveHappenedOnceExactly());
+            .Then(A.CallTo(() => _trayIcon.Remove()).MustHaveHappenedOnceExactly())
+            .Then(A.CallTo(() => _host.Dispose()).MustHaveHappenedOnceExactly());
     }
 
     [Fact]

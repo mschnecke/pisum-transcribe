@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Pisum.Transcribe.Dictation;
+using Pisum.Transcribe.Notifications;
 using Pisum.Transcribe.Recording;
 using Pisum.Transcribe.Settings;
 using Pisum.Transcribe.SettingsWindow;
@@ -41,6 +42,7 @@ internal static class AppHost
         builder.Services.AddSingleton<IUiDispatcher>(new WpfUiDispatcher(Application.Current.Dispatcher));
 
         builder.Services.AddTray();
+        builder.Services.AddNotifications();
         builder.Services.AddSettings();
         builder.Services.AddSpeechModels();
         builder.Services.AddTranscription();
