@@ -114,17 +114,6 @@ internal sealed class TrayIconService : ITrayIconService
         _taskbarIcon.ToolTipText = toolTip;
     }
 
-    /// <summary>
-    /// Shows a notification as a balloon tip from the tray icon, for <see cref="TrayBalloonNotifier"/>. Call it on the
-    /// UI thread.
-    /// </summary>
-    /// <param name="title">The notification title.</param>
-    /// <param name="message">The notification text.</param>
-    internal void ShowNotification(string title, string message)
-    {
-        _taskbarIcon.ShowNotification(title, message);
-    }
-
     /// <inheritdoc />
     public void Remove()
     {

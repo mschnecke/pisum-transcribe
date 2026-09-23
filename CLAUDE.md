@@ -14,15 +14,16 @@ Pisum Transcribe is a Windows push-to-talk dictation app that runs in the system
 ## Layout
 
 ```
-src/Pisum.Transcribe/            WPF tray app (WinExe, net10.0-windows, win-x64), no main window
+src/Pisum.Transcribe/            WPF tray app (WinExe, net10.0-windows10.0.19041.0 for the WinRT toast API, win-x64), no main window
   Program.cs                     Entry point: single-instance guard, bootstrap logger, App.Run
   App.xaml(.cs)                  Builds and starts the host, creates ShutdownCoordinator, handles the end of the Windows session
   NativeMethods.txt              Win32 functions that CsWin32 generates into Windows.Win32.PInvoke
   Hosting/                       AppHost, AppPaths, SingleInstanceGuard, ShutdownCoordinator, DispatcherWait, IUiDispatcher (WpfUiDispatcher), logging setup
-  Tray/                          ITrayIconService (menu items, TrayStatus icon), TrayIconService (H.NotifyIcon, status icons per taskbar mode), TrayBalloonNotifier, ITaskbarModeWatcher; TrayIcon.svg (the app icon) with the TrayIcon.ico and TrayIcon.png (256 px) generated from it, and TrayGlyph.svg (the monochrome status glyph)
+  Tray/                          ITrayIconService (menu items, TrayStatus icon), TrayIconService (H.NotifyIcon, status icons per taskbar mode), ITaskbarModeWatcher; TrayIcon.svg (the app icon) with the TrayIcon.ico and TrayIcon.png (256 px) generated from it, and TrayGlyph.svg (the monochrome status glyph)
     Windows/                     The status ICOs generated from TrayGlyph.svg (embedded), TaskbarModeWatcher (SystemUsesLightTheme, RegNotifyChangeKeyValue)
     MacOS/                       The menu bar PNGs generated from TrayGlyph.svg (@1x and @2x, templates for ready and unavailable), not referenced by the project yet
-  Notifications/                 INotifier, which shows a notification from any thread
+  Notifications/                 INotifier, which shows a notification from any thread; AddNotifications()
+    Windows/                     ToastNotifier (WinRT toasts behind IToastSender), ToastRegistration (the AppUserModelID Pisum.Transcribe under HKCU\Software\Classes at every start)
   Settings/                      AppSettings and its section records, ISettingsStore, JsonSettingsStore
   SpeechModels/                  ModelCatalog, IModelStore/ModelStore (download, verify), setup window, tray item
   Transcription/                 ITranscriber, TranscribeCppTranscriber (worker, fallback), native seam and adapter, hosted service

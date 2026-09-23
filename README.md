@@ -15,14 +15,14 @@ Speech recognition runs on your computer with an NVIDIA Canary model and the [tr
 
 ## Requirements
 
-- Windows 10 or 11, x64
+- Windows 10 version 2004 or later, or Windows 11, x64
 - A microphone
 - A GPU with a Vulkan driver is optional. Without one, the model runs on the CPU.
 - 0.2 to 1.1 GB of disk space for a speech model, and about 230 MB for the app
 
 ## Getting started
 
-1. Download `Pisum.Transcribe_<version>_win-x64.msi` from the [latest release](https://github.com/mschnecke/pisum-transcribe/releases). It is about 72 MB.
+1. Download `Pisum.Transcribe_<version>_win-x64.msi` from the [latest release](https://github.com/mschnecke/pisum-transcribe/releases). It is about 77 MB.
 2. Open it. The installer isn't code-signed, so Windows SmartScreen may show **Windows protected your PC**. Choose **More info**, then **Run anyway**.
 
 The installer asks no questions and needs no administrator rights. It installs the app for your user into `%LOCALAPPDATA%\Programs\Pisum Transcribe\`, about 230 MB, and adds **Pisum Transcribe** to the Start Menu. Nothing else needs to be installed: the installer contains .NET and the Visual C++ runtime. A GPU with a Vulkan driver is optional.
@@ -150,6 +150,7 @@ The app is a WPF app on the .NET Generic Host, with no main window. Each feature
 |---|---|
 | `Hosting/` | Host setup, single instance, logging and shutdown |
 | `Tray/` | Tray icon and menu, the app icon and the status glyph, whose icons `tools/generate-tray-icon.cs` renders |
+| `Notifications/` | Windows notifications from Pisum Transcribe |
 | `Settings/` | Settings model and JSON store |
 | `SpeechModels/` | Model catalog, download and verification, setup window |
 | `Transcription/` | transcribe.cpp engine with Vulkan and CPU fallback |

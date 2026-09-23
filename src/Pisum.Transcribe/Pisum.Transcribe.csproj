@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net10.0-windows</TargetFramework>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
     <UseWPF>true</UseWPF>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <Product>Pisum Transcribe</Product>
@@ -40,5 +40,14 @@
     <EmbeddedResource Include="Tray\TrayIcon.ico"/>
     <EmbeddedResource Include="Tray\Windows\*.ico"/>
     <None Include="VoiceActivity\Assets\silero_vad.onnx" CopyToOutputDirectory="PreserveNewest"/>
+    <!-- The icon of the notification registration, which Windows reads from a file next to the exe. -->
+    <None Include="Tray\TrayIcon.png" Link="TrayIcon.png" CopyToOutputDirectory="PreserveNewest"/>
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The Windows projection for toasts. ReadyToRun would double its size for code that runs a few times per
+         session (design D5 of show-windows-notifications). -->
+    <PublishReadyToRunExclude Include="Microsoft.Windows.SDK.NET.dll"/>
+    <PublishReadyToRunExclude Include="WinRT.Runtime.dll"/>
   </ItemGroup>
 </Project>

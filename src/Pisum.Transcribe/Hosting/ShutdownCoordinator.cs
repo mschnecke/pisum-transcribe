@@ -12,9 +12,9 @@ namespace Pisum.Transcribe.Hosting;
 /// <remarks>
 /// Create it on the UI thread. The shutdown runs once: it starts a watchdog that ends the process after
 /// <see cref="ExitTimeout"/>, removes the tray icon (at once for <see cref="ShutdownReason.UserExit"/> and
-/// <see cref="ShutdownReason.SessionEnd"/>; for <see cref="ShutdownReason.Error"/> after the host has stopped and the
-/// error notification was shown for <see cref="ErrorNotificationDuration"/>), stops and disposes the host, and shuts
-/// down the WPF application.
+/// <see cref="ShutdownReason.SessionEnd"/>; for <see cref="ShutdownReason.Error"/> after the error notification and after
+/// the host has stopped), stops and disposes the host, and shuts down the WPF application. The error notification is a
+/// Windows toast, which stays in the notification center after the process has ended.
 /// </remarks>
 internal sealed class ShutdownCoordinator
 {
@@ -23,12 +23,6 @@ internal sealed class ShutdownCoordinator
     /// process has ended by then.
     /// </summary>
     public static readonly TimeSpan ExitTimeout = TimeSpan.FromSeconds(4.5);
-
-    /// <summary>
-    /// The minimum time the tray icon stays after the error notification. The notification is a balloon tip of the tray
-    /// icon (<see cref="TrayBalloonNotifier"/>), and removing the icon dismisses a balloon.
-    /// </summary>
-    public static readonly TimeSpan ErrorNotificationDuration = TimeSpan.FromSeconds(3);
 
     private readonly IHost _host;
     private readonly ITrayIconService _trayIcon;
@@ -122,7 +116,6 @@ internal sealed class ShutdownCoordinator
             _watchdog = _timeProvider.CreateTimer(_ => OnWatchdogElapsed(exitCode), null, ExitTimeout,
                 Timeout.InfiniteTimeSpan);
 
-            var notificationShown = 0L;
             if (reason != ShutdownReason.Error)
             {
                 _trayIcon.Remove();
@@ -132,7 +125,6 @@ internal sealed class ShutdownCoordinator
                 _notifier.Show(
                     "Pisum Transcribe stopped",
                     "Pisum Transcribe stopped because of an error. Details are in the log.");
-                notificationShown = _timeProvider.GetTimestamp();
             }
 
             // Awaited instead of blocking the UI thread, so services that marshal to it while they stop do not deadlock.
@@ -140,12 +132,6 @@ internal sealed class ShutdownCoordinator
 
             if (reason == ShutdownReason.Error)
             {
-                var remaining = ErrorNotificationDuration - _timeProvider.GetElapsedTime(notificationShown);
-                if (remaining > TimeSpan.Zero)
-                {
-                    await Task.Delay(remaining, _timeProvider);
-                }
-
                 _trayIcon.Remove();
             }
 

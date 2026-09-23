@@ -114,9 +114,9 @@ graph TD
 | 26 | [GitHub #21](https://github.com/mschnecke/pisum-transcribe/issues/21) | `add-macos-login-item` | GitHub #15 | Open at login |
 | 27 | [GitHub #22](https://github.com/mschnecke/pisum-transcribe/issues/22) | `add-macos-packaging` | GitHub #20, #21 | An unsigned `.pkg` with the project's own certificate, upgrades like the MSI's, a Homebrew tap, lockstep releases |
 
-**Planning state on 2026-09-22:**
-- **Ready for `/opsx:apply`:** GitHub #10, #11 and #12, fully planned.
-- **GitHub #13** has its proposal and design. Its spec deltas follow a first check on Windows.
+**Planning state on 2026-09-23:**
+- **Done:** GitHub #10, #11 and #12, merged in pull requests #24, #25 and #26.
+- **GitHub #13** is implemented and archived in pull request #27, which isn't merged yet. The registration was checked on Windows 11 only. The check on Windows 10 22H2 was skipped, so the shortcut fallback in its design D2 still applies if toasts don't show there.
 - **GitHub #14 and #15** have their proposals and designs. Their spec deltas and tasks wait for the spike.
 - **GitHub #16–#22** have no OpenSpec change yet.
 
