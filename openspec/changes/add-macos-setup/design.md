@@ -180,7 +180,7 @@ It logs once that permissions are skipped outside an app bundle.
 
 - **[Ad hoc signed dev builds lose their grants at every build]** → shell D9's self-signed identity. `CLAUDE.md` already describes it, and the setup window now makes a lost grant visible instead of silent.
 - **[The Paste from other apps link isn't documented by Apple, and a later macOS could rename the anchor]** → it was checked on macOS 27.0 (D2). Should it stop working, the page falls back to Privacy & Security.
-- **[The relaunch ends the settings window while it's open, like Quit]** → accepted. A grant while the settings window has unsaved edits is rare, and Quit behaves the same way today.
+- **[The relaunch closes an open settings window and drops its unsaved edits]** → accepted (user decision, 2026-09-23). `settings-window` "Save and close" already discards unsaved edits without asking when the window closes or the application exits. The only case where the window asks is a running download, and the relaunch waits for that (D4). Waiting for unsaved edits too could delay the relaunch forever.
 - **[The notification prompt and the window appear together]** → that's the choice in close rule C. The prompt comes from macOS and doesn't block the window.
 - **[`AXIsProcessTrustedWithOptions`'s prompt doesn't appear again after the first time]** → macOS shows it once per app. The row's **Allow…** then also opens `Privacy_Accessibility` directly, so the button always leads somewhere.
 - **[A relaunch while `open -n` fails, for example with the bundle moved while running]** → the coordinator logs the failure and still quits, as the user has granted and expects a restart. The next manual start works.
