@@ -43,6 +43,27 @@ When the application starts and the selected model is not installed, it SHALL op
 - **WHEN** on macOS the selected model is installed and both required permissions are granted, and the user hasn't answered the notification permission
 - **THEN** the setup window closes
 
+### Requirement: Reopening setup from the tray
+While the selected model is not installed, the tray menu SHALL contain a **Download model…** item that opens the setup window. While the selected model is installed, the item SHALL be hidden. Whether the item is shown SHALL reflect the installed state at the moment the tray menu opens, including when a model file was removed while the application runs. On macOS, when the application runs as an app bundle, the **Set up Pisum Transcribe…** item takes the place of **Download model…** and is also shown while a required permission is missing (see `macos-permissions`); there the scenarios below hold for that item.
+
+#### Scenario: User closed setup without downloading
+- **WHEN** the user closes the setup window without downloading
+- **THEN** the application keeps running in the tray
+- **AND** the tray menu shows **Download model…**
+
+#### Scenario: Selected model installed
+- **WHEN** the download of the selected model succeeds
+- **THEN** the next time the user opens the tray menu, it does not show **Download model…**
+
+#### Scenario: Model file removed while running
+- **WHEN** the selected model is installed and its file is deleted while the application runs
+- **THEN** the next time the user opens the tray menu, it shows **Download model…**
+
+#### Scenario: Combined item on macOS
+- **WHEN** the application runs on macOS as an app bundle and the user closes the setup window without downloading
+- **THEN** the menu bar menu shows **Set up Pisum Transcribe…**
+- **AND** it doesn't show **Download model…**
+
 ## ADDED Requirements
 
 ### Requirement: Models folder excluded from backups

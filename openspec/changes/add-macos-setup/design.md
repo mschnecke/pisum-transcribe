@@ -31,7 +31,7 @@ See proposal.md for the motivation. The decisions come from the section "Decided
 
 - A new feature folder `Permissions/` (namespace `Pisum.Transcribe.Permissions`):
   - platform-neutral: `IPermissions` (the state of each permission, `Changed`, the request calls), `Permission` and `PermissionState` enums, and `PermissionsViewModel` with the four rows
-  - `Permissions/MacOS/`: `MacPermissions` (the checks and requests, D2 and D3), `RelaunchService` (D4) and `PermissionsHostedService` (the polling and the menu item, D5)
+  - `Permissions/MacOS/`: `MacPermissions` (the checks and requests, D2 and D3) and `RelaunchService` (D4, with the background check of D5)
 - `AddPermissions()` registers the macOS types. `AppHost.Create` calls it only on macOS (`#if !WINDOWS`, next to the other per-platform feature choices of shell D14).
 - `ModelSetupViewModel` takes `PermissionsViewModel?`, which is `null` on Windows and outside an app bundle. The window shows the permission part only when it's set. This is the pattern `SettingsViewModel` already uses for the optional `IStartupRegistration` (shell D14).
 - On macOS the heading changes to "Set up Pisum Transcribe". When the selected model is already installed, the model part collapses to one line ("Speech model: Canary 1B Flash, installed"), so a window opened only for a permission doesn't offer a download.
@@ -107,8 +107,18 @@ New and changed functions in `src/Pisum.Transcribe.MacNative/`. One `.swift` fil
 
 - **While the setup window is open:** `PermissionsViewModel` refreshes every 1 s. A refresh is two C calls, one helper call and one asynchronous notification-settings call. That meets "within 2 seconds".
 - **While the window is closed,** only Accessibility is checked, every 2 s, and only while it isn't granted in this process. That's all the relaunch needs (spec: within 10 s). A granted process stops checking, so an idle app with its permissions in place does nothing.
-- **Set up permissions…** is added with `ITrayIconService.AddMenuItem("Set up permissions…", ShowSetup, isVisible)`. `isVisible` reads Accessibility and the microphone status when the menu opens, as **Download model…** reads the model. So a revoked grant needs no polling.
-- Both menu items open the same window through the setup service. On macOS, `ModelSetupHostedService` exposes `ShowWindow` to the permissions feature through a small `ISetupWindow` interface, so there is one window instance.
+- **One menu item** (user decision, 2026-09-23). `ModelSetupHostedService` keeps adding the only setup item, and picks its label and its visibility by whether a `PermissionsViewModel` is set (D1):
+
+  | Platform | Label | `isVisible` |
+  |---|---|---|
+  | Windows | **Download model…** | the model isn't installed |
+  | macOS, app bundle | **Set up Pisum Transcribe…** | the model isn't installed, or Accessibility or the microphone isn't granted |
+  | macOS, no bundle (D8) | **Download model…** | the model isn't installed |
+
+  `isVisible` runs when the menu opens, so a revoked grant needs no polling.
+- The permissions feature adds no menu item of its own. It reaches the window for the relaunch notice (D4) through a small `ISetupWindow` interface that `ModelSetupHostedService` implements, so there is one window instance.
+
+*Rejected:* a separate **Set up permissions…** next to **Download model…**. With no model and no grants, both would show and open the same window.
 
 ### D6: The Paste from other apps row
 
@@ -134,7 +144,7 @@ New and changed functions in `src/Pisum.Transcribe.MacNative/`. One `.swift` fil
 
 With `pisum_has_bundle() == 0` (the bare executable, and the macOS `Integration` tests' host), permissions belong to the terminal. `AddPermissions()` then registers nothing but a null `PermissionsViewModel`:
 - no rows
-- no menu item
+- **Download model…** as on Windows, instead of **Set up Pisum Transcribe…**
 - no relaunch
 - the window follows the Windows rule
 

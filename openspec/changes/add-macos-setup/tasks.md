@@ -34,14 +34,14 @@ The order follows the dependencies. First the helper ABI and the CoreFoundation 
 - [ ] 3.2 Implement the requests (spec `macos-permissions` "Asking for Accessibility and Microphone"): the microphone prompt when not determined, otherwise its settings link; the Accessibility prompt, plus its settings link after the first time. Verify: unit tests with a fake `IPermissions` and a fake URL opener see the right call per state.
 - [ ] 3.3 Implement the Paste row (D6): the probe once per process on a thread-pool thread when the window opens at state 0, and **Open Settings…** at 1 and 3. Check the Paste from other apps settings URL on macOS 27 (Open Questions), falling back to Privacy & Security. Verify: unit tests see the probe only at state 0, only once, and never on the UI thread (a fake dispatcher records the thread).
 - [ ] 3.4 Add the 1 s refresh while the window is open and the notification request at window open when not determined (D5, D7), through `TimeProvider`. Verify: with `FakeTimeProvider`, a changed fake state shows in the row after 1 s, and the request is made once only when not determined.
-- [ ] 3.5 Add `AddPermissions()`, registered in `AppHost.Create` on macOS only (D1). Outside an app bundle it registers no rows, no menu item and no relaunch, and logs once (D8, spec "Permissions outside an app bundle"). Verify: the macOS host-building test resolves every hosted service, and a unit test with `has_bundle` faked to 0 gets a null `PermissionsViewModel` and the log entry.
+- [ ] 3.5 Add `AddPermissions()`, registered in `AppHost.Create` on macOS only (D1). Outside an app bundle it registers no rows and no relaunch, so the menu keeps **Download model…**, and logs once (D8, spec "Permissions outside an app bundle"). Verify: the macOS host-building test resolves every hosted service, and a unit test with `has_bundle` faked to 0 gets a null `PermissionsViewModel` and the log entry.
 
 ## 4. The setup window
 
 - [ ] 4.1 Give `ModelSetupViewModel` the optional `PermissionsViewModel` and the `IsComplete` close rule (D7, spec `model-management` "First-run setup"). Verify: headless tests with fakes close the window in either order (model first, grants first), keep it open while only optional rows are open, and the Windows rule (no permissions) closes after the download as today.
 - [ ] 4.2 Extend `ModelSetupWindow.axaml`: the permission part (only when set), the heading "Set up Pisum Transcribe" on macOS, and the collapsed model line when the model is installed (D1). Compiled bindings with `x:DataType`. Verify: a headless test finds the four rows with the view model set and none without it, and the collapsed line when the model is installed.
 - [ ] 4.3 Let `ModelSetupHostedService` open the window at startup when `IsComplete` is false, and expose one window instance through `ISetupWindow` (D5). Verify: unit tests open the window with the model installed and a required grant missing (macOS), and not with everything complete.
-- [ ] 4.4 Add **Set up permissions…** to the menu, visible while Accessibility or the microphone is not granted (D5, spec "Set up permissions menu item"). Verify: a unit test with a fake `ITrayIconService` sees the item's visibility follow the fake grants, read at the moment the check runs.
+- [ ] 4.4 Make the setup menu item one item per platform (D5, spec `macos-permissions` "Set up menu item", `model-management` "Reopening setup from the tray"): **Download model…** on Windows and without a bundle, and **Set up Pisum Transcribe…** on macOS with a bundle, visible while the model or a required grant is missing. Verify: unit tests with a fake `ITrayIconService` see exactly one setup item in each of the three cases, with its label, and its visibility following the fake model and grants at the moment the check runs.
 
 ## 5. The relaunch
 
@@ -62,7 +62,7 @@ The order follows the dependencies. First the helper ABI and the CoreFoundation 
   - granting the microphone updates the row within 2 s
   - granting Accessibility during the download shows the waiting text, and the app relaunches after the download
   - after the relaunch the window stays closed
-  - revoking the microphone brings back **Set up permissions…**
+  - revoking the microphone brings back **Set up Pisum Transcribe…**
   - `tmutil isexcluded` reports the models folder
 
   Verify: every step as described, noted in the PR.

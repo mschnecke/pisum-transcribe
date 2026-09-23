@@ -71,16 +71,25 @@ On macOS, when Accessibility turns from not granted to granted while the applica
 - **WHEN** the setup window is closed and the user grants Accessibility in System Settings
 - **THEN** the application restarts within 10 seconds
 
-### Requirement: Set up permissions menu item
-On macOS, while Accessibility or the microphone permission is not granted, the menu bar menu SHALL contain a **Set up permissions…** item that opens the setup window. While both are granted, the item SHALL be hidden. Whether the item is shown SHALL reflect the permissions at the moment the menu opens, including a permission revoked while the application runs.
+### Requirement: Set up menu item
+On macOS, the menu bar menu SHALL contain one **Set up Pisum Transcribe…** item, in place of **Download model…**, that opens the setup window. It SHALL be shown while the selected model is not installed, or Accessibility or the microphone permission is not granted, and hidden otherwise. Whether the item is shown SHALL reflect the model and the permissions at the moment the menu opens, including a model file removed or a permission revoked while the application runs.
 
 #### Scenario: Setup closed with a permission missing
-- **WHEN** the user closes the setup window while the microphone permission is not granted
-- **THEN** the menu bar menu shows **Set up permissions…**
+- **WHEN** the selected model is installed and the user closes the setup window while the microphone permission is not granted
+- **THEN** the menu bar menu shows **Set up Pisum Transcribe…**
+- **AND** it doesn't show **Download model…**
+
+#### Scenario: Setup closed without a model
+- **WHEN** both required permissions are granted and the user closes the setup window without downloading
+- **THEN** the menu bar menu shows **Set up Pisum Transcribe…**
 
 #### Scenario: Permission revoked while running
-- **WHEN** both required permissions are granted and the user turns off the microphone permission in System Settings
-- **THEN** the next time the user opens the menu bar menu, it shows **Set up permissions…**
+- **WHEN** the selected model is installed, both required permissions are granted, and the user turns off the microphone permission in System Settings
+- **THEN** the next time the user opens the menu bar menu, it shows **Set up Pisum Transcribe…**
+
+#### Scenario: Setup complete
+- **WHEN** the selected model is installed and both required permissions are granted
+- **THEN** the menu bar menu shows neither **Set up Pisum Transcribe…** nor **Download model…**
 
 ### Requirement: Paste from other apps
 On macOS, the **Paste from other apps** row SHALL show as granted when the system lets Pisum Transcribe read the pasteboard without asking, and on a macOS version without pasteboard privacy. When the system's pasteboard access is still at its default, the application SHALL read the pasteboard once while the setup window is open, so that macOS asks the user there and lists Pisum Transcribe in its settings, rather than during a dictation. When the access asks on every read, the row SHALL lead the user to the Paste from other apps setting in System Settings, where they can always allow it. When the access is denied, the row SHALL show as denied. The window SHALL NOT stay open because of this row.
@@ -94,8 +103,9 @@ On macOS, the **Paste from other apps** row SHALL show as granted when the syste
 - **THEN** the Paste from other apps row offers to open the setting in System Settings
 
 ### Requirement: Permissions outside an app bundle
-When the application runs on macOS without an app bundle, for example as the bare executable from a terminal, the setup window SHALL show no permission rows, the application SHALL NOT restart itself, and the menu SHALL NOT show **Set up permissions…**, because the permissions then belong to the terminal and not to Pisum Transcribe. The application SHALL log that the permissions are skipped.
+When the application runs on macOS without an app bundle, for example as the bare executable from a terminal, the setup window SHALL show no permission rows, the application SHALL NOT restart itself, and the menu SHALL show **Download model…** as on Windows instead of **Set up Pisum Transcribe…**, because the permissions then belong to the terminal and not to Pisum Transcribe. The application SHALL log that the permissions are skipped.
 
 #### Scenario: Started without a bundle
 - **WHEN** the application runs on macOS without an app bundle and the selected model is not installed
 - **THEN** the setup window shows only the model part
+- **AND** the menu shows **Download model…**
