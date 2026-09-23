@@ -39,8 +39,8 @@ The order follows the design's Migration Plan. Group 1 makes the project compile
 
 ## 6. The end of the session and `SIGTERM`
 
-- [ ] 6.1 Add `pisum_current_quit_reason()` to the helper (D5). It reads `'why?'` from `NSAppleEventManager.currentAppleEvent` and maps `'rlgo'` and `'logo'` to log out, `'rest'` to restart, `'shut'` to shut down, and no reason to none. Verify: a macOS `Integration` test outside a quit event gets none.
-- [ ] 6.2 On macOS, the `ShutdownRequested` handler asks for the quit reason: a session reason ends with `SessionEnd`, and none with `UserExit` (D5). It keeps waiting through `DispatcherWait.Until` and never cancels. Verify: a unit test with a fake reason source covers both. On the Mac, a quit Apple event with the logout reason, sent to the dev bundle as in the spike, leaves `Shutting down, reason "SessionEnd"` in the log, and a plain quit event leaves `UserExit`. The real logout is checked in task 10.2.
+- [ ] 6.1 Add `pisum_current_quit_sender_pid()` to the helper (D5). It reads `keySenderPIDAttr` from `NSAppleEventManager.currentAppleEvent`, and returns 0 without a current event. The C# wrapper gets the sender's name with libc's `proc_name`. Verify: a macOS `Integration` test outside a quit event gets 0, and a test gets its own process name from `proc_name` with its own pid.
+- [ ] 6.2 On macOS, the `ShutdownRequested` handler asks for the quit event's sender: `loginwindow` ends with `SessionEnd`, and any other sender with `UserExit` (D5). It keeps waiting through `DispatcherWait.Until` and never cancels. Verify: a unit test with a fake sender source covers both. On the Mac, a quit sent with `osascript` leaves `Shutting down, reason "UserExit"` in the log. The logout is checked in task 10.2.
 - [ ] 6.3 Add `ShutdownReason.TerminationRequest`, handled like `UserExit` (D5), and on macOS register `PosixSignalRegistration` for `SIGTERM`: cancel the default handling and call `RequestShutdownAsync(ShutdownReason.TerminationRequest)`. Verify: `ShutdownCoordinatorTests` cover the new reason's exit code 0 and the icon removed at once, and a macOS `Integration` test sends `SIGTERM` to the dev bundle's process and sees `Shutting down, reason "TerminationRequest"` in the log and the process gone within 5 s.
 - [ ] 6.4 On macOS, `ExitProcess` calls libc's `_exit(code)` after `Log.CloseAndFlush()` (D5). Verify: **Quit Pisum Transcribe** ends the dev bundle with exit code 0 within 5 s, and the log ends with the shutdown entries.
 
@@ -64,7 +64,8 @@ The order follows the design's Migration Plan. Group 1 makes the project compile
 - [ ] 10.2 Check by hand on the Mac with the dev bundle, signed with a local identity (Migration Plan step 3). Verify each:
   - the menu bar icon in light and dark mode, no Dock icon, and no entry in the app switcher
   - **Quit Pisum Transcribe** ends the app within 5 s
-  - a real logout while the app runs: no delay, no "interrupted" message, and `SessionEnd` in the log. If the log shows `UserExit`, add the `NSWorkspace.willPowerOffNotification` fallback (D5) before the pull request.
+  - a real logout while the app runs: no delay, no "interrupted" message, `SessionEnd` in the log despite the `SIGTERM` that follows, and the shutdown's entries complete up to the last one before `_exit`
+  - a restart while the app runs, with the same outcome
   - a second launch from Finder, from the terminal and through `open -n` leaves one icon
   - after `kill -9`, the app starts again at once
   - the notification permission prompt at the first start, and a notification afterwards

@@ -25,6 +25,8 @@ This design also records the decisions that hold for every macOS change, decided
 - **The spike of `move-windows-shell-to-avalonia`** (2026-09-22, branch `spike/avalonia-shell`; M1–M4 are in that design's Context). For this change and the later ones:
   - **Quit reason.** Inside `ShutdownRequested`, `NSAppleEventManager.currentAppleEvent` is the quit event itself: `'aevt'/'quit'`.
     - A quit with the logout reason carried `'why?'` = `'rlgo'`, and a plain quit carried none.
+    - **A real logout** (2026-09-23, same Mac, the spike with the sender added to its log): the quit event carried **no** `'why?'`, so the reason can't tell a logout from a plain quit. Its sender (`keySenderPIDAttr`, `'spid'`) was `loginwindow`. A quit sent with `osascript` had `osascript` as its sender.
+    - During that logout, `SIGTERM` arrived 1.37 s after the quit event, while the `DispatcherFrame` wait was still running. The wait held for 1514 ms, and the logout wasn't interrupted.
     - Avalonia's `IsOSShutdown` is `internal`, and it was `false` for both.
   - **`SIGTERM`**, handled through `PosixSignalRegistration`, ended the spike in 0.11 s. `lifetime.Shutdown()` doesn't raise `ShutdownRequested`.
   - **The Accessibility grant needs a restart.** SharpHook's libuiohook checks `CGPreflightPostEventAccess()`, which doesn't see a grant made while the process runs: two restarts of the hook failed, and a relaunch worked. `AXIsProcessTrusted()` returns true at once, so it can't serve as the signal.
@@ -151,12 +153,15 @@ This design also records the decisions that hold for every macOS change, decided
 - **The end of the session** (log out, shut down, restart):
   - macOS sends the app a quit event, and Avalonia turns it into `ShutdownRequested`.
   - The same handler as on Windows waits with `DispatcherWait.Until(RequestShutdownAsync(reason))` and never cancels, so the logout isn't blocked.
-  - **The reason comes from the quit Apple event**, because Avalonia's `IsOSShutdown` is `internal` (spike, Context):
-    - The handler asks the helper for `pisum_current_quit_reason()`, which reads `'why?'` from `NSAppleEventManager.currentAppleEvent`.
-    - `'rlgo'` or `'logo'` (log out), `'rest'` (restart) and `'shut'` (shut down) mean `SessionEnd`. No reason means `UserExit`, as when a user quits the app in Activity Monitor.
+  - **The reason comes from the quit Apple event's sender**, because Avalonia's `IsOSShutdown` is `internal` and a real logout carries no `'why?'` (Context):
+    - The handler asks the helper for `pisum_current_quit_sender_pid()`, which reads `keySenderPIDAttr` from `NSAppleEventManager.currentAppleEvent`, and 0 when there is no current event.
+    - C# gets the process name with libc's `proc_name`, a C API. `loginwindow` means `SessionEnd`. Any other sender, such as Activity Monitor or `osascript`, means `UserExit`.
+    - **Quit Pisum Transcribe** isn't an Apple event. It calls `ShutdownCoordinator` directly (above).
+    - *Rejected:* `NSWorkspace.willPowerOffNotification` as a flag for the next quit. A logout that another app cancels leaves the flag set, and a later **Quit** would be logged as the end of the session.
   - The log says the app ended because the macOS session ended.
+  - **`SIGTERM` during the end of the session.** macOS sends it while the app is still shutting down (Context). The coordinator keeps the reason of the first request, so the log still shows `SessionEnd`, and the `SIGTERM` handler must not end the process early.
 - **Ending the process:** on macOS, `ExitProcess` calls libc's `_exit(code)` after `Log.CloseAndFlush()`. It's the counterpart of `TerminateProcess`: no process-exit handlers, so the 5 s budget holds.
-- **A real logout** is still to be checked by hand, because the spike sent the logout-reason event itself. If a real logout carries no reason, the fallback is `NSWorkspace.willPowerOffNotification` through the helper, which marks the next `ShutdownRequested` as `SessionEnd`. The spec requires only the outcome.
+- **Restart and shut down** are expected to come from `loginwindow` too. Only a logout was checked, so the manual checks include a restart.
 - **`SIGTERM`:**
   - On macOS, the app registers `PosixSignalRegistration` for `SIGTERM`. The handler cancels the default handling and calls `ShutdownCoordinator.RequestShutdownAsync(ShutdownReason.TerminationRequest)`, the same path as **Quit**, within 5 s.
   - `TerminationRequest` is a new `ShutdownReason`, handled like `UserExit` (exit code 0, the icon removed at once). It exists so that the log's `Shutting down, reason "TerminationRequest"` names the termination request, as the `app-shell` spec's "Termination request on macOS" requires.
@@ -443,7 +448,8 @@ These were decided in explore mode on 2026-09-22, and each change's own design p
 
 ## Risks / Trade-offs
 
-- [A real logout carries no quit reason, unlike the spike's synthesized event] → D5's fallback through `NSWorkspace.willPowerOffNotification`. It's checked by hand with the dev bundle.
+- [Restart or shut down comes from a sender other than `loginwindow`] → The app still ends in time; only the log shows `UserExit`. The manual checks include a restart.
+- [macOS kills the app soon after the `SIGTERM` it sends during a logout (Context: 1.37 s after the quit event)] → The shutdown stays within its budget, and the log is flushed before `_exit`. The manual logout check looks for the complete shutdown in the log. If it's cut short, the stop order puts the log flush first.
 - [The unexplained startup abort seen once in the spike comes back] → The unhandled-exception logging names it. The manual checks include repeated launches through `open`.
 - [`UNUserNotificationCenter` misbehaves in an ad-hoc-signed dev bundle] → The helper returns a status and the app logs. Notifications are checked with a local signing identity (D9), and again with the project's certificate in packaging.
 - [Apple tightens Gatekeeper or `installer` for unsigned packages] → There's no fix without a membership. A build from source still works, because locally built apps aren't quarantined.
