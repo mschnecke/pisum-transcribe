@@ -118,7 +118,7 @@ graph TD
 - **Done:** GitHub #10–#13, merged in pull requests #24–#27. GitHub #13's registration was checked on Windows 11 only. The check on Windows 10 22H2 was skipped, so the shortcut fallback in its design D2 still applies if toasts don't show there.
 - **The spike** is done: the macOS half on 2026-09-22 and the Windows half on 2026-09-23, both go.
 - **GitHub #14** is implemented on its branch. The regression pass by hand against the specs, on Windows 11 and Windows 10 22H2, is still open.
-- **GitHub #15** is implemented on its branch. The checks by hand on the Mac and on Windows 11 (its tasks 10.2 and 10.3) are still open.
+- **GitHub #15** is implemented on its branch, and its checks by hand on the Mac passed. The Windows run of its tests and the checks by hand on Windows 11 (its tasks 10.1 and 10.3) are still open.
 - **GitHub #16–#22** have no OpenSpec change yet.
 
 ### Releases

@@ -61,7 +61,7 @@ The order follows the design's Migration Plan. Group 1 makes the project compile
 ## 10. Regression pass
 
 - [ ] 10.1 Run `dotnet build Pisum.Transcribe.slnx` and `dotnet test Pisum.Transcribe.slnx` on Windows and on the Mac, the Windows `Hardware` tests, and `openspec validate add-macos-shell --strict`. Verify: no warnings, all tests pass, and validation reports no issues.
-- [ ] 10.2 Check by hand on the Mac with the dev bundle, signed with a local identity (Migration Plan step 3). Verify each:
+- [x] 10.2 Check by hand on the Mac with the dev bundle, signed with a local identity (Migration Plan step 3). Verify each:
   - the menu bar icon in light and dark mode, no Dock icon, and no entry in the app switcher
   - **Quit Pisum Transcribe** ends the app within 5 s
   - a real logout while the app runs: no delay, no "interrupted" message, `SessionEnd` in the log despite the `SIGTERM` that follows, and the shutdown's entries complete up to the last one before `_exit`
