@@ -7,7 +7,7 @@ Defines how the built application becomes a versioned download on the project's 
 ## Requirements
 
 ### Requirement: Windows installer for x64
-Each release SHALL provide one Windows Installer package (MSI) for Windows x64. Installing it SHALL NOT require administrator rights: it SHALL install the application for the current user only, into `%LOCALAPPDATA%\Programs\Pisum Transcribe\`, and SHALL add a Start Menu shortcut named "Pisum Transcribe" and an entry in Windows' list of installed apps. The package SHALL contain the application and every runtime dependency it needs, so that the installed application starts, detects speech and transcribes on a Windows 10 or 11 x64 machine that has neither a .NET runtime nor the Microsoft Visual C++ Redistributable installed, without installing anything else first. A GPU driver is not such a dependency: without Vulkan, the application runs on the CPU as the transcription spec describes. When the package is installed interactively, by opening it, the installer SHALL start the application, without administrator rights, when it finishes. An unattended installation, such as `msiexec /qn`, SHALL NOT start it. The file name SHALL contain the release version and identify the platform, in the form `Pisum.Transcribe_<version>_win-x64.msi`.
+Each release SHALL provide one Windows Installer package (MSI) for Windows x64. Installing it SHALL NOT require administrator rights: it SHALL install the application for the current user only, into `%LOCALAPPDATA%\Programs\Pisum Transcribe\`, and SHALL add a Start Menu shortcut named "Pisum Transcribe" and an entry in Windows' list of installed apps. The package SHALL contain the application and every runtime dependency it needs, so that the installed application starts, detects speech and transcribes on a Windows 10 x64 machine of version 2004 or later, or a Windows 11 x64 machine, that has neither a .NET runtime nor the Microsoft Visual C++ Redistributable installed, without installing anything else first. A GPU driver is not such a dependency: without Vulkan, the application runs on the CPU as the transcription spec describes. When the package is installed interactively, by opening it, the installer SHALL start the application, without administrator rights, when it finishes. An unattended installation, such as `msiexec /qn`, SHALL NOT start it. The file name SHALL contain the release version and identify the platform, in the form `Pisum.Transcribe_<version>_win-x64.msi`.
 
 #### Scenario: Install without administrator rights
 - **WHEN** a user who isn't an administrator opens the package
@@ -57,7 +57,7 @@ Installing the package of a release while another version is installed SHALL rep
 - **THEN** the application ends as it does at **Exit**, the upgrade completes without a restart of Windows, and the new version starts when the upgrade finishes
 
 ### Requirement: Uninstalling
-Uninstalling the application through Windows' list of installed apps SHALL remove the application's program folder, its Start Menu shortcut and its "Start with Windows" entry, including an entry the user disabled in Task Manager. It SHALL keep the per-user data folder `%LOCALAPPDATA%\Pisum Transcribe\` with the settings, the logs and the downloaded speech models. An upgrade SHALL NOT remove the "Start with Windows" entry. If the application is running, it SHALL end as it does when the user chooses **Exit** before its files are removed.
+Uninstalling the application through Windows' list of installed apps SHALL remove the application's program folder, its Start Menu shortcut, its "Start with Windows" entry, including an entry the user disabled in Task Manager, and its notification registration, the per-user registry key `HKCU\Software\Classes\AppUserModelId\Pisum.Transcribe`. It SHALL keep the per-user data folder `%LOCALAPPDATA%\Pisum Transcribe\` with the settings, the logs and the downloaded speech models. An upgrade SHALL NOT remove the "Start with Windows" entry or the notification registration. If the application is running, it SHALL end as it does when the user chooses **Exit** before its files are removed.
 
 #### Scenario: Uninstall removes the program
 - **WHEN** the application is uninstalled
@@ -66,6 +66,14 @@ Uninstalling the application through Windows' list of installed apps SHALL remov
 #### Scenario: Uninstall removes the startup entry
 - **WHEN** "Start with Windows" is on and the application is uninstalled
 - **THEN** Windows' list of startup apps no longer shows Pisum Transcribe, and nothing tries to start it at the next sign-in
+
+#### Scenario: Uninstall removes the notification registration
+- **WHEN** the application has shown a notification and is then uninstalled
+- **THEN** the registry key `HKCU\Software\Classes\AppUserModelId\Pisum.Transcribe` no longer exists
+
+#### Scenario: An upgrade keeps the notification registration
+- **WHEN** a newer package is installed over an installed version
+- **THEN** the registry key `HKCU\Software\Classes\AppUserModelId\Pisum.Transcribe` still exists, and the user's notification setting for Pisum Transcribe is unchanged
 
 #### Scenario: Uninstall keeps the user's data
 - **WHEN** the application is uninstalled and the package is installed again
