@@ -16,6 +16,7 @@ internal sealed class TaskbarModeWatcher : ITaskbarModeWatcher, IDisposable
     private readonly ManualResetEvent _stop = new(false);
     private readonly Thread _thread;
     private volatile TaskbarMode _current;
+    private int _disposed;
 
     /// <summary>
     /// Initializes a new instance, reads the mode and starts watching it.
@@ -47,6 +48,13 @@ internal sealed class TaskbarModeWatcher : ITaskbarModeWatcher, IDisposable
     /// <inheritdoc />
     public void Dispose()
     {
+        // The container disposes the watcher once for each of its two registrations, and a second call would set the
+        // disposed stop event.
+        if (Interlocked.Exchange(ref _disposed, 1) != 0)
+        {
+            return;
+        }
+
         _stop.Set();
         if (_thread.Join(StopTimeout))
         {

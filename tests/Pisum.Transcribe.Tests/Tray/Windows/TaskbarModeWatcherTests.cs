@@ -112,6 +112,23 @@ public sealed class TaskbarModeWatcherTests
         sut.IsWatching.ShouldBeFalse();
     }
 
+    [Fact]
+    public void Dispose_Twice_DoesNotThrow()
+    {
+        // Arrange: the container disposes the watcher once per registration, as TaskbarModeWatcher and as
+        // ITaskbarModeWatcher.
+        var key = new FakePersonalizeKey(1);
+        var sut = CreateSut(key);
+        key.WaitForArmCount(1);
+        sut.Dispose();
+
+        // Act
+        var exception = Record.Exception(sut.Dispose);
+
+        // Assert
+        exception.ShouldBeNull();
+    }
+
     private static TaskbarModeWatcher CreateSut(FakePersonalizeKey key)
     {
         return new TaskbarModeWatcher(key, NullLogger<TaskbarModeWatcher>.Instance);
