@@ -1,3 +1,4 @@
+using Avalonia.Controls;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Pisum.Transcribe.Hosting;
@@ -10,7 +11,7 @@ using Pisum.Transcribe.Tray;
 namespace Pisum.Transcribe.SettingsWindow;
 
 /// <summary>
-/// Adds the tray item <b>Settings…</b> and opens the settings window from it or from a double-click on the tray icon.
+/// Adds the tray item <b>Settings…</b> and opens the settings window from it or from a click on the tray icon.
 /// There is only one settings window; opening it again brings the open one to the front.
 /// </summary>
 internal sealed class SettingsWindowService : IHostedService
@@ -66,24 +67,29 @@ internal sealed class SettingsWindowService : IHostedService
         _viewModelLogger = viewModelLogger;
     }
 
+    /// <summary>
+    /// The open settings window, or <see langword="null"/>, for tests.
+    /// </summary>
+    internal SettingsDialog? Dialog => _dialog;
+
     /// <inheritdoc />
     public Task StartAsync(CancellationToken cancellationToken)
     {
         return _uiDispatcher.InvokeAsync(() =>
         {
             _trayIcon.AddMenuItem(MenuItemHeader, ShowDialog);
-            _trayIcon.DoubleClicked += OnDoubleClicked;
+            _trayIcon.Clicked += OnClicked;
         });
     }
 
     /// <inheritdoc />
     public Task StopAsync(CancellationToken cancellationToken)
     {
-        _trayIcon.DoubleClicked -= OnDoubleClicked;
+        _trayIcon.Clicked -= OnClicked;
         return Task.CompletedTask;
     }
 
-    private void OnDoubleClicked(object? sender, EventArgs e)
+    private void OnClicked(object? sender, EventArgs e)
     {
         ShowDialog();
     }

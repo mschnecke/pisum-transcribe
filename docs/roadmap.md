@@ -70,7 +70,7 @@ The dictation workflow joins both tracks. After #6, the app is usable end to end
 
 ## macOS port
 
-Pisum Transcribe is to ship on macOS as a public release next to Windows. Avalonia UI becomes the shell on both platforms. Windows moves to it first, as a release of its own, after four smaller changes that prepare the move on today's WPF shell. The decisions behind the port were made in explore mode on 2026-09-22. They are recorded in the designs of `move-windows-shell-to-avalonia` and `add-macos-shell`. The latter's section "Decided for later macOS changes" covers the steps that have no OpenSpec change yet.
+Pisum Transcribe is to ship on macOS as a public release next to Windows. Avalonia UI becomes the shell on both platforms. Windows moves to it first, as a release of its own, after four smaller changes that prepare the move on the WPF shell. The decisions behind the port were made in explore mode on 2026-09-22. They are recorded in the designs of `move-windows-shell-to-avalonia` and `add-macos-shell`. The latter's section "Decided for later macOS changes" covers the steps that have no OpenSpec change yet.
 
 ### Dependency graph
 
@@ -104,7 +104,7 @@ graph TD
 | 16 | [GitHub #11](https://github.com/mschnecke/pisum-transcribe/issues/11) | `use-win32-clipboard` | – | The clipboard on the Win32 API, without WPF. No visible change |
 | 17 | [GitHub #12](https://github.com/mschnecke/pisum-transcribe/issues/12) | `add-monochrome-tray-icons` | GitHub #10 | A monochrome microphone that follows the taskbar's mode, red while recording, amber while transcribing |
 | 18 | [GitHub #13](https://github.com/mschnecke/pisum-transcribe/issues/13) | `show-windows-notifications` | GitHub #10 | Notifications as Windows toasts from "Pisum Transcribe". Windows 10 version 2004 or later |
-| 19 | [GitHub #14](https://github.com/mschnecke/pisum-transcribe/issues/14) | `move-windows-shell-to-avalonia` | GitHub #10–#13, the spike | The Avalonia shell on Windows. A click opens the settings |
+| 19 | [GitHub #14](https://github.com/mschnecke/pisum-transcribe/issues/14) | `move-windows-shell-to-avalonia` | GitHub #10–#13, the spike | The Avalonia shell on Windows, the last Windows step before the macOS track. A left click on the tray icon opens the settings |
 | 20 | [GitHub #15](https://github.com/mschnecke/pisum-transcribe/issues/15) | `add-macos-shell` | GitHub #14 | The Mac build as a menu bar app: quit and logout, data folders, the Swift helper, a dev bundle, macOS CI |
 | 21 | [GitHub #16](https://github.com/mschnecke/pisum-transcribe/issues/16) | `add-macos-setup` | GitHub #15 | One setup window for the model and the permissions |
 | 22 | [GitHub #17](https://github.com/mschnecke/pisum-transcribe/issues/17) | `add-macos-recording` | GitHub #15 | Hold right Command to record, with microphone and secure-input handling |
@@ -115,9 +115,10 @@ graph TD
 | 27 | [GitHub #22](https://github.com/mschnecke/pisum-transcribe/issues/22) | `add-macos-packaging` | GitHub #20, #21 | An unsigned `.pkg` with the project's own certificate, upgrades like the MSI's, a Homebrew tap, lockstep releases |
 
 **Planning state on 2026-09-23:**
-- **Done:** GitHub #10, #11 and #12, merged in pull requests #24, #25 and #26.
-- **GitHub #13** is implemented and archived in pull request #27, which isn't merged yet. The registration was checked on Windows 11 only. The check on Windows 10 22H2 was skipped, so the shortcut fallback in its design D2 still applies if toasts don't show there.
-- **GitHub #14 and #15** have their proposals and designs. Their spec deltas and tasks wait for the spike.
+- **Done:** GitHub #10–#13, merged in pull requests #24–#27. GitHub #13's registration was checked on Windows 11 only. The check on Windows 10 22H2 was skipped, so the shortcut fallback in its design D2 still applies if toasts don't show there.
+- **The spike** is done: the macOS half on 2026-09-22 and the Windows half on 2026-09-23, both go.
+- **GitHub #14** is implemented on its branch. The regression pass by hand against the specs, on Windows 11 and Windows 10 22H2, is still open.
+- **GitHub #15** has its proposal and design. Its spec deltas and tasks follow.
 - **GitHub #16–#22** have no OpenSpec change yet.
 
 ### Releases
@@ -135,7 +136,7 @@ graph TD
 ### Phases
 
 #### Phase 6: Windows preparation (GitHub #10–#13)
-These are no-regret changes on today's WPF shell. They're needed whichever shell macOS gets, so they don't wait for the spike. #10 and #11 are independent, and #12 and #13 build on #10. They ship as 1.2.0.
+These are no-regret changes on the WPF shell. They're needed whichever shell macOS gets, so they don't wait for the spike. #10 and #11 are independent, and #12 and #13 build on #10. They ship as 1.2.0.
 
 **Checkpoint, the spike:** a throwaway branch before GitHub #14.
 - **M1–M4 on the development Mac:** an agent app with a menu bar icon, an overlay that leaves TextEdit focused (also in full screen), SharpHook next to Avalonia's main loop, and Quit and logout.

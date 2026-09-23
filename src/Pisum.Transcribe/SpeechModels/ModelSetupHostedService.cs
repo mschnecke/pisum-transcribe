@@ -1,3 +1,4 @@
+using Avalonia.Controls;
 using Microsoft.Extensions.Hosting;
 using Pisum.Transcribe.Hosting;
 using Pisum.Transcribe.Settings;

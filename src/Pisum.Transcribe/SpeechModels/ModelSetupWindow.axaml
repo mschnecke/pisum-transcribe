@@ -1,0 +1,99 @@
+<Window x:Class="Pisum.Transcribe.SpeechModels.ModelSetupWindow"
+        x:ClassModifier="internal"
+        x:DataType="local:ModelSetupViewModel"
+        xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="using:Pisum.Transcribe.SpeechModels"
+        Title="Pisum Transcribe"
+        Icon="/Tray/TrayIcon.ico"
+        Width="560"
+        SizeToContent="Height"
+        CanResize="False"
+        CanMaximize="False"
+        WindowStartupLocation="CenterScreen">
+    <Window.Styles>
+        <Style Selector="Button.dialog">
+            <Setter Property="MinWidth" Value="80" />
+            <Setter Property="Padding" Value="12,4" />
+            <Setter Property="Margin" Value="8,0,0,0" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+        </Style>
+        <Style Selector="ListBoxItem" x:DataType="local:ModelOption">
+            <!-- Otherwise screen readers read the item's ToString(). -->
+            <Setter Property="AutomationProperties.Name" Value="{Binding Model.DisplayName}" />
+            <Setter Property="Padding" Value="8,6" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        </Style>
+    </Window.Styles>
+
+    <StackPanel Margin="16">
+        <TextBlock FontSize="16" FontWeight="SemiBold" Text="Download a speech model" />
+        <TextBlock Margin="0,4,0,12" TextWrapping="Wrap"
+                   Text="Pisum Transcribe needs a speech model before you can dictate. Choose a model and download it. The model runs on this computer." />
+
+        <ListBox ItemsSource="{Binding Models}"
+                 SelectedItem="{Binding SelectedModel}"
+                 IsEnabled="{Binding !IsDownloading}"
+                 ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+            <ListBox.ItemTemplate>
+                <DataTemplate x:DataType="local:ModelOption">
+                    <!-- The list item handles clicks and keys; the radio button only shows the selection. -->
+                    <RadioButton IsChecked="{Binding $parent[ListBoxItem].IsSelected, Mode=OneWay}"
+                                 IsHitTestVisible="False"
+                                 Focusable="False">
+                        <StackPanel>
+                            <TextBlock FontWeight="SemiBold" Text="{Binding Model.DisplayName}" />
+                            <TextBlock TextWrapping="Wrap">
+                                <Run Text="Download size: " /><Run Text="{Binding SizeText}" />
+                            </TextBlock>
+                            <TextBlock TextWrapping="Wrap">
+                                <Run Text="Languages: " /><Run Text="{Binding LanguagesText}" />
+                            </TextBlock>
+                        </StackPanel>
+                    </RadioButton>
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+        </ListBox>
+
+        <!-- The group box of the WPF window: a header above a border. -->
+        <TextBlock Margin="0,12,0,4" FontWeight="SemiBold" Text="License" />
+        <Border Padding="8" BorderThickness="1" CornerRadius="4"
+                BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}">
+            <StackPanel>
+                <TextBlock TextWrapping="Wrap">
+                    <Run Text="Created by " /><Run Text="{Binding SelectedModel.Model.Creator}" /><Run
+                        Text=", licensed under " /><InlineUIContainer BaselineAlignment="TextBottom">
+                        <HyperlinkButton x:Name="LicenseLink" Padding="0"
+                                         Content="{Binding SelectedModel.Model.LicenseName}"
+                                         Tag="{Binding SelectedModel.Model.LicenseUrl}"
+                                         Click="OnLicenseClick" />
+                    </InlineUIContainer><Run Text="." />
+                </TextBlock>
+                <TextBlock Margin="0,4,0,0" TextWrapping="Wrap">
+                    <Run Text="Changes: " /><Run Text="{Binding SelectedModel.Model.Changes}" />
+                </TextBlock>
+                <TextBlock Margin="0,4,0,0" TextWrapping="Wrap">
+                    <Run Text="Source: " /><Run Text="{Binding SelectedModel.Model.SourceRepository}" />
+                </TextBlock>
+            </StackPanel>
+        </Border>
+
+        <StackPanel Margin="0,12,0,0" IsVisible="{Binding IsDownloading}">
+            <ProgressBar Height="16" Maximum="100" Value="{Binding ProgressPercent, Mode=OneWay}" />
+            <TextBlock Margin="0,4,0,0" Text="{Binding ProgressText}" />
+        </StackPanel>
+
+        <DockPanel Margin="0,12,0,0" IsVisible="{Binding HasError}">
+            <Button DockPanel.Dock="Right" VerticalAlignment="Top" Classes="dialog"
+                    Content="_Retry" Command="{Binding RetryCommand}" />
+            <TextBlock Foreground="{DynamicResource SystemControlErrorTextForegroundBrush}" TextWrapping="Wrap"
+                       Text="{Binding ErrorMessage}" />
+        </DockPanel>
+
+        <StackPanel Margin="0,16,0,0" HorizontalAlignment="Right" Orientation="Horizontal">
+            <Button Classes="dialog" IsDefault="True" Content="_Download" Command="{Binding DownloadCommand}" />
+            <Button Classes="dialog" Content="_Cancel" Command="{Binding CancelCommand}" />
+            <Button Classes="dialog" IsCancel="True" Content="C_lose" Command="{Binding CloseCommand}" />
+        </StackPanel>
+    </StackPanel>
+</Window>

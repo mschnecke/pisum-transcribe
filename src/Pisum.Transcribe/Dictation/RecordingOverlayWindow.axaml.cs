@@ -1,9 +1,10 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
-using System.Windows.Interop;
-using System.Windows.Media;
-using System.Windows.Media.Animation;
-using System.Windows.Threading;
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Media;
+using Avalonia.Media.Immutable;
+using Avalonia.Threading;
 using Windows.Win32;
 using Windows.Win32.Foundation;
 using Windows.Win32.Graphics.Gdi;
@@ -16,7 +17,7 @@ namespace Pisum.Transcribe.Dictation;
 /// The recording overlay: a pill at the bottom center of the target window's monitor. It stays on top, never activates,
 /// lets mouse clicks through, and is absent from the taskbar and Alt+Tab. It is created once and shown and hidden.
 /// </summary>
-internal sealed partial class RecordingOverlayWindow : IRecordingOverlay
+internal sealed partial class RecordingOverlayWindow : Window, IRecordingOverlay
 {
     /// <summary>
     /// The overlay width in device-independent pixels.
@@ -33,29 +34,34 @@ internal sealed partial class RecordingOverlayWindow : IRecordingOverlay
     /// </summary>
     public const double BottomMargin = 48;
 
+    /// <summary>
+    /// The extended window styles that the overlay needs: no activation, click-through (with layered), and no Alt+Tab
+    /// entry.
+    /// </summary>
+    public const WINDOW_EX_STYLE ExtendedStyles = WINDOW_EX_STYLE.WS_EX_NOACTIVATE | WINDOW_EX_STYLE.WS_EX_TRANSPARENT |
+                                                  WINDOW_EX_STYLE.WS_EX_TOOLWINDOW | WINDOW_EX_STYLE.WS_EX_LAYERED;
+
+    /// <summary>
+    /// The style class that turns the spinner.
+    /// </summary>
+    internal const string SpinningClass = "spinning";
+
     private const double DefaultDpi = 96;
 
     private static readonly TimeSpan ElapsedInterval = TimeSpan.FromMilliseconds(250);
-    private static readonly Brush StartingBrush = CreateBrush(0x9E, 0x9E, 0x9E);
-    private static readonly Brush RecordingBrush = CreateBrush(0xE5, 0x39, 0x35);
+    private static readonly IBrush StartingBrush = new ImmutableSolidColorBrush(Color.FromRgb(0x9E, 0x9E, 0x9E));
+    private static readonly IBrush RecordingBrush = new ImmutableSolidColorBrush(Color.FromRgb(0xE5, 0x39, 0x35));
 
     private readonly DispatcherTimer _elapsedTimer = new() {Interval = ElapsedInterval};
     private readonly Stopwatch _recording = new();
-    private readonly DoubleAnimation _spin = new(0, 360, TimeSpan.FromSeconds(1))
-    {
-        RepeatBehavior = RepeatBehavior.Forever,
-    };
 
     /// <summary>
-    /// Initializes a new instance and creates its window handle, hidden. Create it on the UI thread.
+    /// Initializes a new instance, hidden. Create it on the UI thread.
     /// </summary>
     public RecordingOverlayWindow()
     {
         InitializeComponent();
         _elapsedTimer.Tick += (_, _) => UpdateElapsed();
-
-        // Created now, so the extended styles are set and the window can be placed before it is first shown.
-        new WindowInteropHelper(this).EnsureHandle();
     }
 
     /// <summary>
@@ -64,13 +70,13 @@ internal sealed partial class RecordingOverlayWindow : IRecordingOverlay
     /// <param name="workArea">The monitor's work area in physical pixels.</param>
     /// <param name="dpi">The monitor's effective DPI, 96 at 100 % scaling.</param>
     /// <returns>The overlay bounds in physical pixels.</returns>
-    public static Int32Rect CalculateBounds(Int32Rect workArea, uint dpi)
+    public static PixelRect CalculateBounds(PixelRect workArea, uint dpi)
     {
         var scale = dpi / DefaultDpi;
         var width = (int) Math.Round(OverlayWidth * scale);
         var height = (int) Math.Round(OverlayHeight * scale);
         var bottomMargin = (int) Math.Round(BottomMargin * scale);
-        return new Int32Rect(workArea.X + (workArea.Width - width) / 2,
+        return new PixelRect(workArea.X + (workArea.Width - width) / 2,
             workArea.Y + workArea.Height - bottomMargin - height, width, height);
     }
 
@@ -80,11 +86,15 @@ internal sealed partial class RecordingOverlayWindow : IRecordingOverlay
         ShowContent(StartingBrush, false, null);
 
         var bounds = CalculateBounds(GetWorkArea(targetWindow, out var dpi), dpi);
-        MoveTo(bounds.X, bounds.Y);
+        Position = bounds.Position;
         Show();
 
-        // A window that moved to a monitor with another DPI was rescaled by WPF, which can shift it.
-        MoveTo(bounds.X, bounds.Y);
+        // Avalonia resets the extended styles on every Show, so they are set again each time. ShowActivated=false keeps
+        // the focus in the target window until then.
+        ApplyExtendedStyles();
+
+        // A window that moved to a monitor with another DPI was rescaled by Avalonia, which can shift it.
+        Position = bounds.Position;
     }
 
     /// <inheritdoc />
@@ -115,31 +125,11 @@ internal sealed partial class RecordingOverlayWindow : IRecordingOverlay
         Hide();
     }
 
-    /// <inheritdoc />
-    protected override void OnSourceInitialized(EventArgs e)
-    {
-        base.OnSourceInitialized(e);
-
-        // No activation, click-through (with layered), and no Alt+Tab entry.
-        var window = (HWND) new WindowInteropHelper(this).Handle;
-        var styles = (WINDOW_EX_STYLE) (uint) PInvoke.GetWindowLongPtr(window, WINDOW_LONG_PTR_INDEX.GWL_EXSTYLE);
-        styles |= WINDOW_EX_STYLE.WS_EX_NOACTIVATE | WINDOW_EX_STYLE.WS_EX_TRANSPARENT |
-                  WINDOW_EX_STYLE.WS_EX_TOOLWINDOW | WINDOW_EX_STYLE.WS_EX_LAYERED;
-        PInvoke.SetWindowLongPtr(window, WINDOW_LONG_PTR_INDEX.GWL_EXSTYLE, (nint) (uint) styles);
-    }
-
-    private static Brush CreateBrush(byte red, byte green, byte blue)
-    {
-        var brush = new SolidColorBrush(Color.FromRgb(red, green, blue));
-        brush.Freeze();
-        return brush;
-    }
-
     /// <summary>
     /// Reads the work area and DPI of the monitor that contains most of the target window, or of the primary monitor
     /// without a target.
     /// </summary>
-    private static Int32Rect GetWorkArea(nint targetWindow, out uint dpi)
+    private static PixelRect GetWorkArea(nint targetWindow, out uint dpi)
     {
         var monitor = PInvoke.MonitorFromWindow((HWND) targetWindow,
             targetWindow == 0 ? MONITOR_FROM_FLAGS.MONITOR_DEFAULTTOPRIMARY : MONITOR_FROM_FLAGS.MONITOR_DEFAULTTONEAREST);
@@ -152,29 +142,34 @@ internal sealed partial class RecordingOverlayWindow : IRecordingOverlay
 #pragma warning restore CA1416
 
         var work = info.rcWork;
-        return new Int32Rect(work.left, work.top, work.right - work.left, work.bottom - work.top);
+        return new PixelRect(work.left, work.top, work.right - work.left, work.bottom - work.top);
     }
 
-    private void MoveTo(int x, int y)
+    private void ApplyExtendedStyles()
     {
-        // Left and Top are device-independent units of the monitor the window is on now.
-        var scale = VisualTreeHelper.GetDpi(this);
-        Left = x / scale.DpiScaleX;
-        Top = y / scale.DpiScaleY;
+        // The headless platform of the tests has no window handle.
+        if (TryGetPlatformHandle() is not {HandleDescriptor: "HWND"} handle)
+        {
+            return;
+        }
+
+        var window = (HWND) handle.Handle;
+        var styles = (WINDOW_EX_STYLE) (uint) PInvoke.GetWindowLongPtr(window, WINDOW_LONG_PTR_INDEX.GWL_EXSTYLE);
+        PInvoke.SetWindowLongPtr(window, WINDOW_LONG_PTR_INDEX.GWL_EXSTYLE, (nint) (uint) (styles | ExtendedStyles));
     }
 
     /// <summary>
     /// Sets the dot, the spinner and the label. <see langword="null"/> hides an element; any call stops the elapsed time.
     /// </summary>
-    private void ShowContent(Brush? dot, bool spinner, string? text)
+    private void ShowContent(IBrush? dot, bool spinner, string? text)
     {
         _elapsedTimer.Stop();
         Dot.Fill = dot;
-        Dot.Visibility = dot is null ? Visibility.Collapsed : Visibility.Visible;
-        Spinner.Visibility = spinner ? Visibility.Visible : Visibility.Collapsed;
-        SpinnerRotation.BeginAnimation(RotateTransform.AngleProperty, spinner ? _spin : null);
+        Dot.IsVisible = dot is not null;
+        Spinner.IsVisible = spinner;
+        Spinner.Classes.Set(SpinningClass, spinner);
         Label.Text = text ?? string.Empty;
-        Label.Visibility = text is null ? Visibility.Collapsed : Visibility.Visible;
+        Label.IsVisible = text is not null;
         Label.Margin = new Thickness(dot is null && !spinner ? 0 : 10, 0, 0, 0);
     }
 

@@ -77,7 +77,7 @@ Right-click the tray icon:
 
 | Item | What it does |
 |---|---|
-| **Settings…** | Opens the settings window. Double-clicking the tray icon does the same. |
+| **Settings…** | Opens the settings window. A left click on the tray icon does the same. |
 | **Download model…** | Opens the download window. Shown only while the selected model is not installed. |
 | **Cancel transcription** | Stops the running transcription. Shown only while a dictation is transcribed. |
 | **Pisum Transcribe `<version>` is available…** | Opens the release page in the browser. Shown only when a newer version is released. |
@@ -144,7 +144,7 @@ dotnet test Pisum.Transcribe.slnx --filter-trait "Category=Hardware" --explicit 
 
 The solution uses the `.slnx` format, so pass it to `dotnet` commands explicitly. The tests use xunit v3 on Microsoft.Testing.Platform, with Shouldly and FakeItEasy. Hardware tests are marked explicit, so the default test run needs no microphone, GPU, downloaded model or internet access.
 
-The app is a WPF app on the .NET Generic Host, with no main window. Each feature lives in its own folder and namespace under `src/Pisum.Transcribe/`:
+The app is an Avalonia app on the .NET Generic Host, with no main window. Each feature lives in its own folder and namespace under `src/Pisum.Transcribe/`:
 
 | Folder | Contents |
 |---|---|

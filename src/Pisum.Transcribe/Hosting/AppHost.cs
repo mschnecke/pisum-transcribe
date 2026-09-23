@@ -39,7 +39,7 @@ internal static class AppHost
         });
         builder.Services.AddSerilog((_, configuration) => configuration.WriteToAppLog(paths));
         builder.Services.AddSingleton(paths);
-        builder.Services.AddSingleton<IUiDispatcher>(new WpfUiDispatcher(Application.Current.Dispatcher));
+        builder.Services.AddSingleton<IUiDispatcher>(new AvaloniaUiDispatcher());
 
         builder.Services.AddTray();
         builder.Services.AddNotifications();

@@ -1,6 +1,6 @@
 # Third-party notices
 
-Pisum Transcribe ships the following third-party components. The installer puts this file into the program folder next to `Pisum.Transcribe.exe`, together with the notices of ONNX Runtime and .NET for the components they bundle: `ThirdPartyNotices-OnnxRuntime.txt`, `ThirdPartyNotices-DotNet.txt`, `ThirdPartyNotices-Wpf.txt` and `ThirdPartyNotices-WinForms.txt`.
+Pisum Transcribe ships the following third-party components. The installer puts this file into the program folder next to `Pisum.Transcribe.exe`, together with the notices of ONNX Runtime, .NET, Avalonia and SkiaSharp for the components they bundle: `ThirdPartyNotices-OnnxRuntime.txt`, `ThirdPartyNotices-DotNet.txt`, `ThirdPartyNotices-Avalonia.txt` and `ThirdPartyNotices-SkiaSharp.txt`.
 
 ## Silero VAD
 
@@ -318,16 +318,17 @@ The above copyright notice and this permission notice shall be included in all c
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-## H.NotifyIcon
+## Avalonia
 
-- **Used for:** the tray icon. The app ships `H.NotifyIcon.dll`, `H.NotifyIcon.Wpf.dll` and `H.GeneratedIcons.System.Drawing.dll` from the `H.NotifyIcon.Wpf` 2.4.1 package and its dependencies.
-- **Source:** https://github.com/HavenDV/H.NotifyIcon, tag v2.4.1
-- **License:** MIT
+- **Used for:** the windows, the tray icon and the application's lifetime. The app ships `Avalonia.dll`, `Avalonia.Base.dll`, `Avalonia.Controls.dll`, `Avalonia.DesignerSupport.dll`, `Avalonia.Dialogs.dll`, `Avalonia.HarfBuzz.dll`, `Avalonia.Markup.dll`, `Avalonia.Markup.Xaml.dll`, `Avalonia.Metal.dll`, `Avalonia.MicroCom.dll`, `Avalonia.OpenGL.dll`, `Avalonia.Remote.Protocol.dll`, `Avalonia.Skia.dll`, `Avalonia.Themes.Fluent.dll`, `Avalonia.Vulkan.dll`, `Avalonia.Win32.dll` and `Avalonia.Win32.Automation.dll` from the `Avalonia`, `Avalonia.Win32`, `Avalonia.Skia`, `Avalonia.HarfBuzz`, `Avalonia.Themes.Fluent` and `Avalonia.Remote.Protocol` 12.1.1 packages.
+- **Source:** https://github.com/AvaloniaUI/Avalonia, commit `e33eaed9c106846b200680751022385d9cc5dc6f`
+- **License:** MIT. Avalonia contains code from further projects under their own licenses, such as WPF, the Silverlight Toolkit and WinUI. Their notices are in `ThirdPartyNotices-Avalonia.txt`, the repository's `NOTICE.md` at that commit, which ships next to this file.
 
 ```
-MIT License
+The MIT License (MIT)
 
-Copyright (c) 2020 havendv
+Copyright (c) AvaloniaUI OÜ
+All Rights Reserved
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -346,6 +347,150 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+```
+
+## MicroCom.Runtime
+
+- **Used for:** the COM interop inside Avalonia's Win32 backend. The app ships `MicroCom.Runtime.dll` from the `MicroCom.Runtime` 0.11.6 package.
+- **Source:** https://github.com/kekekeks/MicroCom, commit `76785efcafd91b5902fd19dd11145f6dd655b7b4`
+- **License:** MIT
+
+```
+MIT License
+
+Copyright (c) 2021 Nikita Tsukanov
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+## SkiaSharp and Skia
+
+- **Used for:** drawing the windows. The app ships `SkiaSharp.dll` and `libSkiaSharp.dll` from the `SkiaSharp` and `SkiaSharp.NativeAssets.Win32` 3.119.4 packages.
+- **Source:** https://github.com/mono/SkiaSharp, branch `release/3.119.4`, commit `f568ac94dd768ef9a2f593537cfde2dd0d348ef5`
+- **License:** MIT. `libSkiaSharp.dll` contains Skia (BSD-3-Clause) and the libraries Skia builds with, such as libpng, zlib, expat, FreeType, libjpeg-turbo and libwebp. Their notices are in `ThirdPartyNotices-SkiaSharp.txt`, the `THIRD-PARTY-NOTICES.txt` of the `SkiaSharp.NativeAssets.Win32` package, which ships next to this file.
+
+```
+Copyright (c) 2015-2016 Xamarin, Inc.
+Copyright (c) 2017-2018 Microsoft Corporation.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of
+this software and associated documentation files (the "Software"), to deal in
+the Software without restriction, including without limitation the rights to
+use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software is furnished to do so,
+subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR 
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+```
+
+## HarfBuzzSharp and HarfBuzz
+
+- **Used for:** text shaping in the windows. The app ships `HarfBuzzSharp.dll` and `libHarfBuzzSharp.dll` from the `HarfBuzzSharp` and `HarfBuzzSharp.NativeAssets.Win32` 8.3.1.3 packages. `libHarfBuzzSharp.dll` contains HarfBuzz 8.3.1.
+- **Source:** HarfBuzzSharp: https://github.com/mono/SkiaSharp, branch `release/3.119.2`, commit `2888c737ad016d584c74525e2d35db5097ea8576`. HarfBuzz: https://github.com/harfbuzz/harfbuzz
+- **License:** HarfBuzzSharp: MIT, with the same text as SkiaSharp above. HarfBuzz: the "Old MIT" license. The `THIRD-PARTY-NOTICES.txt` of the `HarfBuzzSharp.NativeAssets.Win32` package is the same file as SkiaSharp's, `ThirdPartyNotices-SkiaSharp.txt`.
+
+```
+HarfBuzz is licensed under the so-called "Old MIT" license.  Details follow.
+For parts of HarfBuzz that are licensed under different licenses see individual
+files names COPYING in subdirectories where applicable.
+
+Copyright © 2010,2011,2012  Google, Inc.
+Copyright © 2012  Mozilla Foundation
+Copyright © 2011  Codethink Limited
+Copyright © 2008,2010  Nokia Corporation and/or its subsidiary(-ies)
+Copyright © 2009  Keith Stribley
+Copyright © 2009  Martin Hosken and SIL International
+Copyright © 2007  Chris Wilson
+Copyright © 2006  Behdad Esfahbod
+Copyright © 2005  David Turner
+Copyright © 2004,2007,2008,2009,2010  Red Hat, Inc.
+Copyright © 1998-2004  David Turner and Werner Lemberg
+
+For full copyright notices consult the individual files in the package.
+
+
+Permission is hereby granted, without written agreement and without
+license or royalty fees, to use, copy, modify, and distribute this
+software and its documentation for any purpose, provided that the
+above copyright notice and the following two paragraphs appear in
+all copies of this software.
+
+IN NO EVENT SHALL THE COPYRIGHT HOLDER BE LIABLE TO ANY PARTY FOR
+DIRECT, INDIRECT, SPECIAL, INCIDENTAL, OR CONSEQUENTIAL DAMAGES
+ARISING OUT OF THE USE OF THIS SOFTWARE AND ITS DOCUMENTATION, EVEN
+IF THE COPYRIGHT HOLDER HAS BEEN ADVISED OF THE POSSIBILITY OF SUCH
+DAMAGE.
+
+THE COPYRIGHT HOLDER SPECIFICALLY DISCLAIMS ANY WARRANTIES, INCLUDING,
+BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND
+FITNESS FOR A PARTICULAR PURPOSE.  THE SOFTWARE PROVIDED HEREUNDER IS
+ON AN "AS IS" BASIS, AND THE COPYRIGHT HOLDER HAS NO OBLIGATION TO
+PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
+```
+
+## ANGLE
+
+- **Used for:** OpenGL ES on Direct3D, with which Avalonia draws the windows on the GPU. The app ships `av_libglesv2.dll` from the `Avalonia.Angle.Windows.Natives` 2.1.27548.20260419 package.
+- **Source:** https://github.com/AvaloniaUI/angle, commit `1c89805903c1482166356d3b950d474973180e61`
+- **License:** BSD-3-Clause
+
+```
+// Copyright 2018 The ANGLE Project Authors.
+// All rights reserved.
+//
+// Redistribution and use in source and binary forms, with or without
+// modification, are permitted provided that the following conditions
+// are met:
+//
+//     Redistributions of source code must retain the above copyright
+//     notice, this list of conditions and the following disclaimer.
+//
+//     Redistributions in binary form must reproduce the above
+//     copyright notice, this list of conditions and the following
+//     disclaimer in the documentation and/or other materials provided
+//     with the distribution.
+//
+//     Neither the name of TransGaming Inc., Google Inc., 3DLabs Inc.
+//     Ltd., nor the names of their contributors may be used to endorse
+//     or promote products derived from this software without specific
+//     prior written permission.
+//
+// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+// "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+// LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
+// FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+// COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
+// INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+// BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+// LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+// CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+// LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
+// ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+// POSSIBILITY OF SUCH DAMAGE.
 ```
 
 ## .NET Community Toolkit (CommunityToolkit.Mvvm)
@@ -572,9 +717,9 @@ third-party archives.
 
 ## .NET
 
-- **Used for:** the runtime the app runs on. The installer is self-contained, so it ships the .NET runtime (`Microsoft.NETCore.App` 10.0.12), the Windows Desktop runtime with WPF (`Microsoft.WindowsDesktop.App` 10.0.12), and the `Microsoft.Extensions.*` 10.0.12 and `System.Numerics.Tensors` 9.0.0 packages.
-- **Source:** https://github.com/dotnet/runtime, https://github.com/dotnet/wpf and https://github.com/dotnet/winforms, tag v10.0.12. `System.Numerics.Tensors` 9.0.0 comes from https://github.com/dotnet/runtime, tag v9.0.0, commit `9d5a6a9aa463d6d10b0b0ba6d5982cc82f363dc3`.
-- **License:** MIT. The .NET runtime and the Windows Desktop runtime include components under other licenses. Their notices ship next to this file: `ThirdPartyNotices-DotNet.txt` is the `THIRD-PARTY-NOTICES.TXT` of the `Microsoft.NETCore.App.Runtime.win-x64` 10.0.12 package, and `ThirdPartyNotices-Wpf.txt` and `ThirdPartyNotices-WinForms.txt` are the `THIRD-PARTY-NOTICES.TXT` of dotnet/wpf and dotnet/winforms at tag v10.0.12. The notices of the `System.Numerics.Tensors` 9.0.0 package name no component that `ThirdPartyNotices-DotNet.txt` doesn't.
+- **Used for:** the runtime the app runs on. The installer is self-contained, so it ships the .NET runtime (`Microsoft.NETCore.App` 10.0.12) and the `Microsoft.Extensions.*` 10.0.12 and `System.Numerics.Tensors` 9.0.0 packages.
+- **Source:** https://github.com/dotnet/runtime, tag v10.0.12. `System.Numerics.Tensors` 9.0.0 comes from https://github.com/dotnet/runtime, tag v9.0.0, commit `9d5a6a9aa463d6d10b0b0ba6d5982cc82f363dc3`.
+- **License:** MIT. The .NET runtime includes components under other licenses. Their notices ship next to this file: `ThirdPartyNotices-DotNet.txt` is the `THIRD-PARTY-NOTICES.TXT` of the `Microsoft.NETCore.App.Runtime.win-x64` 10.0.12 package. The notices of the `System.Numerics.Tensors` 9.0.0 package name no component that `ThirdPartyNotices-DotNet.txt` doesn't.
 
 ```
 The MIT License (MIT)

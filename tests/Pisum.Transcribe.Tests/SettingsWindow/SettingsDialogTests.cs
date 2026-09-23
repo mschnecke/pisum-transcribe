@@ -1,10 +1,11 @@
-using System.Diagnostics;
-using System.Runtime.ExceptionServices;
-using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Threading;
+using Avalonia.Controls;
+using Avalonia.Interactivity;
+using Avalonia.Logging;
+using Avalonia.LogicalTree;
+using Avalonia.Threading;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
+using Pisum.Transcribe.Dialogs;
 using Pisum.Transcribe.Recording;
 using Pisum.Transcribe.Settings;
 using Pisum.Transcribe.SettingsWindow;
@@ -14,18 +15,24 @@ using Pisum.Transcribe.Transcription;
 namespace Pisum.Transcribe.Tests.SettingsWindow;
 
 [Trait(Traits.Category, Traits.Categories.Unit)]
-public sealed class SettingsDialogTests
+public sealed class SettingsDialogTests : IDisposable
 {
-    [Fact]
-    public void Constructor_EverySection_LaysOutWithoutBindingErrors()
+    private readonly CancellationTokenSource _applicationStopping = new();
+
+    public void Dispose()
     {
-        RunOnStaThread(() =>
+        _applicationStopping.Dispose();
+    }
+
+    [Fact]
+    public Task Constructor_EverySection_LaysOutWithoutBindingErrors()
+    {
+        return HeadlessUi.RunAsync(() =>
         {
             // Arrange
-            var bindingErrors = new CollectingTraceListener();
-            PresentationTraceSources.Refresh();
-            PresentationTraceSources.DataBindingSource.Switch.Level = SourceLevels.Warning;
-            PresentationTraceSources.DataBindingSource.Listeners.Add(bindingErrors);
+            var bindingErrors = new CollectingLogSink();
+            var previousSink = Logger.Sink;
+            Logger.Sink = bindingErrors;
 
             try
             {
@@ -33,45 +40,39 @@ public sealed class SettingsDialogTests
 
                 // Act
                 var sut = new SettingsDialog(viewModel);
-                var content = (UIElement) sut.Content;
-                for (var section = 0; section < sut.Navigation.Items.Count; section++)
+                sut.Show();
+                for (var section = 0; section < sut.Navigation.ItemCount; section++)
                 {
                     sut.Navigation.SelectedIndex = section;
-                    content.Measure(new Size(720, 600));
-                    content.Arrange(new Rect(0, 0, 720, 600));
-                    Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ContextIdle);
+                    sut.UpdateLayout();
+                    Dispatcher.UIThread.RunJobs();
                 }
 
                 // Assert
-                sut.Navigation.Items.Count.ShouldBe(5);
+                sut.Navigation.ItemCount.ShouldBe(5);
                 bindingErrors.Messages.ShouldBeEmpty();
+                sut.Close();
             }
             finally
             {
-                PresentationTraceSources.DataBindingSource.Listeners.Remove(bindingErrors);
-                Dispatcher.CurrentDispatcher.InvokeShutdown();
+                Logger.Sink = previousSink;
             }
         });
     }
 
     [Fact]
-    public void Constructor_Always_CanBeMinimizedButNotResizedOrMaximized()
+    public Task Constructor_Always_CanBeMinimizedButNotResizedOrMaximized()
     {
-        RunOnStaThread(() =>
+        return HeadlessUi.RunAsync(() =>
         {
-            try
-            {
-                // Act
-                var sut = new SettingsDialog(CreateViewModel(new AppSettings()));
+            // Act
+            var sut = new SettingsDialog(CreateViewModel(new AppSettings()));
 
-                // Assert
-                sut.ResizeMode.ShouldBe(ResizeMode.CanMinimize);
-                sut.SizeToContent.ShouldBe(SizeToContent.WidthAndHeight);
-            }
-            finally
-            {
-                Dispatcher.CurrentDispatcher.InvokeShutdown();
-            }
+            // Assert
+            sut.CanResize.ShouldBeFalse();
+            sut.CanMaximize.ShouldBeFalse();
+            sut.CanMinimize.ShouldBeTrue();
+            sut.SizeToContent.ShouldBe(SizeToContent.WidthAndHeight);
         });
     }
 
@@ -81,90 +82,175 @@ public sealed class SettingsDialogTests
     [InlineData(2, 0)]
     [InlineData(0, 1)]
     [InlineData(1, 1)]
-    public void Constructor_EverySection_FitsWithoutScrolling(int runningDownloads, int failedDownloads)
+    public Task Constructor_EverySection_FitsWithoutScrolling(int runningDownloads, int failedDownloads)
     {
-        RunOnStaThread(() =>
+        return HeadlessUi.RunAsync(() =>
         {
-            try
+            // Arrange
+            var modelStore = CreateModelStore();
+            var installs = new Queue<Task>(Enumerable.Repeat(new TaskCompletionSource().Task, runningDownloads)
+                .Concat(Enumerable.Repeat(
+                    Task.FromException(new InsufficientDiskSpaceException(1_144_290_016, 52_428_800)),
+                    failedDownloads)));
+            A.CallTo(() => modelStore.InstallAsync(A<SpeechModel>._, A<IProgress<DownloadProgress>>._,
+                    A<CancellationToken>._))
+                .ReturnsLazily(() => installs.Dequeue());
+            var viewModel = CreateViewModel(new AppSettings(), modelStore);
+            var sut = new SettingsDialog(viewModel);
+            foreach (var item in viewModel.Model.Items.Where(item => !item.IsInstalled)
+                         .Take(runningDownloads + failedDownloads))
             {
-                // Arrange
-                var modelStore = CreateModelStore();
-                var installs = new Queue<Task>(Enumerable.Repeat(new TaskCompletionSource().Task, runningDownloads)
-                    .Concat(Enumerable.Repeat(
-                        Task.FromException(new InsufficientDiskSpaceException(1_144_290_016, 52_428_800)),
-                        failedDownloads)));
-                A.CallTo(() => modelStore.InstallAsync(A<SpeechModel>._, A<IProgress<DownloadProgress>>._,
-                        A<CancellationToken>._))
-                    .ReturnsLazily(() => installs.Dequeue());
-                var viewModel = CreateViewModel(new AppSettings(), modelStore);
-                var sut = new SettingsDialog(viewModel);
-                foreach (var item in viewModel.Model.Items.Where(item => !item.IsInstalled)
-                             .Take(runningDownloads + failedDownloads))
-                {
-                    _ = item.DownloadCommand.ExecuteAsync(null);
-                }
-
-                // Act
-                var content = (UIElement) sut.Content;
-                var scrollingSections = new List<object>();
-                for (var section = 0; section < sut.Navigation.Items.Count; section++)
-                {
-                    sut.Navigation.SelectedIndex = section;
-                    content.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
-                    content.Arrange(new Rect(content.DesiredSize));
-                    Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ContextIdle);
-                    content.UpdateLayout();
-                    if (sut.SectionContent.ScrollableHeight > 0)
-                    {
-                        scrollingSections.Add(((ListBoxItem) sut.Navigation.Items[section]).Content);
-                    }
-                }
-
-                // Assert
-                viewModel.Model.Items.Count(item => item.Download.IsDownloading).ShouldBe(runningDownloads);
-                viewModel.Model.Items.Count(item => item.Download.HasError).ShouldBe(failedDownloads);
-                scrollingSections.ShouldBeEmpty();
+                _ = item.DownloadCommand.ExecuteAsync(null);
             }
-            finally
+
+            // Act
+            sut.Show();
+            var scrollingSections = new List<object?>();
+            for (var section = 0; section < sut.Navigation.ItemCount; section++)
             {
-                Dispatcher.CurrentDispatcher.InvokeShutdown();
+                sut.Navigation.SelectedIndex = section;
+                Dispatcher.UIThread.RunJobs();
+                sut.UpdateLayout();
+                if (sut.SectionContent.Extent.Height > sut.SectionContent.Viewport.Height)
+                {
+                    scrollingSections.Add(((ListBoxItem) sut.Navigation.Items[section]!).Content);
+                }
             }
+
+            // Assert
+            viewModel.Model.Items.Count(item => item.Download.IsDownloading).ShouldBe(runningDownloads);
+            viewModel.Model.Items.Count(item => item.Download.HasError).ShouldBe(failedDownloads);
+            scrollingSections.ShouldBeEmpty();
+            _applicationStopping.Cancel();
+            sut.Close();
         });
     }
 
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
-    public void Constructor_SavedVoiceActivity_ShowsItAsTrimSilenceAndWritesClicksBack(bool enabled)
+    public Task Constructor_SavedVoiceActivity_ShowsItAsTrimSilenceAndWritesClicksBack(bool enabled)
     {
-        RunOnStaThread(() =>
+        return HeadlessUi.RunAsync(() =>
         {
-            try
-            {
-                // Arrange
-                var viewModel = CreateViewModel(new AppSettings {VoiceActivity = new VoiceActivitySettings(enabled)});
+            // Arrange
+            var viewModel = CreateViewModel(new AppSettings {VoiceActivity = new VoiceActivitySettings(enabled)});
 
-                // Act
-                var sut = new SettingsDialog(viewModel);
-                var content = (UIElement) sut.Content;
-                content.Measure(new Size(720, 600));
-                content.Arrange(new Rect(0, 0, 720, 600));
-                Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ContextIdle);
-                var checkBox = FindLogical<CheckBox>(sut)
-                    .Single(candidate => Equals(candidate.Content, "Tri_m silence before transcription"));
-                var shown = checkBox.IsChecked;
-                checkBox.IsChecked = !enabled;
+            // Act
+            var sut = new SettingsDialog(viewModel);
+            sut.Show();
+            var checkBox = sut.GetLogicalDescendants().OfType<CheckBox>()
+                .Single(candidate => Equals(candidate.Content, "Tri_m silence before transcription"));
+            var shown = checkBox.IsChecked;
+            checkBox.IsChecked = !enabled;
 
-                // Assert
-                shown.ShouldBe(enabled);
-                viewModel.Dictation.TrimSilence.ShouldBe(!enabled);
-                viewModel.HasChanges.ShouldBeTrue();
-            }
-            finally
-            {
-                Dispatcher.CurrentDispatcher.InvokeShutdown();
-            }
+            // Assert
+            shown.ShouldBe(enabled);
+            viewModel.Dictation.TrimSilence.ShouldBe(!enabled);
+            viewModel.HasChanges.ShouldBeTrue();
+            sut.Close();
         });
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public Task DeleteCommand_ConfirmationAnswered_DeletesOnlyOnYes(bool yes)
+    {
+        return HeadlessUi.RunAsync(() =>
+        {
+            // Arrange
+            var modelStore = A.Fake<IModelStore>();
+            A.CallTo(() => modelStore.IsInstalled(A<SpeechModel>._)).Returns(true);
+            SettingsDialog? sut = null;
+            var viewModel = CreateViewModel(new AppSettings(), modelStore, model => sut!.ConfirmDelete(model));
+            sut = new SettingsDialog(viewModel);
+            sut.Show();
+            var item = viewModel.Model.Items.First(candidate => candidate.ShowsDelete);
+            string? question = null;
+
+            // Answered from inside the nested frame that waits for the dialog.
+            Dispatcher.UIThread.Post(() =>
+            {
+                var dialog = sut.OwnedWindows.OfType<ConfirmDialog>().Single();
+                question = dialog.Message.Text;
+                (yes ? dialog.YesButton : dialog.NoButton).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            });
+
+            // Act
+            item.DeleteCommand.Execute(null);
+
+            // Assert
+            question.ShouldBe($"Delete {item.Model.DisplayName}? You can download it again later.");
+            if (yes)
+            {
+                A.CallTo(() => modelStore.Delete(item.Model)).MustHaveHappenedOnceExactly();
+            }
+            else
+            {
+                A.CallTo(() => modelStore.Delete(A<SpeechModel>._)).MustNotHaveHappened();
+            }
+
+            sut.Close();
+        });
+    }
+
+    [Fact]
+    public Task Close_ApplicationStoppingDuringDownload_ClosesWithoutAsking()
+    {
+        return HeadlessUi.RunAsync(() =>
+        {
+            // Arrange
+            var (sut, closed) = ShowDialogWithDownload();
+            _applicationStopping.Cancel();
+
+            // Act
+            sut.Close();
+
+            // Assert
+            closed().ShouldBeTrue();
+            sut.OwnedWindows.ShouldBeEmpty();
+        });
+    }
+
+    [Fact]
+    public Task Close_ApplicationStoppingWhileAsking_ClosesWindowAndConfirmation()
+    {
+        return HeadlessUi.RunAsync(() =>
+        {
+            // Arrange
+            var (sut, closed) = ShowDialogWithDownload();
+            sut.Close();
+            var dialog = sut.OwnedWindows.OfType<ConfirmDialog>().Single();
+            dialog.Message.Text.ShouldBe(SettingsDialog.ConfirmCloseMessage);
+            _applicationStopping.Cancel();
+
+            // Act
+            sut.Close();
+            Dispatcher.UIThread.RunJobs();
+
+            // Assert
+            closed().ShouldBeTrue();
+            dialog.IsVisible.ShouldBeFalse();
+            sut.OwnedWindows.ShouldBeEmpty();
+        });
+    }
+
+    private (SettingsDialog Dialog, Func<bool> Closed) ShowDialogWithDownload()
+    {
+        var modelStore = CreateModelStore();
+        A.CallTo(() => modelStore.InstallAsync(A<SpeechModel>._, A<IProgress<DownloadProgress>>._,
+                A<CancellationToken>._))
+            .ReturnsLazily((SpeechModel _, IProgress<DownloadProgress> _, CancellationToken token) =>
+                Task.Delay(Timeout.Infinite, token));
+        var viewModel = CreateViewModel(new AppSettings(), modelStore);
+        var dialog = new SettingsDialog(viewModel);
+        var closed = false;
+        dialog.Closed += (_, _) => closed = true;
+        dialog.Show();
+        _ = viewModel.Model.Items.First(item => !item.IsInstalled).DownloadCommand.ExecuteAsync(null);
+        viewModel.Model.IsDownloading.ShouldBeTrue();
+        return (dialog, () => closed);
     }
 
     private static IModelStore CreateModelStore()
@@ -175,80 +261,59 @@ public sealed class SettingsDialogTests
         return modelStore;
     }
 
-    private static SettingsViewModel CreateViewModel(AppSettings settings)
+    private SettingsViewModel CreateViewModel(AppSettings settings)
     {
         return CreateViewModel(settings, CreateModelStore());
     }
 
-    private static SettingsViewModel CreateViewModel(AppSettings settings, IModelStore modelStore)
+    private SettingsViewModel CreateViewModel(AppSettings settings,
+                                              IModelStore modelStore,
+                                              Func<SpeechModel, bool>? confirmDelete = null)
     {
         var transcriber = A.Fake<ITranscriber>();
         A.CallTo(() => transcriber.Status).Returns(TranscriberStatus.Ready);
         A.CallTo(() => transcriber.ActiveBackend).Returns("Vulkan");
+        var lifetime = A.Fake<IHostApplicationLifetime>();
+        A.CallTo(() => lifetime.ApplicationStopping).Returns(_applicationStopping.Token);
         return new SettingsViewModel(new FakeSettingsStore(settings), A.Fake<IStartupRegistration>(), modelStore,
-            transcriber, A.Fake<IPushToTalkHotkey>(), A.Fake<IHostApplicationLifetime>(), _ => false,
+            transcriber, A.Fake<IPushToTalkHotkey>(), lifetime, confirmDelete ?? (_ => false),
             NullLogger<SettingsViewModel>.Instance, new InlineUiDispatcher());
     }
 
-    private static IEnumerable<T> FindLogical<T>(DependencyObject parent)
-        where T : DependencyObject
-    {
-        foreach (var child in LogicalTreeHelper.GetChildren(parent).OfType<DependencyObject>())
-        {
-            if (child is T match)
-            {
-                yield return match;
-            }
-
-            foreach (var descendant in FindLogical<T>(child))
-            {
-                yield return descendant;
-            }
-        }
-    }
-
-    /// <summary>
-    /// Runs the test body on an STA thread, which WPF windows need.
-    /// </summary>
-    private static void RunOnStaThread(Action action)
-    {
-        Exception? failure = null;
-        var thread = new Thread(() =>
-        {
-            try
-            {
-                action();
-            }
-            catch (Exception exception)
-            {
-                failure = exception;
-            }
-        });
-        thread.SetApartmentState(ApartmentState.STA);
-        thread.Start();
-        thread.Join();
-
-        if (failure is not null)
-        {
-            ExceptionDispatchInfo.Throw(failure);
-        }
-    }
-
-    private sealed class CollectingTraceListener : TraceListener
+    private sealed class CollectingLogSink : ILogSink
     {
         private readonly List<string> _messages = [];
 
-        public IReadOnlyList<string> Messages => _messages;
-
-        public override void Write(string? message)
+        public IReadOnlyList<string> Messages
         {
+            get
+            {
+                lock (_messages)
+                {
+                    return _messages.ToList();
+                }
+            }
         }
 
-        public override void WriteLine(string? message)
+        public bool IsEnabled(LogEventLevel level, string area)
         {
-            if (message is not null)
+            return level >= LogEventLevel.Warning && area == LogArea.Binding;
+        }
+
+        public void Log(LogEventLevel level, string area, object? source, string messageTemplate)
+        {
+            Log(level, area, source, messageTemplate, []);
+        }
+
+        public void Log(LogEventLevel level, string area, object? source, string messageTemplate,
+                        params object?[] propertyValues)
+        {
+            if (IsEnabled(level, area))
             {
-                _messages.Add(message);
+                lock (_messages)
+                {
+                    _messages.Add($"{messageTemplate} {string.Join(", ", propertyValues)}");
+                }
             }
         }
     }

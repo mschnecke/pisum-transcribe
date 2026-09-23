@@ -1,4 +1,4 @@
-using System.Windows.Threading;
+using Avalonia.Threading;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Pisum.Transcribe.Notifications;
@@ -7,13 +7,13 @@ using Pisum.Transcribe.Tray;
 namespace Pisum.Transcribe.Hosting;
 
 /// <summary>
-/// The only code that ends the application, so that the WPF application and the host end together.
+/// The only code that ends the application, so that the Avalonia application and the host end together.
 /// </summary>
 /// <remarks>
 /// Create it on the UI thread. The shutdown runs once: it starts a watchdog that ends the process after
 /// <see cref="ExitTimeout"/>, removes the tray icon (at once for <see cref="ShutdownReason.UserExit"/> and
 /// <see cref="ShutdownReason.SessionEnd"/>; for <see cref="ShutdownReason.Error"/> after the error notification and after
-/// the host has stopped), stops and disposes the host, and shuts down the WPF application. The error notification is a
+/// the host has stopped), stops and disposes the host, and shuts down the Avalonia lifetime. The error notification is a
 /// Windows toast, which stays in the notification center after the process has ended.
 /// </remarks>
 internal sealed class ShutdownCoordinator
@@ -34,7 +34,7 @@ internal sealed class ShutdownCoordinator
     private readonly SynchronizationContext? _uiContext;
 
     // Without RunContinuationsAsynchronously, like an async method's task: a synchronous continuation runs in the
-    // same dispatcher operation that shuts down the WPF application (see DispatcherWait).
+    // same dispatcher operation that shuts down the Avalonia lifetime (see DispatcherWait).
     private readonly TaskCompletionSource _shutdown = new();
 
     private int _shutdownRequested;
@@ -51,7 +51,7 @@ internal sealed class ShutdownCoordinator
     /// <param name="trayIcon">The tray icon.</param>
     /// <param name="notifier">Shows the notification after an error.</param>
     /// <param name="timeProvider">The time provider for the watchdog.</param>
-    /// <param name="shutdownApplication">Shuts down the WPF application with an exit code.</param>
+    /// <param name="shutdownApplication">Shuts down the Avalonia lifetime with an exit code.</param>
     /// <param name="exitProcess">Ends the process at once with an exit code.</param>
     /// <param name="logger">The logger.</param>
     public ShutdownCoordinator(IHost host,
@@ -81,7 +81,7 @@ internal sealed class ShutdownCoordinator
     /// first call decides the exit code and when the tray icon is removed.
     /// </summary>
     /// <param name="reason">Why the application ends.</param>
-    /// <returns>A task that completes when the WPF application was asked to shut down.</returns>
+    /// <returns>A task that completes when the Avalonia lifetime was shut down.</returns>
     public Task RequestShutdownAsync(ShutdownReason reason)
     {
         if (Interlocked.Exchange(ref _shutdownRequested, 1) == 0)
@@ -108,8 +108,8 @@ internal sealed class ShutdownCoordinator
     {
         var exitCode = reason != ShutdownReason.Error ? 0 : 1;
 
-        // Everything that can throw runs in the try, so the WPF application always shuts down and the task always
-        // completes. App.OnSessionEnding waits for it.
+        // Everything that can throw runs in the try, so the Avalonia lifetime always shuts down and the task always
+        // completes. The lifetime's ShutdownRequested handler in App waits for it.
         try
         {
             _logger.LogInformation("Shutting down, reason {Reason}", reason);
@@ -156,7 +156,7 @@ internal sealed class ShutdownCoordinator
             }
             catch (Exception exception)
             {
-                _logger.LogError(exception, "Could not shut down the WPF application");
+                _logger.LogError(exception, "Could not shut down the Avalonia lifetime");
             }
             finally
             {
