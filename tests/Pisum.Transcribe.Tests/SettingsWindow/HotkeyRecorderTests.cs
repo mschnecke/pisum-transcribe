@@ -66,7 +66,7 @@ public sealed class HotkeyRecorderTests
         // Assert
         state.ShouldBe(HotkeyRecordingState.Rejected);
         sut.RejectedMessage.ShouldBe(
-            "The hotkey must include Control, Option, Shift, Command, fn or a function key F1–F24.");
+            "The hotkey must include Control, Option, Shift, Command or a function key F1–F24.");
     }
 
     [Fact]
@@ -84,19 +84,20 @@ public sealed class HotkeyRecorderTests
         HotkeyText.Format(sut.Keys, HotkeyKeyNames.MacOS).ShouldBe("Right Command");
     }
 
-    [Fact]
-    public void OnKey_FnAloneOnMacOS_IsCapturedAsFn()
+    [Theory]
+    [InlineData(KeyCode.VcFunction)]
+    [InlineData(KeyCode.VcChangeInputSource)] // what the hook reports for the Globe/fn key on a MacBook Air
+    public void OnKey_FnAloneOnMacOS_IsRejected(KeyCode key)
     {
         // Arrange
         var sut = new HotkeyRecorder(HotkeyKeyNames.MacOS);
 
         // Act
-        sut.OnKey(KeyCode.VcFunction, true);
-        var state = sut.OnKey(KeyCode.VcFunction, false);
+        sut.OnKey(key, true);
+        var state = sut.OnKey(key, false);
 
         // Assert
-        state.ShouldBe(HotkeyRecordingState.Captured);
-        HotkeyText.Format(sut.Keys, HotkeyKeyNames.MacOS).ShouldBe("fn");
+        state.ShouldBe(HotkeyRecordingState.Rejected);
     }
 
     [Fact]

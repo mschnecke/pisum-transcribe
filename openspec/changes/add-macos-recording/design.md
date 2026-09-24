@@ -47,7 +47,7 @@ See proposal.md for the motivation. The decisions come from the section "Decided
 
 ### D2: Lock and user switch folded into the missed-release timer
 
-On macOS, the physical key state comes from the HID system state. SharpHook's raw code on macOS is the CG key code. `CGEventSourceKeyState(kCGEventSourceStateHIDSystemState, keycode)` never reads a modifier key as down (found by hand on 2026-09-24: right Command read up while held, so every hold was cancelled after 500 ms). A modifier key, fn included, is therefore read from its device-dependent bit in `CGEventSourceFlagsState(kCGEventSourceStateHIDSystemState)`, such as `NX_DEVICERCMDKEYMASK` (0x10) for right Command or `kCGEventFlagMaskSecondaryFn` for fn, which tells the left key from the right one. Every other key uses `CGEventSourceKeyState`. That state still reads *down* behind the lock screen while the user keeps holding the key. The shell design planned two notifications for that: the distributed `com.apple.screenIsLocked` and `NSWorkspace`'s session notifications through the helper.
+On macOS, the physical key state comes from the HID system state. SharpHook's raw code on macOS is the CG key code. `CGEventSourceKeyState(kCGEventSourceStateHIDSystemState, keycode)` never reads a modifier key as down (found by hand on 2026-09-24: right Command read up while held, so every hold was cancelled after 500 ms). A modifier key is therefore read from its device-dependent bit in `CGEventSourceFlagsState(kCGEventSourceStateHIDSystemState)`, such as `NX_DEVICERCMDKEYMASK` (0x10) for right Command, which tells the left key from the right one. Every other key uses `CGEventSourceKeyState`. That state still reads *down* behind the lock screen while the user keeps holding the key. The shell design planned two notifications for that: the distributed `com.apple.screenIsLocked` and `NSWorkspace`'s session notifications through the helper.
 
 Instead, `MacHotkeyKeyState` answers "observably held" as:
 
@@ -102,19 +102,17 @@ The tables move out of `HotkeyText` and `HotkeyRecorder` into a `HotkeyKeyNames`
 
 | | Windows | macOS |
 |---|---|---|
-| Order | Ctrl, Alt, Shift, Win | fn, Control, Option, Shift, Command |
-| Names | Left/Right Ctrl, Alt, Shift, Win | fn, Left/Right Control, Option, Shift, Command |
-| Valid with | the modifiers above or F1–F24 | the modifiers above, fn or F1–F24 |
-| Message | "The hotkey must include Ctrl, Alt, Shift, the Windows key or a function key F1–F24." | "The hotkey must include Control, Option, Shift, Command, fn or a function key F1–F24." |
+| Order | Ctrl, Alt, Shift, Win | Control, Option, Shift, Command |
+| Names | Left/Right Ctrl, Alt, Shift, Win | Left/Right Control, Option, Shift, Command |
+| Valid with | the modifiers above or F1–F24 | the modifiers above or F1–F24 |
+| Message | "The hotkey must include Ctrl, Alt, Shift, the Windows key or a function key F1–F24." | "The hotkey must include Control, Option, Shift, Command or a function key F1–F24." |
 
-The order follows Apple's order for shortcuts (fn first, then ⌃ ⌥ ⇧ ⌘), spelled out in words, as Windows spells its keys.
+The order follows Apple's order for shortcuts (⌃ ⌥ ⇧ ⌘), spelled out in words, as Windows spells its keys.
 
-**The fn hint:** `DictationSectionViewModel.ShowsFnHint` is true on macOS while the hotkey shown, saved or just captured, contains `VcFunction`. The dialog shows it as a `hint` line under the hotkey: "Set "Press 🌐 key to" to "Do Nothing" in System Settings → Keyboard, or every press also runs that action."
+**No fn.** The plan accepted fn/Globe, with a hint to set "Press 🌐 key to" to "Do Nothing". The checks by hand on 2026-09-24 (a MacBook Air M4) showed that the hook never sees fn as held: each press arrives as `VcChangeInputSource` (raw code 0xB3), a key-down and a key-up at once, twice per press, and never as `VcFunction`. So fn is left out of the valid keys, as the risk list planned, and the hint goes with it. The editor rejects fn with the rejection message.
 
 *Rejected:*
-- **Always showing the hint on macOS.** It's noise for the default, right Command.
-- **Reading macOS's setting** (`AppleFnUsageType` in `com.apple.HIToolbox`) to show the hint only when needed. The key isn't documented, and the value would go stale while the window is open.
-- **A link that opens Keyboard settings.** One more `x-apple.systempreferences:` anchor that Apple renames between releases.
+- **Supporting fn through the HID flags,** by reading `kCGEventFlagMaskSecondaryFn` on each 0xB3 event to tell down from up. It rests on undocumented behavior of the Globe key and is new work beyond this change. It can be its own change later.
 - **Apple's key symbols** in place of words.
 
 ### D7: Capture on AudioQueue through `DllImport`
@@ -164,7 +162,7 @@ The new device's mute state isn't checked on a swap. That matches Windows, where
   - `SharpHookPushToTalkHotkeyTests` with a fake `IHotkeyKeyState` in place of `isKeyDown`: a key that stops being observable (lock, off console) cancels within 1 second.
   - Also with a fake `IHookAccess`: without the grant the hook isn't run, and nothing is notified; `ErrorAxApiRevoked` shows the revoke text and reports it; other results show "Push-to-talk unavailable".
   - `HotkeyParserTests` and `JsonSettingsStoreTests` against `DefaultKeyName`.
-  - `HotkeyTextTests` and `HotkeyRecorderTests` for both `HotkeyKeyNames` tables. `DictationSectionViewModel` shows the fn hint only on macOS with `VcFunction`.
+  - `HotkeyTextTests` and `HotkeyRecorderTests` for both `HotkeyKeyNames` tables, including fn rejected on macOS as `VcFunction` and as `VcChangeInputSource`.
   - `RelaunchService` and `PermissionsViewModel` with a fake `IPermissions` whose grant drops.
 - **macOS `Integration`** (the real APIs, no hardware):
   - an idle key and an idle modifier read as up
@@ -179,8 +177,7 @@ The new device's mute state isn't checked on a swap. That matches Windows, where
   - Hold right Command → Pressed, then Released. Another key during the hold → Cancelled.
   - Hold through Ctrl+Cmd+Q → Cancelled within 1 s. A switch to another user during a hold → Cancelled.
   - A password field takes focus during the hold, then release → the "reads as up" reset.
-  - fn with "Press 🌐 key to" set to "Do Nothing" → Pressed and Released.
-  - The editor records right Command and fn with Mac names and shows the fn hint.
+  - The editor records right Command with Mac names and rejects fn.
   - A fresh start without the grant → no notification. A revoke while running → the revoke notification. The grant again through **Set up Pisum Transcribe…** → the relaunch, then Pressed.
   - A deliberately slow handler (a temporary `Thread.Sleep` in a local build) → `CGEventTap timeout!` in the log, and the hotkey still works afterwards.
   - Quit while holding the hotkey → the app ends within the budget.
@@ -198,7 +195,7 @@ The shell design and setup's Non-Goals expected this change to raise the ABI aft
 - **[`CGSSessionScreenIsLocked` is undocumented and could disappear]** → the hardware check covers it. If it disappears, the key reads as missing, so the lock falls back to the release that the physical key state sees. The fallback is the distributed `com.apple.screenIsLocked` notification, which is C as well.
 - **[The revoke doesn't end the hook with `ErrorAxApiRevoked`, for example if the tap only goes silent]** → the check by hand revokes while running. If the tap goes silent instead, `IHookAccess` gets the same report from a poll of `AXIsProcessTrusted()` while the hook runs, and D4's rest stays.
 - **[AudioQueue doesn't convert to 16 kHz for some device]** → the 32,000-sample hardware test fails loudly. The fallback is capturing at the device rate and resampling in the session, as NAudio does on Windows.
-- **[fn arrives through `flagsChanged` and SharpHook doesn't report its release]** → the check by hand. If it fails, fn is left out of `HotkeyKeyNames.MacOS`'s valid keys, and the fn hint goes with it.
+- **[fn arrives through `flagsChanged` and SharpHook doesn't report its release]** → happened: the hook sees fn only as taps of `VcChangeInputSource`. fn is left out of `HotkeyKeyNames.MacOS`'s valid keys, and the fn hint went with it (D6).
 - **[A slow UI thread stalls the tap through libuiohook's main-queue dispatch]** → the existing rule against blocking the UI thread, and the timeout check (D9).
 - **[A dev Mac keeps right Ctrl as its hotkey]** → accepted (D5). The editor changes it.
 - **[A denied microphone isn't checked by hand in the app in this change]** → covered by the unit and integration tests. The check by hand comes with #20, which first opens the microphone in the app.

@@ -197,20 +197,13 @@ internal sealed partial class DictationSectionViewModel : ObservableObject
     /// The push-to-talk hotkey as key names, as saved.
     /// </summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HotkeyName), nameof(ShowsFnHint))]
+    [NotifyPropertyChangedFor(nameof(HotkeyName))]
     public partial IReadOnlyList<string> Hotkey { get; private set; }
 
     /// <summary>
     /// The push-to-talk hotkey for display, such as <c>Right Ctrl</c> or <c>Right Command</c>.
     /// </summary>
     public string HotkeyName => HotkeyText.Format(HotkeyParser.Parse(Hotkey, NullLogger.Instance), _keyNames);
-
-    /// <summary>
-    /// Whether the hint about macOS's "Press 🌐 key to" setting is shown: on macOS, while the hotkey includes fn.
-    /// </summary>
-    public bool ShowsFnHint => _keyNames.ShowsFnHint &&
-                               HotkeyParser.Parse(Hotkey, NullLogger.Instance)
-                                   .Contains(SharpHook.Data.KeyCode.VcFunction);
 
     /// <summary>
     /// Why the last recorded hotkey was rejected, or <see langword="null"/>.

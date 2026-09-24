@@ -5,8 +5,8 @@ The order follows the dependencies. First the platform-neutral seams and the per
 - [x] 1.1 Add `IHotkeyKeyState` (D1) and `Recording/Windows/WindowsHotkeyKeyState` on `Windows.Win32.PInvoke.GetAsyncKeyState`. `SharpHookPushToTalkHotkey` takes it in place of the `isKeyDown` delegate and loses its `DllImport`. Verify: `SharpHookPushToTalkHotkeyTests` pass with a fake `IHotkeyKeyState`, and `dotnet build` passes for both frameworks.
 - [x] 1.2 Add `IHookAccess` (D1) with a Windows implementation that always allows the start. `StartAsync` runs the hook only when it's allowed, and logs at Information otherwise. `RunHookAsync` tells `ErrorAxApiRevoked` from other results: the revoke shows "Push-to-talk stopped" with the text of D3 and is reported to `IHookAccess`; everything else keeps "Push-to-talk unavailable". Verify: unit tests with a fake `IHookAccess` and a fake hook see no run and no notification when it isn't allowed, the revoke text and one report for `ErrorAxApiRevoked`, and the old text for `ErrorSetWindowsHookEx`.
 - [x] 1.3 Make `HotkeyParser.DefaultKeyName` and `DefaultHotkey` per platform (D5): `VcRightMeta` on macOS, `VcRightControl` on Windows. Switch `JsonSettingsStoreTests` and `HotkeyParserTests` from `"VcRightControl"` to `DefaultKeyName` (spec `push-to-talk-hotkey` "Hotkey setting"). Verify: the tests pass on the Mac and on Windows.
-- [x] 1.4 Add `HotkeyKeyNames` with `Windows`, `MacOS` and `Current` (D6), and make `HotkeyText` and `HotkeyRecorder` use it. Verify: `HotkeyTextTests` and `HotkeyRecorderTests` cover both tables on either host, including "Right Command", "fn", the order fn, Control, Option, Shift, Command, fn alone as valid on macOS only, and both rejection messages (spec `settings-window` "Hotkey editor").
-- [x] 1.5 Add `DictationSectionViewModel.ShowsFnHint` and its `hint` line in `SettingsDialog.axaml` (D6). Verify: unit tests see it true only for the macOS table with `VcFunction` in the saved or the captured hotkey, and a headless test sees the hint's text under the hotkey.
+- [x] 1.4 Add `HotkeyKeyNames` with `Windows`, `MacOS` and `Current` (D6), and make `HotkeyText` and `HotkeyRecorder` use it. Verify: `HotkeyTextTests` and `HotkeyRecorderTests` cover both tables on either host, including "Right Command", the order Control, Option, Shift, Command, fn rejected on macOS (after 5.1), and both rejection messages (spec `settings-window` "Hotkey editor").
+- [x] 1.5 ~~Add `DictationSectionViewModel.ShowsFnHint` and its `hint` line in `SettingsDialog.axaml` (D6).~~ Added, then removed after the checks by hand of 5.1: the hook never sees fn as held, so fn isn't a hotkey key and needs no hint (D6).
 
 ## 2. The grant in effect
 
@@ -29,7 +29,7 @@ The order follows the dependencies. First the platform-neutral seams and the per
 
 ## 5. End to end and docs
 
-- [ ] 5.1 Run the checks by hand of D10 on the dev Mac with the dev bundle and its Debug log. They include the revoke, the grant again and the relaunch, fn, the lock, a user switch, secure input, the tap timeout, Quit while holding, and AirPods. Verify: each step as described, noted in the PR, with the answer to the open question.
+- [ ] 5.1 Run the checks by hand of D10 on the dev Mac with the dev bundle and its Debug log. They include the revoke, the grant again and the relaunch, fn rejected by the editor, the lock, a user switch, secure input, the tap timeout, Quit while holding, and AirPods. Verify: each step as described, noted in the PR, with the answer to the open question.
 - [x] 5.2 Update the docs:
   - `CLAUDE.md`: the recording on macOS in the layout and in the macOS registration of `AppHost.Create`, the default hotkey per platform, and the AudioQueue interop under macOS APIs
   - `docs/roadmap.md`: the change done

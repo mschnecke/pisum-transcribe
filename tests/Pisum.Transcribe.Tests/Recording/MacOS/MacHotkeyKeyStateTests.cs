@@ -63,7 +63,6 @@ public sealed class MacHotkeyKeyStateTests
     [InlineData(0x3A, 0x0008_0140UL, false)] // left Option isn't held
     [InlineData(0x3C, 0x0002_0104UL, true)] // right Shift held
     [InlineData(0x3E, 0x0004_2100UL, true)] // right Control held
-    [InlineData(0x3F, 0x0080_0100UL, true)] // fn held
     [InlineData(0x36, 0x0000_0100UL, false)] // nothing held
     public void IsKeyDown_ModifierKey_ReadsItsSideBitAndNotTheKeyState(int keyCode, ulong flags, bool expected)
     {

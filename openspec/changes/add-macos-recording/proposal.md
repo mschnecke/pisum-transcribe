@@ -18,7 +18,7 @@ Tracked in issue #17. The decisions come from the section "Decided for later mac
 - **Microphone capture on macOS** at 16 kHz mono from the default input device:
   - Before the microphone opens, a denied microphone fails at once with "microphone access blocked", and a muted input device with "microphone muted", instead of waiting 3 s and reporting "not responding".
   - A change of the default input device during a recording continues on the new device. When no input device remains, the recording ends with "microphone disconnected".
-- **The hotkey editor on macOS** uses Mac key names (`fn`, `Right Command`, `Left Option`, …) and accepts fn/Globe. While the hotkey includes fn, a hint says to set macOS's "Press 🌐 key to" to "Do Nothing".
+- **The hotkey editor on macOS** uses Mac key names (`Right Command`, `Left Option`, …). fn/Globe isn't a hotkey key: the keyboard hook sees it only as a tap of another key code, never as held (found in the checks by hand on 2026-09-24).
 - **Not included:**
   - connecting the hotkey to the recording, the tray states, the overlay and the error notifications on macOS (`add-macos-dictation`, #20). The `dictation` requirements "Error notifications" and "Dictation ends when the application exits" get their macOS wording there.
   - text insertion and the secure-input hint in the tray (`add-macos-text-insertion`, #19)
@@ -42,7 +42,7 @@ Tracked in issue #17. The decisions come from the section "Decided for later mac
   - "Start completes when audio flows": only digital zeros count as silence on macOS.
   - "Microphone access blocked": the macOS microphone permission, checked before the microphone opens.
   - "Microphone muted": the muted input device on macOS, checked before the microphone opens.
-- `settings-window`: "Hotkey editor": Mac key names, fn/Globe, the hint about "Press 🌐 key to", and the Mac wording of the rejection message.
+- `settings-window`: "Hotkey editor": Mac key names, fn/Globe rejected, and the Mac wording of the rejection message.
 - `macos-permissions`: the Accessibility grant counts as in effect only while the keyboard hook can use it, so a grant after a revoke relaunches the app too.
 
 ## Impact
@@ -50,7 +50,7 @@ Tracked in issue #17. The decisions come from the section "Decided for later mac
 - **Depends on:** `add-macos-setup` (#16), which is merged. It uses `IPermissions`, the Swift helper's microphone status and `RelaunchService`.
 - **Code:**
   - `Recording/`: `SharpHookPushToTalkHotkey` registered on macOS, with the key-state read, the grant check and the revoke behind a platform seam. `HotkeyParser`'s default per platform. `MacOS/AudioQueueCaptureSessionFactory` and its session on AudioToolbox and CoreAudio. `InactivePushToTalkHotkey` is removed.
-  - `SettingsWindow/`: `HotkeyText` and `HotkeyRecorder` get per-platform names and rules, and the dialog shows the fn hint.
+  - `SettingsWindow/`: `HotkeyText` and `HotkeyRecorder` get per-platform names and rules.
   - `Permissions/`: the Accessibility grant "in effect" in place of "granted at start", and `RelaunchService` follows it.
   - `Settings/RecordingSettings`: the default hotkey from `HotkeyParser`.
 - **Swift helper:** no new function. `pisum_abi_version` stays 2. AudioQueue, CoreAudio, `CGEventSourceKeyState` and `CGSessionCopyCurrentDictionary` are C APIs, called through `DllImport`.

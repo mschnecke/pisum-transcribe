@@ -29,8 +29,7 @@ internal sealed class MacHotkeyKeyState : IHotkeyKeyState
     private static readonly Lazy<nint> OnConsoleKey = new(() => CreateString("kCGSSessionOnConsoleKey"));
     private static readonly Lazy<nint> ScreenIsLockedKey = new(() => CreateString("CGSSessionScreenIsLocked"));
 
-    // The device-dependent flag of each modifier key by its macOS key code (NX_DEVICE*KEYMASK in IOLLEvent.h, and
-    // kCGEventFlagMaskSecondaryFn for fn).
+    // The device-dependent flag of each modifier key by its macOS key code (NX_DEVICE*KEYMASK in IOLLEvent.h).
     private static readonly FrozenDictionary<int, ulong> ModifierFlags = new Dictionary<int, ulong>
     {
         [0x3B] = 0x0000_0001, // left Control
@@ -41,7 +40,6 @@ internal sealed class MacHotkeyKeyState : IHotkeyKeyState
         [0x3A] = 0x0000_0020, // left Option
         [0x3D] = 0x0000_0040, // right Option
         [0x3E] = 0x0000_2000, // right Control
-        [0x3F] = 0x0080_0000, // fn
     }.ToFrozenDictionary();
 
     private readonly Func<int, bool> _isKeyDown;

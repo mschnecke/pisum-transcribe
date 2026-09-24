@@ -5,9 +5,7 @@ The dictation section SHALL show the current push-to-talk hotkey and offer **Cha
 
 The key names and the rule for a valid hotkey SHALL follow the platform:
 - On Windows, a captured hotkey SHALL be rejected with a validation message unless it contains at least one of Ctrl, Alt, Shift, the Windows key, or a function key F1–F24. Keys SHALL be shown with Windows names, such as "Right Ctrl" or "Left Win", modifiers first in the order Ctrl, Alt, Shift, Win.
-- On macOS, a captured hotkey SHALL be rejected with a validation message unless it contains at least one of Control, Option, Shift, Command, fn, or a function key F1–F24. Keys SHALL be shown with Mac names, such as "Right Command", "Left Option" or "fn", modifiers first in the order fn, Control, Option, Shift, Command.
-
-On macOS, while the hotkey shown in the editor includes fn, whether saved or just captured, a hint SHALL say to set "Press 🌐 key to" in System Settings → Keyboard to "Do Nothing", because macOS otherwise also runs that action on every press.
+- On macOS, a captured hotkey SHALL be rejected with a validation message unless it contains at least one of Control, Option, Shift, Command, or a function key F1–F24. Keys SHALL be shown with Mac names, such as "Right Command" or "Left Option", modifiers first in the order Control, Option, Shift, Command. The fn/Globe key SHALL NOT be accepted, because the keyboard hook can't see it held.
 
 #### Scenario: Record left Ctrl and left Win
 - **WHEN** the user chooses **Change…** on Windows, holds the left Ctrl and left Win keys together and releases them
@@ -17,10 +15,10 @@ On macOS, while the hotkey shown in the editor includes fn, whether saved or jus
 - **WHEN** the user chooses **Change…** on macOS, holds the right Command key and releases it
 - **THEN** the hotkey field shows "Right Command"
 
-#### Scenario: Record fn on macOS
-- **WHEN** the user chooses **Change…** on macOS, holds the fn key and releases it
-- **THEN** the hotkey field shows "fn"
-- **AND** a hint says to set "Press 🌐 key to" to "Do Nothing"
+#### Scenario: Reject fn on macOS
+- **WHEN** the user chooses **Change…** on macOS, presses the fn key alone and releases it
+- **THEN** a validation message says the hotkey must include Control, Option, Shift, Command or a function key F1–F24
+- **AND** the previous hotkey is kept
 
 #### Scenario: Reject a letter key
 - **WHEN** the user chooses **Change…** and presses and releases the A key alone

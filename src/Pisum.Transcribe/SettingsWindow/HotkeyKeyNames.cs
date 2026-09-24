@@ -12,7 +12,7 @@ internal sealed class HotkeyKeyNames
     private readonly KeyCode[] _modifierOrder;
     private readonly FrozenDictionary<KeyCode, string> _modifierNames;
 
-    private HotkeyKeyNames((KeyCode Key, string Name)[] modifiers, string rejectedMessage, bool showsFnHint)
+    private HotkeyKeyNames((KeyCode Key, string Name)[] modifiers, string rejectedMessage)
     {
         _modifierOrder = modifiers.Select(modifier => modifier.Key).ToArray();
         _modifierNames = modifiers.ToFrozenDictionary(modifier => modifier.Key, modifier => modifier.Name);
@@ -24,7 +24,6 @@ internal sealed class HotkeyKeyNames
             ..Enumerable.Range(1, 24).Select(number => Enum.Parse<KeyCode>($"VcF{number}")),
         ];
         RejectedMessage = rejectedMessage;
-        ShowsFnHint = showsFnHint;
     }
 
     /// <summary>
@@ -37,22 +36,20 @@ internal sealed class HotkeyKeyNames
             (KeyCode.VcLeftShift, "Left Shift"), (KeyCode.VcRightShift, "Right Shift"),
             (KeyCode.VcLeftMeta, "Left Win"), (KeyCode.VcRightMeta, "Right Win"),
         ],
-        "The hotkey must include Ctrl, Alt, Shift, the Windows key or a function key F1–F24.",
-        showsFnHint: false);
+        "The hotkey must include Ctrl, Alt, Shift, the Windows key or a function key F1–F24.");
 
     /// <summary>
-    /// The macOS names: modifiers in Apple's order fn, Control, Option, Shift, Command, spelled out in words.
+    /// The macOS names: modifiers in Apple's order Control, Option, Shift, Command, spelled out in words. fn isn't
+    /// a hotkey key: the keyboard hook sees the Globe/fn key only as a tap of another key code, never as held.
     /// </summary>
     public static HotkeyKeyNames MacOS { get; } = new(
         [
-            (KeyCode.VcFunction, "fn"),
             (KeyCode.VcLeftControl, "Left Control"), (KeyCode.VcRightControl, "Right Control"),
             (KeyCode.VcLeftAlt, "Left Option"), (KeyCode.VcRightAlt, "Right Option"),
             (KeyCode.VcLeftShift, "Left Shift"), (KeyCode.VcRightShift, "Right Shift"),
             (KeyCode.VcLeftMeta, "Left Command"), (KeyCode.VcRightMeta, "Right Command"),
         ],
-        "The hotkey must include Control, Option, Shift, Command, fn or a function key F1–F24.",
-        showsFnHint: true);
+        "The hotkey must include Control, Option, Shift, Command or a function key F1–F24.");
 
     /// <summary>
     /// The names of the platform the app runs on.
@@ -72,11 +69,6 @@ internal sealed class HotkeyKeyNames
     /// The validation message for a hotkey without any of <see cref="RequiredKeys"/>.
     /// </summary>
     public string RejectedMessage { get; }
-
-    /// <summary>
-    /// Whether a hotkey with fn shows the hint about macOS's "Press 🌐 key to" setting.
-    /// </summary>
-    public bool ShowsFnHint { get; }
 
     /// <summary>
     /// Names a key, with its side for a modifier that exists on both sides of the keyboard.

@@ -18,14 +18,14 @@ public sealed class HotkeyTextTests
     }
 
     [Fact]
-    public void Format_ModifiersAndOtherKeysOnMacOS_ListsModifiersInFnControlOptionShiftCommandOrder()
+    public void Format_ModifiersAndOtherKeysOnMacOS_ListsModifiersInControlOptionShiftCommandOrder()
     {
         // Act
         var text = HotkeyText.Format([KeyCode.VcA, KeyCode.VcRightMeta, KeyCode.VcLeftShift, KeyCode.VcRightAlt,
-            KeyCode.VcLeftControl, KeyCode.VcFunction], HotkeyKeyNames.MacOS);
+            KeyCode.VcLeftControl], HotkeyKeyNames.MacOS);
 
         // Assert
-        text.ShouldBe("fn+Left Control+Right Option+Left Shift+Right Command+A");
+        text.ShouldBe("Left Control+Right Option+Left Shift+Right Command+A");
     }
 
     [Theory]
@@ -33,7 +33,6 @@ public sealed class HotkeyTextTests
     [InlineData(KeyCode.VcLeftMeta, "Left Command")]
     [InlineData(KeyCode.VcLeftAlt, "Left Option")]
     [InlineData(KeyCode.VcRightControl, "Right Control")]
-    [InlineData(KeyCode.VcFunction, "fn")]
     [InlineData(KeyCode.VcF13, "F13")]
     public void Format_SingleKeyOnMacOS_UsesMacName(KeyCode key, string expected)
     {
@@ -42,15 +41,5 @@ public sealed class HotkeyTextTests
 
         // Assert
         text.ShouldBe(expected);
-    }
-
-    [Fact]
-    public void Order_MacOS_SortsFnFirst()
-    {
-        // Act
-        var keys = HotkeyText.Order([KeyCode.VcRightMeta, KeyCode.VcFunction], HotkeyKeyNames.MacOS);
-
-        // Assert
-        keys.ShouldBe([KeyCode.VcFunction, KeyCode.VcRightMeta]);
     }
 }
