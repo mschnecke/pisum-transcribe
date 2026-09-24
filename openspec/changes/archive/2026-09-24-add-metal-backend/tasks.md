@@ -31,7 +31,7 @@ The order follows the dependencies. First the rename, with Windows behaving exac
   Verify: the texts match the code.
 - [ ] 5.2 Check the migration by hand on Windows, through CI or a Windows machine: a `settings.json` with `"backend": "vulkan"` and a custom hotkey starts with the hotkey kept and **Vulkan (GPU) only** chosen. Verify: noted in the PR.
 - [ ] 5.3 Run `openspec validate add-metal-backend --strict`, and `dotnet build` plus `dotnet test Pisum.Transcribe.slnx` on the Mac and in CI on Windows. Verify: all pass. The PR references #18 without a closing keyword.
-- [ ] 5.4 Just before archiving, in the same PR: rename the six `transcription` scenarios that still name Vulkan, both in `openspec/specs/transcription/spec.md` and in this change's `specs/transcription/spec.md`. OpenSpec can't rename a scenario through a delta, and nothing else references these names.
+- [x] 5.4 Just before archiving, in the same PR: rename the six `transcription` scenarios that still name Vulkan, both in `openspec/specs/transcription/spec.md` and in this change's `specs/transcription/spec.md`. OpenSpec can't rename a scenario through a delta, and nothing else references these names.
   - "Warm-up input on Vulkan" → "Warm-up input on the GPU"
   - "Auto with working Vulkan" → "Auto with a working GPU backend"
   - "Auto with broken Vulkan" → "Auto with a broken GPU backend"

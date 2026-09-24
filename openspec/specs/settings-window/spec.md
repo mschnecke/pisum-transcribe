@@ -146,11 +146,20 @@ The model section SHALL list all catalog models with name, download size, suppor
 - **AND** the setup window's download continues
 
 ### Requirement: Backend settings
-The engine section SHALL let the user choose the backend preference Auto, Vulkan (GPU) or CPU, and SHALL show the backend currently in use or the engine status if it is not ready.
+The engine section SHALL let the user choose the backend preference Auto, the GPU or CPU, and SHALL show the backend currently in use or the engine status if it is not ready. The GPU option SHALL be named for the platform's GPU backend: Vulkan (GPU) on Windows and Metal (GPU) on macOS.
 
 #### Scenario: Current backend displayed
-- **WHEN** the engine is ready on the Vulkan backend
-- **THEN** the engine section shows that Vulkan is in use
+- **WHEN** the engine is ready on the GPU backend
+- **THEN** the engine section shows that the GPU backend is in use, by its name
+
+#### Scenario: GPU option on Windows
+- **WHEN** on Windows the user opens the engine section
+- **THEN** the GPU option is named Vulkan (GPU)
+
+#### Scenario: GPU option on macOS
+- **WHEN** on macOS the user opens the engine section
+- **THEN** the GPU option is named Metal (GPU)
+- **AND** when the engine is ready on the GPU backend, the section shows that Metal is in use
 
 ### Requirement: Text insertion settings
 The text insertion section SHALL let the user choose between "Paste via clipboard" and "Type text", and toggle "Restore clipboard after paste". The restore option SHALL be disabled when "Type text" is chosen.
@@ -209,7 +218,7 @@ Saved changes SHALL take effect without restarting the application:
 - **AND** holding right Ctrl alone no longer does
 
 #### Scenario: Backend switch reloads engine
-- **WHEN** the engine is ready on Vulkan and the user saves backend CPU
+- **WHEN** the engine is ready on the GPU backend and the user saves backend CPU
 - **THEN** the engine status becomes `Loading` and then `Ready` on CPU
 - **AND** the open settings window shows the status change
 - **AND** the application did not restart

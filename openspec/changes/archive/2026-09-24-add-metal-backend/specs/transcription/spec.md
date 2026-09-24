@@ -22,7 +22,7 @@ After loading a model, the engine SHALL run one warm-up inference before reporti
 - **WHEN** the engine reports `Ready` and the first real request arrives
 - **THEN** the request runs without triggering a model load or warm-up
 
-#### Scenario: Warm-up input on Vulkan
+#### Scenario: Warm-up input on the GPU
 - **WHEN** the model loads on the GPU backend
 - **THEN** the warm-up runs on 10 seconds of low-level noise
 
@@ -45,7 +45,7 @@ The loaded model SHALL be reused for all transcription requests until the applic
 ### Requirement: Backend selection and fallback
 The GPU backend SHALL be Vulkan on Windows and Metal on macOS. With backend `auto`, the engine SHALL use the GPU backend when it is available and loads and warms up successfully. Otherwise it SHALL use the CPU backend. With `gpu`, a GPU backend failure SHALL set the status to `Failed`, with no fallback. With `cpu`, only the CPU backend SHALL be used. A model file rejected as invalid SHALL NOT count as a GPU backend failure. The backend in use SHALL be reported with the `Ready` status and written to the log, by its name: `Vulkan` on Windows or `Metal` on macOS for the GPU backend, and `CPU` for the CPU backend.
 
-#### Scenario: Auto with working Vulkan
+#### Scenario: Auto with a working GPU backend
 - **WHEN** the backend is `auto` and the GPU backend loads and warms up successfully
 - **THEN** the status is `Ready` with the GPU backend
 
@@ -57,13 +57,13 @@ The GPU backend SHALL be Vulkan on Windows and Metal on macOS. With backend `aut
 - **WHEN** on macOS the engine is `Ready` on the GPU backend
 - **THEN** the backend in use is reported as `Metal`
 
-#### Scenario: Auto with broken Vulkan
+#### Scenario: Auto with a broken GPU backend
 - **WHEN** the backend is `auto` and the GPU backend is unavailable or fails during loading or warm-up
 - **THEN** the engine loads the model on the CPU backend
 - **AND** the status is `Ready` with backend `CPU`
 - **AND** the reason for the fallback is logged
 
-#### Scenario: Forced Vulkan fails
+#### Scenario: Forced GPU backend fails
 - **WHEN** the backend is `gpu` and the GPU backend fails to load
 - **THEN** the status is `Failed`
 - **AND** no CPU fallback is attempted
@@ -139,7 +139,7 @@ When the native engine fails a transcription while the status is `Ready`, the re
 - **THEN** the request is run again on the CPU backend and returns its result text
 - **AND** the engine returns to the GPU backend
 
-#### Scenario: Vulkan fails during the return
+#### Scenario: The GPU backend fails during the return
 - **WHEN** the engine reloads the model on the GPU backend after an out-of-memory error, and the GPU backend fails during loading or warm-up
 - **THEN** the engine loads the model on the CPU backend
 - **AND** the status is `Ready` with backend `CPU`
@@ -171,7 +171,7 @@ When the native engine fails a transcription while the status is `Ready`, the re
 - **THEN** the request is rejected with a "transcription failed" error
 - **AND** the status becomes `Ready` with backend `CPU` once the newly saved backend is loaded
 
-#### Scenario: GPU error with forced Vulkan
+#### Scenario: GPU error with forced GPU backend
 - **WHEN** the backend is `gpu` and a transcription fails with a backend error
 - **THEN** that request is rejected with a "transcription failed" error
 - **AND** the status is `Failed`

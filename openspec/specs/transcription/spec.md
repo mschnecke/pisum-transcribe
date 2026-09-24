@@ -11,11 +11,15 @@ The application SHALL persist these transcription settings with the given defaul
 - `transcription.task`: `translate` or `transcribe`, default `translate`
 - `transcription.sourceLanguage`: ISO 639-1 code, default `de`
 - `transcription.targetLanguage`: ISO 639-1 code, default `en`
-- `transcription.backend`: `auto`, `vulkan` or `cpu`, default `auto`
+- `transcription.backend`: `auto`, `gpu` or `cpu`, default `auto`
 
 #### Scenario: Defaults on first start
 - **WHEN** no transcription settings have been saved
 - **THEN** the task is `translate`, the source language is `de`, the target language is `en` and the backend is `auto`
+
+#### Scenario: Backend value of an older settings file
+- **WHEN** the settings file was saved by a version that stored the backend `vulkan`
+- **THEN** the backend is `gpu`
 
 ### Requirement: Language validation against the model
 A transcription request SHALL be rejected with a "language not supported" error before any audio is processed when:
@@ -59,18 +63,18 @@ When the selected model is installed at startup, or becomes installed while the 
 - **THEN** the engine loads the model without an application restart
 
 ### Requirement: Warm-up before ready
-After loading a model, the engine SHALL run one warm-up inference before reporting `Ready` and SHALL discard its output. On the Vulkan backend, the input SHALL be 10 seconds of low-level noise, so the first real transcription does not pay the one-time GPU pipeline compilation cost. On the CPU backend, which compiles no GPU pipelines, the input SHALL be 1 second of silence.
+After loading a model, the engine SHALL run one warm-up inference before reporting `Ready` and SHALL discard its output. On the GPU backend, the input SHALL be 10 seconds of low-level noise, so the first real transcription does not pay the one-time GPU pipeline compilation cost. On the CPU backend, which compiles no GPU pipelines, the input SHALL be 1 second of silence.
 
 #### Scenario: First real transcription after warm-up
 - **WHEN** the engine reports `Ready` and the first real request arrives
 - **THEN** the request runs without triggering a model load or warm-up
 
-#### Scenario: Warm-up input on Vulkan
-- **WHEN** the model loads on the Vulkan backend
+#### Scenario: Warm-up input on the GPU
+- **WHEN** the model loads on the GPU backend
 - **THEN** the warm-up runs on 10 seconds of low-level noise
 
 #### Scenario: Warm-up input on CPU
-- **WHEN** the model loads on the CPU backend, including the reload after a Vulkan failure
+- **WHEN** the model loads on the CPU backend, including the reload after a GPU backend failure
 - **THEN** the warm-up runs on 1 second of silence
 
 #### Scenario: Warm-up output truncated
@@ -79,32 +83,40 @@ After loading a model, the engine SHALL run one warm-up inference before reporti
 - **AND** the status becomes `Ready`
 
 ### Requirement: Model stays loaded
-The loaded model SHALL be reused for all transcription requests until the application exits, the model or backend selection changes, a backend error forces a reload on the CPU backend, or the engine returns to the Vulkan backend after an out-of-memory error. It SHALL NOT be reloaded per request.
+The loaded model SHALL be reused for all transcription requests until the application exits, the model or backend selection changes, a backend error forces a reload on the CPU backend, or the engine returns to the GPU backend after an out-of-memory error. It SHALL NOT be reloaded per request.
 
 #### Scenario: Consecutive transcriptions
 - **WHEN** two transcription requests complete one after another
 - **THEN** the model was loaded exactly once
 
 ### Requirement: Backend selection and fallback
-With backend `auto`, the engine SHALL use the Vulkan GPU backend when it is available and loads and warms up successfully. Otherwise it SHALL use the CPU backend. With `vulkan`, a Vulkan failure SHALL set the status to `Failed`, with no fallback. With `cpu`, only the CPU backend SHALL be used. A model file rejected as invalid SHALL NOT count as a Vulkan failure. The backend in use SHALL be reported with the `Ready` status and written to the log.
+The GPU backend SHALL be Vulkan on Windows and Metal on macOS. With backend `auto`, the engine SHALL use the GPU backend when it is available and loads and warms up successfully. Otherwise it SHALL use the CPU backend. With `gpu`, a GPU backend failure SHALL set the status to `Failed`, with no fallback. With `cpu`, only the CPU backend SHALL be used. A model file rejected as invalid SHALL NOT count as a GPU backend failure. The backend in use SHALL be reported with the `Ready` status and written to the log, by its name: `Vulkan` on Windows or `Metal` on macOS for the GPU backend, and `CPU` for the CPU backend.
 
-#### Scenario: Auto with working Vulkan
-- **WHEN** the backend is `auto` and Vulkan loads and warms up successfully
-- **THEN** the status is `Ready` with backend `Vulkan`
+#### Scenario: Auto with a working GPU backend
+- **WHEN** the backend is `auto` and the GPU backend loads and warms up successfully
+- **THEN** the status is `Ready` with the GPU backend
 
-#### Scenario: Auto with broken Vulkan
-- **WHEN** the backend is `auto` and Vulkan is unavailable or fails during loading or warm-up
+#### Scenario: GPU backend name on Windows
+- **WHEN** on Windows the engine is `Ready` on the GPU backend
+- **THEN** the backend in use is reported as `Vulkan`
+
+#### Scenario: GPU backend name on macOS
+- **WHEN** on macOS the engine is `Ready` on the GPU backend
+- **THEN** the backend in use is reported as `Metal`
+
+#### Scenario: Auto with a broken GPU backend
+- **WHEN** the backend is `auto` and the GPU backend is unavailable or fails during loading or warm-up
 - **THEN** the engine loads the model on the CPU backend
 - **AND** the status is `Ready` with backend `CPU`
 - **AND** the reason for the fallback is logged
 
-#### Scenario: Forced Vulkan fails
-- **WHEN** the backend is `vulkan` and Vulkan fails to load
+#### Scenario: Forced GPU backend fails
+- **WHEN** the backend is `gpu` and the GPU backend fails to load
 - **THEN** the status is `Failed`
 - **AND** no CPU fallback is attempted
 
 #### Scenario: Invalid model file with auto backend
-- **WHEN** the backend is `auto` and the model file is rejected as invalid while loading on Vulkan
+- **WHEN** the backend is `auto` and the model file is rejected as invalid while loading on the GPU backend
 - **THEN** no CPU load is attempted
 - **AND** the load failure handling for invalid model files applies
 
@@ -145,104 +157,104 @@ A transcription request submitted while the status is not `Ready` SHALL be rejec
 
 ### Requirement: Failures during transcription
 When the native engine fails a transcription while the status is `Ready`, the request SHALL be rejected with a "transcription failed" error, unless the output was only truncated or the request succeeds when it is run again on the CPU backend:
-- A backend error, such as a lost GPU device or out of memory, with backend `auto` on Vulkan SHALL make the engine reload the model on the CPU backend and then run the failed request once more on the CPU backend, before the requests queued behind it. The request SHALL return the result of that run, whatever the length of its audio. If that run fails too, the request SHALL be rejected with a "transcription failed" error and SHALL NOT be run again, and the rules below for the CPU backend SHALL decide the status. If the reload fails, the request SHALL be rejected with a "transcription failed" error and the status SHALL become `Failed`. If a model or backend change requested before the reload finished replaces it, the request SHALL be rejected with a "transcription failed" error. Requests queued behind the failed one SHALL run on the CPU backend after it.
-- After an out-of-memory error with backend `auto` on Vulkan, once the reload on the CPU backend has made the engine `Ready` and the failed request has run there or was cancelled by its caller, the engine SHALL return to the Vulkan backend if both of these hold:
-  - The failed request's audio is longer than 10 seconds, the length of the warm-up on Vulkan, and longer than every request that has completed on the Vulkan backend since the application started or the saved model or backend last changed. A request whose output was truncated counts as completed.
-  - The engine has not returned to the Vulkan backend since the application started or the saved model or backend last changed, or a request has completed on the Vulkan backend since its last return.
+- A backend error, such as a lost GPU device or out of memory, with backend `auto` on the GPU backend SHALL make the engine reload the model on the CPU backend and then run the failed request once more on the CPU backend, before the requests queued behind it. The request SHALL return the result of that run, whatever the length of its audio. If that run fails too, the request SHALL be rejected with a "transcription failed" error and SHALL NOT be run again, and the rules below for the CPU backend SHALL decide the status. If the reload fails, the request SHALL be rejected with a "transcription failed" error and the status SHALL become `Failed`. If a model or backend change requested before the reload finished replaces it, the request SHALL be rejected with a "transcription failed" error. Requests queued behind the failed one SHALL run on the CPU backend after it.
+- After an out-of-memory error with backend `auto` on the GPU backend, once the reload on the CPU backend has made the engine `Ready` and the failed request has run there or was cancelled by its caller, the engine SHALL return to the GPU backend if both of these hold:
+  - The failed request's audio is longer than 10 seconds, the length of the warm-up on the GPU backend, and longer than every request that has completed on the GPU backend since the application started or the saved model or backend last changed. A request whose output was truncated counts as completed.
+  - The engine has not returned to the GPU backend since the application started or the saved model or backend last changed, or a request has completed on the GPU backend since its last return.
 
   Otherwise the engine SHALL stay on the CPU backend. The return SHALL release the model on the CPU backend and load the same model with the same backend selection, fallback and warm-up as the first load. Requests queued behind the failed one SHALL still run on the CPU backend before the return. During the return, the status SHALL stay `Ready` with the backend it had before, and requests SHALL be accepted and validated against the same model. They SHALL wait for the return and then run on the backend it loaded. A model or backend change requested before the return finished SHALL replace it. Requests waiting for a replaced return SHALL run on the model on the CPU backend if it is still loaded, and SHALL otherwise be rejected with an error stating that the model is still loading. If the return fails to load the model on any backend, the status SHALL become `Failed`, and the requests waiting for it SHALL be rejected with an error naming that status.
-- After any other backend error with backend `auto` on Vulkan, such as a lost GPU device, the engine SHALL stay on the CPU backend until the application restarts or the saved model or backend changes.
-- A backend error with backend `vulkan`, or on the CPU backend, SHALL set the status to `Failed`.
+- After any other backend error with backend `auto` on the GPU backend, such as a lost GPU device, the engine SHALL stay on the CPU backend until the application restarts or the saved model or backend changes.
+- A backend error with backend `gpu`, or on the CPU backend, SHALL set the status to `Failed`.
 - Output cut off at the model's output limit SHALL be returned as the result text, and the truncation SHALL be logged.
 - Any other error SHALL leave the status `Ready`.
 
 #### Scenario: GPU error with auto backend
-- **WHEN** the backend is `auto`, the engine is `Ready` on Vulkan and a transcription fails with a backend error because the GPU device was lost
+- **WHEN** the backend is `auto`, the engine is `Ready` on the GPU backend and a transcription fails with a backend error because the GPU device was lost
 - **THEN** the status becomes `Loading` and then `Ready` with backend `CPU`
 - **AND** the request is run again on the CPU backend and returns its result text
 - **AND** a request queued behind the failed one runs on the CPU backend after it
-- **AND** the engine does not return to the Vulkan backend
+- **AND** the engine does not return to the GPU backend
 
 #### Scenario: GPU error on a long clip
-- **WHEN** the backend is `auto`, the engine is `Ready` on Vulkan and a transcription of 400 seconds of audio fails with a backend error
+- **WHEN** the backend is `auto`, the engine is `Ready` on the GPU backend and a transcription of 400 seconds of audio fails with a backend error
 - **THEN** the request is run again on the CPU backend and returns its result text
 
 #### Scenario: Return to the GPU after running out of memory on a long clip
-- **WHEN** the backend is `auto`, the engine is `Ready` on Vulkan, no request longer than 60 seconds has completed on Vulkan, and a transcription of 300 seconds fails with an out-of-memory error
+- **WHEN** the backend is `auto`, the engine is `Ready` on the GPU backend, no request longer than 60 seconds has completed on the GPU backend, and a transcription of 300 seconds fails with an out-of-memory error
 - **THEN** the request is run again on the CPU backend and returns its result text
-- **AND** the engine then reloads the model on the Vulkan backend, while the status stays `Ready` with backend `CPU`
-- **AND** once the model is loaded, the status is `Ready` with backend `Vulkan`
-- **AND** a later request of 10 seconds runs on the Vulkan backend
+- **AND** the engine then reloads the model on the GPU backend, while the status stays `Ready` with backend `CPU`
+- **AND** once the model is loaded, the status is `Ready` with the GPU backend
+- **AND** a later request of 10 seconds runs on the GPU backend
 
 #### Scenario: Request during the return to the GPU
-- **WHEN** the engine reloads the model on the Vulkan backend after an out-of-memory error, and a request of 20 seconds is submitted
+- **WHEN** the engine reloads the model on the GPU backend after an out-of-memory error, and a request of 20 seconds is submitted
 - **THEN** the request is accepted, not rejected as still loading
-- **AND** it runs on the Vulkan backend once the model is loaded there, and returns its result text
+- **AND** it runs on the GPU backend once the model is loaded there, and returns its result text
 
 #### Scenario: Request queued behind the one that ran out of memory
-- **WHEN** a transcription of 300 seconds fails on Vulkan with an out-of-memory error, the engine returns to the Vulkan backend afterwards, and a second request was queued behind the failed one
+- **WHEN** a transcription of 300 seconds fails on the GPU backend with an out-of-memory error, the engine returns to the GPU backend afterwards, and a second request was queued behind the failed one
 - **THEN** the second request runs on the CPU backend after the failed one
-- **AND** the model is reloaded on the Vulkan backend after the second request has run
+- **AND** the model is reloaded on the GPU backend after the second request has run
 
 #### Scenario: Out of memory on a clip no longer than a completed one
-- **WHEN** the backend is `auto`, a request of 120 seconds has completed on Vulkan, and later a transcription of 90 seconds fails on Vulkan with an out-of-memory error
+- **WHEN** the backend is `auto`, a request of 120 seconds has completed on the GPU backend, and later a transcription of 90 seconds fails on the GPU backend with an out-of-memory error
 - **THEN** the request is run again on the CPU backend and returns its result text
 - **AND** the status stays `Ready` with backend `CPU`
 
 #### Scenario: Out of memory on a short clip
-- **WHEN** the backend is `auto`, the engine is `Ready` on Vulkan, and a transcription of 8 seconds fails with an out-of-memory error
+- **WHEN** the backend is `auto`, the engine is `Ready` on the GPU backend, and a transcription of 8 seconds fails with an out-of-memory error
 - **THEN** the request is run again on the CPU backend and returns its result text
 - **AND** the status stays `Ready` with backend `CPU`
 
 #### Scenario: Out of memory again right after a return
-- **WHEN** the engine returned to the Vulkan backend after an out-of-memory error on a request of 300 seconds, and the next request, of 200 seconds, fails on Vulkan with an out-of-memory error before any request has completed there
+- **WHEN** the engine returned to the GPU backend after an out-of-memory error on a request of 300 seconds, and the next request, of 200 seconds, fails on the GPU backend with an out-of-memory error before any request has completed there
 - **THEN** the request is run again on the CPU backend and returns its result text
 - **AND** the status stays `Ready` with backend `CPU`
 
 #### Scenario: Out of memory again after a request completed on the GPU
-- **WHEN** the engine returned to the Vulkan backend after an out-of-memory error on a request of 300 seconds, a request of 10 seconds then completed on Vulkan, and a later request of 300 seconds fails on Vulkan with an out-of-memory error
+- **WHEN** the engine returned to the GPU backend after an out-of-memory error on a request of 300 seconds, a request of 10 seconds then completed on the GPU backend, and a later request of 300 seconds fails on the GPU backend with an out-of-memory error
 - **THEN** the request is run again on the CPU backend and returns its result text
-- **AND** the engine returns to the Vulkan backend again
+- **AND** the engine returns to the GPU backend again
 
 #### Scenario: Model change resets what completed on the GPU
-- **WHEN** a request of 120 seconds has completed on Vulkan, the saved model changes and the new model becomes `Ready` on Vulkan, and then a transcription of 90 seconds fails with an out-of-memory error
+- **WHEN** a request of 120 seconds has completed on the GPU backend, the saved model changes and the new model becomes `Ready` on the GPU backend, and then a transcription of 90 seconds fails with an out-of-memory error
 - **THEN** the request is run again on the CPU backend and returns its result text
-- **AND** the engine returns to the Vulkan backend
+- **AND** the engine returns to the GPU backend
 
-#### Scenario: Vulkan fails during the return
-- **WHEN** the engine reloads the model on the Vulkan backend after an out-of-memory error, and Vulkan fails during loading or warm-up
+#### Scenario: The GPU backend fails during the return
+- **WHEN** the engine reloads the model on the GPU backend after an out-of-memory error, and the GPU backend fails during loading or warm-up
 - **THEN** the engine loads the model on the CPU backend
 - **AND** the status is `Ready` with backend `CPU`
 - **AND** a request that waited for the return runs on the CPU backend and returns its result text
 
 #### Scenario: Loading fails during the return
-- **WHEN** the engine reloads the model on the Vulkan backend after an out-of-memory error, a request waits for the return, and loading fails on both backends
+- **WHEN** the engine reloads the model on the GPU backend after an out-of-memory error, a request waits for the return, and loading fails on both backends
 - **THEN** the status is `Failed`
 - **AND** the waiting request is rejected with an error stating that the model failed to load
 
 #### Scenario: Backend change during the return
-- **WHEN** the engine loads the model on the Vulkan backend after an out-of-memory error, a request waits for the return, and the saved backend changes to `cpu`
+- **WHEN** the engine loads the model on the GPU backend after an out-of-memory error, a request waits for the return, and the saved backend changes to `cpu`
 - **THEN** the status becomes `Loading` at once, and `Ready` with backend `CPU` once the model is loaded on the CPU backend
 - **AND** the waiting request is rejected with an error stating that the model is still loading
 
 #### Scenario: Retry on the CPU fails too
-- **WHEN** the backend is `auto`, a transcription fails on Vulkan with a backend error and its run on the CPU backend fails with a backend error too
+- **WHEN** the backend is `auto`, a transcription fails on the GPU backend with a backend error and its run on the CPU backend fails with a backend error too
 - **THEN** the request is rejected with a "transcription failed" error
 - **AND** the status is `Failed`
 - **AND** the request is not run a third time
 
 #### Scenario: Reload on the CPU fails
-- **WHEN** the backend is `auto`, a transcription fails on Vulkan with a backend error and loading the model on the CPU backend fails
+- **WHEN** the backend is `auto`, a transcription fails on the GPU backend with a backend error and loading the model on the CPU backend fails
 - **THEN** the request is rejected with a "transcription failed" error
 - **AND** the status is `Failed`
 
 #### Scenario: Backend change during the failed run
-- **WHEN** the backend is `auto`, a transcription runs on Vulkan, the saved backend changes to `cpu` while it runs, and the run fails with a backend error
+- **WHEN** the backend is `auto`, a transcription runs on the GPU backend, the saved backend changes to `cpu` while it runs, and the run fails with a backend error
 - **THEN** the request is rejected with a "transcription failed" error
 - **AND** the status becomes `Ready` with backend `CPU` once the newly saved backend is loaded
 
-#### Scenario: GPU error with forced Vulkan
-- **WHEN** the backend is `vulkan` and a transcription fails with a backend error
+#### Scenario: GPU error with forced GPU backend
+- **WHEN** the backend is `gpu` and a transcription fails with a backend error
 - **THEN** that request is rejected with a "transcription failed" error
 - **AND** the status is `Failed`
 
@@ -299,16 +311,16 @@ When the application exits while a transcription runs, the engine SHALL cancel i
 - **THEN** the process ends within 5 seconds
 
 #### Scenario: Exit during the reload on the CPU
-- **WHEN** a transcription failed on Vulkan with a backend error with backend `auto`, and the user chooses **Exit** while the engine reloads the model on the CPU backend
+- **WHEN** a transcription failed on the GPU backend with a backend error with backend `auto`, and the user chooses **Exit** while the engine reloads the model on the CPU backend
 - **THEN** the failed request ends as cancelled without waiting for the reload to finish
 - **AND** the request is not run again
 - **AND** the process ends within 5 seconds
 
 ### Requirement: Request cancelled by the caller
-When the caller of a transcription request cancels it, the request SHALL end as cancelled at once, whether it waits in the queue, runs, or waits while the engine reloads the model on the CPU backend after a Vulkan backend failure:
+When the caller of a transcription request cancels it, the request SHALL end as cancelled at once, whether it waits in the queue, runs, or waits while the engine reloads the model on the CPU backend after a GPU backend failure:
 - A request that waits in the queue SHALL NOT run.
 - A running native call SHALL be aborted at its next abort check. It can keep running until then, and the requests queued behind it SHALL run after it has returned.
-- A request whose run failed on Vulkan SHALL NOT be run again on the CPU backend. The reload SHALL continue and decide the status as it does without a cancel, including the return to the Vulkan backend after an out-of-memory error.
+- A request whose run failed on the GPU backend SHALL NOT be run again on the CPU backend. The reload SHALL continue and decide the status as it does without a cancel, including the return to the GPU backend after an out-of-memory error.
 
 A cancel SHALL NOT change the engine status or the loaded model, and SHALL NOT affect other requests.
 
@@ -325,23 +337,23 @@ A cancel SHALL NOT change the engine status or the loaded model, and SHALL NOT a
 - **AND** the next request runs after the aborted run has returned
 
 #### Scenario: Cancel during the reload on the CPU
-- **WHEN** the backend is `auto`, a transcription failed on Vulkan because the GPU device was lost, and its caller cancels it while the engine reloads the model on the CPU backend
+- **WHEN** the backend is `auto`, a transcription failed on the GPU backend because the GPU device was lost, and its caller cancels it while the engine reloads the model on the CPU backend
 - **THEN** the request ends as cancelled without waiting for the reload to finish
 - **AND** the status becomes `Ready` with backend `CPU` once the reload has finished
 - **AND** the request is not run again
 
 #### Scenario: Cancel during the reload on the CPU after running out of memory
-- **WHEN** the backend is `auto`, a transcription of 300 seconds failed on Vulkan with an out-of-memory error, no request longer than 60 seconds has completed on Vulkan, and its caller cancels it while the engine reloads the model on the CPU backend
+- **WHEN** the backend is `auto`, a transcription of 300 seconds failed on the GPU backend with an out-of-memory error, no request longer than 60 seconds has completed on the GPU backend, and its caller cancels it while the engine reloads the model on the CPU backend
 - **THEN** the request ends as cancelled without waiting for the reload to finish
-- **AND** once the reload on the CPU backend has finished, the status is `Ready` with backend `CPU`, and the engine reloads the model on the Vulkan backend
-- **AND** once the model is loaded there, the status is `Ready` with backend `Vulkan`
+- **AND** once the reload on the CPU backend has finished, the status is `Ready` with backend `CPU`, and the engine reloads the model on the GPU backend
+- **AND** once the model is loaded there, the status is `Ready` with the GPU backend
 - **AND** the request is not run again
 
 #### Scenario: Cancel the run on the CPU after running out of memory
-- **WHEN** the backend is `auto`, a transcription of 300 seconds failed on Vulkan with an out-of-memory error, no request longer than 60 seconds has completed on Vulkan, and its caller cancels it while it runs again on the CPU backend
+- **WHEN** the backend is `auto`, a transcription of 300 seconds failed on the GPU backend with an out-of-memory error, no request longer than 60 seconds has completed on the GPU backend, and its caller cancels it while it runs again on the CPU backend
 - **THEN** the request ends as cancelled at once
 - **AND** the status stays `Ready`
-- **AND** once the aborted run has returned, the engine reloads the model on the Vulkan backend, and the status is `Ready` with backend `Vulkan` once the model is loaded there
+- **AND** once the aborted run has returned, the engine reloads the model on the GPU backend, and the status is `Ready` with the GPU backend once the model is loaded there
 - **AND** a request submitted before the aborted run has returned runs on the CPU backend before the reload, and is not rejected
 
 ### Requirement: Reload on model or backend change
@@ -355,7 +367,7 @@ When the saved model or backend preference changes while the application runs, t
 A reload SHALL be possible whatever the engine status, including `Ready` and `Failed`.
 
 #### Scenario: Backend change while ready
-- **WHEN** the engine is `Ready` on Vulkan and the saved backend changes to `cpu`
+- **WHEN** the engine is `Ready` on the GPU backend and the saved backend changes to `cpu`
 - **THEN** the status becomes `Loading` and then `Ready` with backend `CPU`
 - **AND** the application did not restart
 
@@ -369,7 +381,7 @@ A reload SHALL be possible whatever the engine status, including `Ready` and `Fa
 - **THEN** the request is rejected with an error stating the model is still loading
 
 #### Scenario: Change during the startup load
-- **WHEN** the model is loading at startup on Vulkan with backend `auto` and the saved backend changes to `cpu`
+- **WHEN** the model is loading at startup on the GPU backend with backend `auto` and the saved backend changes to `cpu`
 - **THEN** the status stays `Loading` until the model is loaded on the CPU backend
 - **AND** the status then becomes `Ready` with backend `CPU`
 
