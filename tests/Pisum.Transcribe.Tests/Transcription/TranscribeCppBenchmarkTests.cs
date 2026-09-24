@@ -7,16 +7,19 @@ using Pisum.Transcribe.Transcription;
 namespace Pisum.Transcribe.Tests.Transcription;
 
 /// <summary>
-/// Measures German to English latency for each installed catalog model on Vulkan and CPU, how long a cancelled run of
-/// the default model takes to return on CPU, and how long clips of the default model behave on Vulkan. Needs the German
-/// clip from <see cref="HardwareTestAssets"/>. Asserts nothing about speed or outcome; the tables go to the diagnostic
-/// messages, which <c>dotnet test</c> does not print. Run the test executable instead:
-/// <c>Pisum.Transcribe.Tests.exe -explicit only -class "*.TranscribeCppBenchmarkTests" -diagnostics</c>.
+/// Measures German to English latency for each installed catalog model on the GPU backend (Vulkan on Windows, Metal on
+/// macOS) and CPU, how long a cancelled run of the default model takes to return on CPU, how long clips of the default
+/// model behave on the GPU backend, and how the first run after each warm-up input compares on the GPU backend. Needs the
+/// German clip from <see cref="HardwareTestAssets"/>. Asserts nothing about speed or outcome; the tables go to the
+/// diagnostic messages, which <c>dotnet test</c> does not print. Run the test executable instead, from its output folder:
+/// <c>Pisum.Transcribe.Tests.exe -explicit only -class "*.TranscribeCppBenchmarkTests" -diagnostics</c> on Windows and
+/// <c>./Pisum.Transcribe.Tests -explicit only -class "*.TranscribeCppBenchmarkTests" -diagnostics</c> on macOS.
 /// </summary>
 [Trait(Traits.Category, Traits.Categories.Hardware)]
 public sealed class TranscribeCppBenchmarkTests
 {
     private const int WarmRuns = 5;
+    private const string Gpu = TranscribeCppEngineFactory.GpuBackendName;
     private const string ForcedAllocationSizeVariable = "GGML_VK_FORCE_MAX_ALLOCATION_SIZE";
     private const string ForcedBufferSizeVariable = "GGML_VK_FORCE_MAX_BUFFER_SIZE";
 
@@ -28,13 +31,13 @@ public sealed class TranscribeCppBenchmarkTests
     private static readonly int[] LongClipSeconds = [30, 60, 120, 240, 399];
 
     [Fact(Explicit = true)]
-    public void Run_InstalledModelsOnVulkanAndCpu_ReportsLatencyTable()
+    public void Run_InstalledModelsOnGpuAndCpu_ReportsLatencyTable()
     {
         // Arrange
         var samples = HardwareTestAssets.ReadAudioOrSkip(HardwareTestAssets.GermanAudioVariable);
         var models = HardwareTestAssets.InstalledModelsOrSkip();
         var factory = new TranscribeCppEngineFactory();
-        var vulkanAvailable = factory.IsVulkanAvailable();
+        var gpuAvailable = factory.IsGpuAvailable();
         var table = new StringBuilder()
             .AppendLine(CultureInfo.InvariantCulture,
                 $"Clip: {(double) samples.Length / TranscribeCppTranscriber.SampleRate:0.0} s, de→en translate, median of {WarmRuns} warm runs")
@@ -44,12 +47,12 @@ public sealed class TranscribeCppBenchmarkTests
         // Act
         foreach (var model in models)
         {
-            foreach (var backend in new[] {NativeBackend.Vulkan, NativeBackend.Cpu})
+            foreach (var backend in new[] {NativeBackend.Gpu, NativeBackend.Cpu})
             {
-                var row = backend == NativeBackend.Vulkan && !vulkanAvailable
+                var row = backend == NativeBackend.Gpu && !gpuAvailable
                     ? "unavailable | | "
                     : Measure(factory, HardwareTestAssets.ModelStore.GetModelPath(model), backend, samples);
-                table.AppendLine(CultureInfo.InvariantCulture, $"| {model.Id} | {backend} | {row} |");
+                table.AppendLine(CultureInfo.InvariantCulture, $"| {model.Id} | {BackendName(backend)} | {row} |");
             }
         }
 
@@ -92,12 +95,13 @@ public sealed class TranscribeCppBenchmarkTests
     }
 
     /// <summary>
-    /// Runs longer and longer clips on Vulkan until one fails. After the failure, runs the warm-up input on the same
-    /// engine, then on the model loaded on Vulkan again, which the return to Vulkan after an out-of-memory error depends
-    /// on. Each row is sent as soon as it is measured, so the rows so far survive a native crash.
+    /// Runs longer and longer clips on the GPU backend until one fails. After the failure, runs the warm-up input on the
+    /// same engine, then on the model loaded on the GPU backend again, which the return to the GPU after an
+    /// out-of-memory error depends on. Each row is sent as soon as it is measured, so the rows so far survive a native
+    /// crash.
     /// </summary>
     [Fact(Explicit = true)]
-    public void Run_LongClipsOnVulkan_ReportsOutcomeAndReload()
+    public void Run_LongClipsOnGpu_ReportsOutcomeAndReload()
     {
         // Arrange
         var clip = HardwareTestAssets.ReadAudioOrSkip(HardwareTestAssets.GermanAudioVariable);
@@ -105,14 +109,14 @@ public sealed class TranscribeCppBenchmarkTests
         Assert.SkipUnless(HardwareTestAssets.ModelStore.IsInstalled(model),
             $"The default model {model.Id} is not installed. Start the app to download it.");
         var factory = new TranscribeCppEngineFactory();
-        Assert.SkipUnless(factory.IsVulkanAvailable(), "No Vulkan device is available.");
+        Assert.SkipUnless(factory.IsGpuAvailable(), $"No {Gpu} device is available.");
         var modelPath = HardwareTestAssets.ModelStore.GetModelPath(model);
-        var warmUpSamples = TranscribeCppTranscriber.CreateWarmUpSamples(NativeBackend.Vulkan);
-        var engine = factory.Load(modelPath, NativeBackend.Vulkan);
+        var warmUpSamples = TranscribeCppTranscriber.CreateWarmUpSamples(NativeBackend.Gpu);
+        var engine = factory.Load(modelPath, NativeBackend.Gpu);
         try
         {
             Report(
-                $"{model.Id} on Vulkan, de→en translate, max audio {engine.MaxAudio.TotalSeconds:0.00} s, {ForcedAllocationSizeVariable}={Environment.GetEnvironmentVariable(ForcedAllocationSizeVariable) ?? "not set"}, {ForcedBufferSizeVariable}={Environment.GetEnvironmentVariable(ForcedBufferSizeVariable) ?? "not set"}");
+                $"{model.Id} on {Gpu}, de→en translate, max audio {engine.MaxAudio.TotalSeconds:0.00} s{ForcedSizeVariables()}");
             var (warmUpOutcome, warmUpElapsed, _) = RunTimed(engine, warmUpSamples, TranscriptionTask.Transcribe, "en");
             Report($"Warm-up input: {warmUpOutcome} in {warmUpElapsed.TotalSeconds:0.00} s");
             Report($"| Clip | Outcome | Time until Run returned |");
@@ -147,16 +151,16 @@ public sealed class TranscribeCppBenchmarkTests
                 var started = Stopwatch.GetTimestamp();
                 try
                 {
-                    engine = factory.Load(modelPath, NativeBackend.Vulkan);
+                    engine = factory.Load(modelPath, NativeBackend.Gpu);
                     var load = Stopwatch.GetElapsedTime(started);
                     (warmUpOutcome, warmUpElapsed, _) =
                         RunTimed(engine, warmUpSamples, TranscriptionTask.Transcribe, "en");
                     Report(
-                        $"Reload on Vulkan: loaded in {load.TotalSeconds:0.00} s, warm-up input: {warmUpOutcome} in {warmUpElapsed.TotalSeconds:0.00} s");
+                        $"Reload on {Gpu}: loaded in {load.TotalSeconds:0.00} s, warm-up input: {warmUpOutcome} in {warmUpElapsed.TotalSeconds:0.00} s");
                 }
                 catch (NativeEngineException exception)
                 {
-                    Report($"Reload on Vulkan: load failed: {exception.Status}");
+                    Report($"Reload on {Gpu}: load failed: {exception.Status}");
                 }
             }
         }
@@ -169,6 +173,71 @@ public sealed class TranscribeCppBenchmarkTests
         Report($"{model.Id} on CPU, max audio {cpuEngine.MaxAudio.TotalSeconds:0.00} s");
 
         // Assert: nothing, the rows are the result.
+    }
+
+    /// <summary>
+    /// Loads the default model on the GPU backend, warms it up on the CPU's warm-up input (1 s of silence), and times the
+    /// first and the second real run of the German clip. Compare with
+    /// <see cref="Run_FirstRunAfterGpuWarmUpOnGpu_ReportsTimes"/>. Run each in its own test process, because the GPU's
+    /// compiled pipelines may outlive the engine within a process: <c>-explicit only -method "*.&lt;name&gt;"
+    /// -diagnostics</c>.
+    /// </summary>
+    [Fact(Explicit = true)]
+    public void Run_FirstRunAfterCpuWarmUpOnGpu_ReportsTimes()
+    {
+        RunFirstAfterWarmUp(NativeBackend.Cpu);
+    }
+
+    /// <summary>
+    /// Loads the default model on the GPU backend, warms it up on the GPU's warm-up input (10 s of noise), and times the
+    /// first and the second real run of the German clip. See <see cref="Run_FirstRunAfterCpuWarmUpOnGpu_ReportsTimes"/>.
+    /// </summary>
+    [Fact(Explicit = true)]
+    public void Run_FirstRunAfterGpuWarmUpOnGpu_ReportsTimes()
+    {
+        RunFirstAfterWarmUp(NativeBackend.Gpu);
+    }
+
+    // A first run much slower than the second means the warm-up didn't compile what a dictation needs.
+    private static void RunFirstAfterWarmUp(NativeBackend warmUpInput)
+    {
+        // Arrange
+        var clip = HardwareTestAssets.ReadAudioOrSkip(HardwareTestAssets.GermanAudioVariable);
+        var model = ModelCatalog.Resolve(null);
+        Assert.SkipUnless(HardwareTestAssets.ModelStore.IsInstalled(model),
+            $"The default model {model.Id} is not installed. Start the app to download it.");
+        var factory = new TranscribeCppEngineFactory();
+        Assert.SkipUnless(factory.IsGpuAvailable(), $"No {Gpu} device is available.");
+        var warmUpSamples = TranscribeCppTranscriber.CreateWarmUpSamples(warmUpInput);
+        var started = Stopwatch.GetTimestamp();
+        using var engine = factory.Load(HardwareTestAssets.ModelStore.GetModelPath(model), NativeBackend.Gpu);
+        var load = Stopwatch.GetElapsedTime(started);
+        var (warmUpOutcome, warmUp, _) = RunTimed(engine, warmUpSamples, TranscriptionTask.Transcribe, "en");
+
+        // Act
+        var (firstOutcome, first, _) = RunTimed(engine, clip, TranscriptionTask.Translate, "de");
+        var (secondOutcome, second, _) = RunTimed(engine, clip, TranscriptionTask.Translate, "de");
+
+        // Assert: nothing, the row is the result.
+        Report(
+            $"{model.Id} on {Gpu}, {BackendName(warmUpInput)} warm-up input of {(double) warmUpSamples.Length / TranscribeCppTranscriber.SampleRate:0} s: loaded in {load.TotalSeconds:0.00} s, warm-up {warmUpOutcome} in {warmUp.TotalSeconds:0.00} s, first run {firstOutcome} in {first.TotalSeconds:0.00} s, second run {secondOutcome} in {second.TotalSeconds:0.00} s");
+    }
+
+    // Vulkan's buffer limits can be forced through these variables to provoke an out-of-memory error. They apply to
+    // Vulkan only.
+    private static string ForcedSizeVariables()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return "";
+        }
+
+        return $", {ForcedAllocationSizeVariable}={Environment.GetEnvironmentVariable(ForcedAllocationSizeVariable) ?? "not set"}, {ForcedBufferSizeVariable}={Environment.GetEnvironmentVariable(ForcedBufferSizeVariable) ?? "not set"}";
+    }
+
+    private static string BackendName(NativeBackend backend)
+    {
+        return backend == NativeBackend.Gpu ? Gpu : "CPU";
     }
 
     private static void Report(FormattableString row)

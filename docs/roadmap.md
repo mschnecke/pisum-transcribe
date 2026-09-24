@@ -87,6 +87,7 @@ graph TD
     G15 --> G16["GitHub #16 add-macos-setup"]
     G16 --> G17["GitHub #17 add-macos-recording"]
     G15 --> G18["GitHub #18 add-metal-backend"]
+    G18 --> G32["GitHub #32 harden-settings-enums"]
     G15 --> G21["GitHub #21 add-macos-login-item"]
     G17 --> G19["GitHub #19 add-macos-text-insertion"]
     G16 --> G20["GitHub #20 add-macos-dictation"]
@@ -113,15 +114,17 @@ graph TD
 | 25 | [GitHub #20](https://github.com/mschnecke/pisum-transcribe/issues/20) | `add-macos-dictation` | GitHub #16, #18, #19 | **Mac MVP:** hold, speak, release, text appears |
 | 26 | [GitHub #21](https://github.com/mschnecke/pisum-transcribe/issues/21) | `add-macos-login-item` | GitHub #15 | Open at login |
 | 27 | [GitHub #22](https://github.com/mschnecke/pisum-transcribe/issues/22) | `add-macos-packaging` | GitHub #20, #21 | An unsigned `.pkg` with the project's own certificate, upgrades like the MSI's, a Homebrew tap, lockstep releases |
+| 28 | [GitHub #32](https://github.com/mschnecke/pisum-transcribe/issues/32) | `harden-settings-enums` | GitHub #18 | An unknown setting value falls back to its default, instead of resetting every setting, for example after a downgrade |
 
-**Planning state on 2026-09-23:**
+**Planning state on 2026-09-24:**
 - **Done:** GitHub #10–#13, merged in pull requests #24–#27. GitHub #13's registration was checked on Windows 11 only. The check on Windows 10 22H2 was skipped, so the shortcut fallback in its design D2 still applies if toasts don't show there.
 - **The spike** is done: the macOS half on 2026-09-22 and the Windows half on 2026-09-23, both go.
-- **GitHub #14** is implemented on its branch. The regression pass by hand against the specs, on Windows 11 and Windows 10 22H2, is still open.
-- **GitHub #15** is implemented on its branch, and its checks by hand on the Mac passed. The Windows run of its tests and the checks by hand on Windows 11 (its tasks 10.1 and 10.3) are still open.
-- **GitHub #16** is implemented on its branch. Its first start by hand on the Mac (its task 6.1) and the Windows run of its tests are still open.
-- **GitHub #17** is implemented on its branch: the hotkey and the microphone on macOS, with right Command as the default hotkey there. Its checks by hand on the Mac and CI on both platforms passed; a user switch and a password field weren't checked by hand. fn isn't a hotkey key on macOS, because the keyboard hook never sees it held.
-- **GitHub #18–#22** have no OpenSpec change yet.
+- **GitHub #14** is merged in pull request #28 and released as 1.3.0. CI passed on Windows. Its archived tasks leave the regression pass by hand on Windows 11 and Windows 10 22H2 (8.2, 8.3), the `Hardware` tests (8.1) and the light and dark screenshots (3.6) unchecked.
+- **GitHub #15** is merged in pull request #29, and its checks by hand on the Mac passed. CI passed on Windows and macOS. Its archived tasks leave the Windows `Hardware` tests (10.1) and the checks by hand on Windows 11 (10.3) unchecked.
+- **GitHub #16** is merged in pull request #30. CI passed on Windows and macOS. Its archived tasks leave the first start by hand on the Mac (6.1) and the final validate, build and test run (6.3) unchecked.
+- **GitHub #17** is merged in pull request #31: the hotkey and the microphone on macOS, with right Command as the default hotkey there. Its checks by hand on the Mac and CI on both platforms passed; a user switch and a password field weren't checked by hand. fn isn't a hotkey key on macOS, because the keyboard hook never sees it held.
+- **GitHub #18** is implemented on its branch: Metal is the GPU backend on macOS, and the setting stores `gpu` on both platforms, with settings format 2 migrating `vulkan`. The checkpoint after #18, the checks by hand on the Mac and the migration check on Windows are still open, so the Mac defaults are unchanged until then.
+- **GitHub #19–#22 and #32** have no OpenSpec change yet.
 
 ### Releases
 
@@ -154,6 +157,7 @@ The swap from WPF to Avalonia, checked against the existing specs. It ships as 1
 #### Phase 8: The macOS track (GitHub #15–#21)
 - After #15, #16 setup comes first, followed by #17 recording and #19 text insertion. #17 builds on #16's permission checks, its microphone status and its relaunch after the Accessibility grant. #18 Metal runs in parallel with them.
 - #21 depends only on #15.
+- #32 depends only on #18, whose settings format version and migration it builds on. It hardens the settings on both platforms and doesn't block the Mac MVP.
 - #20 joins the tracks into the Mac MVP.
 
 **Checkpoint after #18:** run the benchmark on the development Mac, a MacBook Air M4 with 16 GB.

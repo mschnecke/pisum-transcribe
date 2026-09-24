@@ -76,6 +76,21 @@ public sealed class TranscribeCppTranscriberHardwareTests : IAsyncDisposable
     }
 
     [Fact(Explicit = true)]
+    public async Task LoadAsync_ForcedGpu_IsReadyOnPlatformGpuBackend()
+    {
+        // Arrange
+        var model = HardwareTestAssets.InstalledModelsOrSkip()[0];
+        Assert.SkipUnless(new TranscribeCppEngineFactory().IsGpuAvailable(),
+            $"No {TranscribeCppEngineFactory.GpuBackendName} device is available.");
+
+        // Act
+        await LoadAsync(model, BackendPreference.Gpu);
+
+        // Assert
+        _sut.ActiveBackend.ShouldBe(TranscribeCppEngineFactory.GpuBackendName);
+    }
+
+    [Fact(Explicit = true)]
     public async Task TranscribeAsync_AudioOfMaxInputDuration_ReturnsResult()
     {
         // Arrange

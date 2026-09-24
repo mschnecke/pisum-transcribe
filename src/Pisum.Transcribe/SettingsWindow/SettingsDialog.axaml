@@ -207,7 +207,8 @@
                                      Content="_Auto: the GPU when it works, otherwise the CPU"
                                      IsChecked="{Binding IsAutoBackend}" />
                         <RadioButton Classes="option" GroupName="Backend"
-                                     Content="_Vulkan (GPU) only" IsChecked="{Binding IsVulkanBackend}" />
+                                     Content="{x:Static local:ModelSectionViewModel.GpuBackendOptionText}"
+                                     IsChecked="{Binding IsGpuBackend}" />
                         <RadioButton Classes="option" GroupName="Backend"
                                      Content="C_PU only" IsChecked="{Binding IsCpuBackend}" />
                         <TextBlock Margin="0,8,0,0" TextWrapping="Wrap">

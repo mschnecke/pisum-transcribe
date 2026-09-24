@@ -10,20 +10,36 @@ namespace Pisum.Transcribe.Transcription;
 /// </summary>
 internal sealed class TranscribeCppEngineFactory : INativeSpeechEngineFactory
 {
+#if WINDOWS
+    /// <summary>
+    /// The name of the platform's GPU backend, as the user sees it.
+    /// </summary>
+    public const string GpuBackendName = "Vulkan";
+
+    private const BackendRequest GpuRequest = BackendRequest.BackendVulkan;
+#else
+    /// <summary>
+    /// The name of the platform's GPU backend, as the user sees it.
+    /// </summary>
+    public const string GpuBackendName = "Metal";
+
+    private const BackendRequest GpuRequest = BackendRequest.BackendMetal;
+#endif
+
     private bool _backendsInitialized;
 
     /// <inheritdoc />
-    public bool IsVulkanAvailable()
+    public bool IsGpuAvailable()
     {
         EnsureBackendsInitialized();
-        return Backends.BackendAvailable(BackendRequest.BackendVulkan);
+        return Backends.BackendAvailable(GpuRequest);
     }
 
     /// <inheritdoc />
     public INativeSpeechEngine Load(string modelPath, NativeBackend backend)
     {
         EnsureBackendsInitialized();
-        var request = backend == NativeBackend.Vulkan ? BackendRequest.BackendVulkan : BackendRequest.BackendCpu;
+        var request = backend == NativeBackend.Gpu ? GpuRequest : BackendRequest.BackendCpu;
         try
         {
             var model = Model.Load(modelPath, builder => builder.WithBackend(request));

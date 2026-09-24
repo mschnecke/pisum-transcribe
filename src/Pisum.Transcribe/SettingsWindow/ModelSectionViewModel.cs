@@ -26,6 +26,11 @@ internal sealed partial class ModelSectionViewModel : ObservableObject
     /// </summary>
     public const string NotLoadedText = "No model is loaded.";
 
+    /// <summary>
+    /// The label of the GPU backend option, named for the platform's GPU backend, with its access key.
+    /// </summary>
+    public const string GpuBackendOptionText = "_" + TranscribeCppEngineFactory.GpuBackendName + " (GPU) only";
+
     private readonly IModelStore _modelStore;
     private readonly ITranscriber _transcriber;
     private readonly CancellationToken _applicationStopping;
@@ -87,7 +92,7 @@ internal sealed partial class ModelSectionViewModel : ObservableObject
     /// The backend preference.
     /// </summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsAutoBackend), nameof(IsVulkanBackend), nameof(IsCpuBackend))]
+    [NotifyPropertyChangedFor(nameof(IsAutoBackend), nameof(IsGpuBackend), nameof(IsCpuBackend))]
     public partial BackendPreference Backend { get; set; }
 
     /// <summary>
@@ -100,12 +105,12 @@ internal sealed partial class ModelSectionViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Whether the backend preference is <see cref="BackendPreference.Vulkan"/>, for a radio button.
+    /// Whether the backend preference is <see cref="BackendPreference.Gpu"/>, for a radio button.
     /// </summary>
-    public bool IsVulkanBackend
+    public bool IsGpuBackend
     {
-        get => Backend == BackendPreference.Vulkan;
-        set => SetBackend(value, BackendPreference.Vulkan);
+        get => Backend == BackendPreference.Gpu;
+        set => SetBackend(value, BackendPreference.Gpu);
     }
 
     /// <summary>
@@ -118,7 +123,7 @@ internal sealed partial class ModelSectionViewModel : ObservableObject
     }
 
     /// <summary>
-    /// The backend in use, such as <c>Ready on Vulkan</c>, or the engine status while it is not ready.
+    /// The backend in use, such as <c>Ready on Metal</c>, or the engine status while it is not ready.
     /// </summary>
     [ObservableProperty]
     public partial string EngineStatusText { get; private set; }

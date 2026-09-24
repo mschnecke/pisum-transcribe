@@ -36,7 +36,7 @@ public sealed class JsonSettingsStoreTests : IDisposable
 
         // Assert
         _sut.Current.ShouldBe(new AppSettings());
-        _sut.Current.SchemaVersion.ShouldBe(1);
+        _sut.Current.SchemaVersion.ShouldBe(2);
     }
 
     [Theory]
@@ -359,7 +359,7 @@ public sealed class JsonSettingsStoreTests : IDisposable
         // Arrange
         var settings = new AppSettings
         {
-            Transcription = new TranscriptionSettings(BackendPreference.Vulkan, TranscriptionTask.Transcribe, "en",
+            Transcription = new TranscriptionSettings(BackendPreference.Gpu, TranscriptionTask.Transcribe, "en",
                 "de"),
         };
         await _sut.SaveAsync(settings, TestContext.Current.CancellationToken);
@@ -371,7 +371,7 @@ public sealed class JsonSettingsStoreTests : IDisposable
         // Assert
         otherStore.Current.Transcription.ShouldBe(settings.Transcription);
         var json = await File.ReadAllTextAsync(_settingsFile, TestContext.Current.CancellationToken);
-        json.ShouldContain("\"backend\": \"vulkan\"");
+        json.ShouldContain("\"backend\": \"gpu\"");
         json.ShouldContain("\"task\": \"transcribe\"");
     }
 
@@ -407,6 +407,109 @@ public sealed class JsonSettingsStoreTests : IDisposable
         A.CallTo(_logger)
             .Where(call => call.Method.Name == nameof(ILogger.Log) && call.GetArgument<LogLevel>(0) == LogLevel.Warning)
             .MustHaveHappenedOnceExactly();
+    }
+
+    [Theory]
+    [InlineData("\"schemaVersion\": 1, ")]
+    [InlineData("")]
+    public void Load_OlderFormatWithVulkanBackend_ReadsGpuAndKeepsOtherValues(string version)
+    {
+        // Arrange
+        File.WriteAllText(_settingsFile, $$"""
+            { {{version}}"model": { "selectedModelId": "canary-180m-flash-q8_0" },
+              "transcription": { "task": "transcribe", "sourceLanguage": "en", "targetLanguage": "de",
+                                 "backend": "vulkan" },
+              "recording": { "hotkey": ["VcLeftControl", "VcLeftMeta"] } }
+            """);
+
+        // Act
+        _sut.Load();
+
+        // Assert
+        _sut.Current.SchemaVersion.ShouldBe(2);
+        _sut.Current.Model.SelectedModelId.ShouldBe("canary-180m-flash-q8_0");
+        _sut.Current.Transcription.ShouldBe(new TranscriptionSettings(BackendPreference.Gpu,
+            TranscriptionTask.Transcribe, "en", "de"));
+        _sut.Current.Recording.Hotkey.ShouldBe(["VcLeftControl", "VcLeftMeta"]);
+        File.Exists(_settingsFile + ".corrupt").ShouldBeFalse();
+    }
+
+    [Fact]
+    public void Load_OlderFormat_LeavesFileUnchanged()
+    {
+        // Arrange
+        const string json = """{ "schemaVersion": 1, "transcription": { "backend": "vulkan" } }""";
+        File.WriteAllText(_settingsFile, json);
+
+        // Act
+        _sut.Load();
+
+        // Assert
+        File.ReadAllText(_settingsFile).ShouldBe(json);
+    }
+
+    [Fact]
+    public async Task SaveAsync_AfterLoadingOlderFormat_WritesCurrentFormat()
+    {
+        // Arrange
+        File.WriteAllText(_settingsFile, """{ "schemaVersion": 1, "transcription": { "backend": "vulkan" } }""");
+        _sut.Load();
+
+        // Act
+        await _sut.SaveAsync(_sut.Current, TestContext.Current.CancellationToken);
+
+        // Assert
+        var json = await File.ReadAllTextAsync(_settingsFile, TestContext.Current.CancellationToken);
+        json.ShouldContain("\"schemaVersion\": 2");
+        json.ShouldContain("\"backend\": \"gpu\"");
+    }
+
+    [Theory]
+    [InlineData("""{ "schemaVersion": 1 }""")]
+    [InlineData("""{ "schemaVersion": 1, "transcription": { "task": "transcribe" } }""")]
+    public void Load_OlderFormatWithoutBackend_UsesDefaultBackend(string json)
+    {
+        // Arrange
+        File.WriteAllText(_settingsFile, json);
+
+        // Act
+        _sut.Load();
+
+        // Assert
+        _sut.Current.SchemaVersion.ShouldBe(2);
+        _sut.Current.Transcription.Backend.ShouldBe(BackendPreference.Auto);
+    }
+
+    [Theory]
+    [InlineData("""{ "schemaVersion": 1, "transcription": { "backend": "metal" } }""")]
+    [InlineData("""{ "schemaVersion": 3, "transcription": { "backend": "vulkan" } }""")]
+    [InlineData("""{ "schemaVersion": "1", "transcription": { "backend": "vulkan" } }""")]
+    public void Load_UnknownBackendOrNotMigrated_RenamesFileAndUsesDefaults(string json)
+    {
+        // Arrange
+        File.WriteAllText(_settingsFile, json);
+
+        // Act
+        _sut.Load();
+
+        // Assert
+        _sut.Current.ShouldBe(new AppSettings());
+        File.Exists(_settingsFile).ShouldBeFalse();
+        File.ReadAllText(_settingsFile + ".corrupt").ShouldBe(json);
+    }
+
+    [Fact]
+    public void Load_NewerFormat_IsReadWithoutMigration()
+    {
+        // Arrange
+        File.WriteAllText(_settingsFile, """{ "schemaVersion": 3, "transcription": { "backend": "gpu" } }""");
+
+        // Act
+        _sut.Load();
+
+        // Assert
+        _sut.Current.SchemaVersion.ShouldBe(3);
+        _sut.Current.Transcription.Backend.ShouldBe(BackendPreference.Gpu);
     }
 
     [Fact]

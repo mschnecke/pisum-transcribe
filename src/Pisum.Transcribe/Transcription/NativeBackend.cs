@@ -6,9 +6,9 @@ namespace Pisum.Transcribe.Transcription;
 internal enum NativeBackend
 {
     /// <summary>
-    /// The Vulkan GPU backend.
+    /// The GPU backend: Vulkan on Windows, Metal on macOS.
     /// </summary>
-    Vulkan,
+    Gpu,
 
     /// <summary>
     /// The CPU backend.

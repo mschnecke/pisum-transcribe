@@ -30,14 +30,25 @@ namespace Pisum.Transcribe.Settings;
 /// <b>Names:</b> properties are written in camelCase and enum values as camelCase strings, such as
 /// <c>clipboardPaste</c>.
 /// </description></item>
+/// <item><description>
+/// <b>Renames:</b> an older file with a renamed enum value would count as corrupt, and one with a renamed property
+/// would lose its value, because unknown properties are skipped. Raise <see cref="CurrentSchemaVersion"/> and add the
+/// rename to the migration in <see cref="JsonSettingsStore"/>, with its tests.
+/// </description></item>
 /// </list>
 /// </remarks>
 internal sealed record AppSettings
 {
     /// <summary>
+    /// The current version of the settings file format. Version 2 renamed the backend value <c>vulkan</c> to
+    /// <c>gpu</c>.
+    /// </summary>
+    public const int CurrentSchemaVersion = 2;
+
+    /// <summary>
     /// The version of the settings file format.
     /// </summary>
-    public int SchemaVersion { get; init; } = 1;
+    public int SchemaVersion { get; init; } = CurrentSchemaVersion;
 
     /// <summary>
     /// The speech model settings.
