@@ -123,6 +123,38 @@ public sealed class RelaunchServiceTests
     }
 
     [Fact]
+    public async Task Grant_DownloadStartsDuringNotice_WaitsUntilDownloadEndsThenShowsNoticeAgain()
+    {
+        // Arrange
+        A.CallTo(() => _setupWindow.IsOpen).Returns(true);
+        var sut = CreateSut();
+        await sut.StartAsync(TestContext.Current.CancellationToken);
+        _accessibility = PermissionState.Granted;
+        _timeProvider.Advance(RelaunchService.CheckInterval);
+
+        // Act
+        _timeProvider.Advance(RelaunchService.NoticeDuration - TimeSpan.FromSeconds(1));
+        _isDownloading = true;
+        _modelStore.DownloadStateChanged += Raise.WithEmpty();
+        _timeProvider.Advance(TimeSpan.FromMinutes(1));
+        var noteDuringDownload = _viewModel.Accessibility.Note;
+        var requestsDuringDownload = _relaunchRequests;
+        _isDownloading = false;
+        _modelStore.DownloadStateChanged += Raise.WithEmpty();
+        var noteAfterDownload = _viewModel.Accessibility.Note;
+        _timeProvider.Advance(RelaunchService.NoticeDuration - TimeSpan.FromTicks(1));
+        var requestsBeforeNoticeEnds = _relaunchRequests;
+        _timeProvider.Advance(TimeSpan.FromTicks(1));
+
+        // Assert
+        noteDuringDownload.ShouldBe("Restarts when the download is finished");
+        requestsDuringDownload.ShouldBe(0);
+        noteAfterDownload.ShouldBe("Pisum Transcribe restarts to turn on the hotkey");
+        requestsBeforeNoticeEnds.ShouldBe(0);
+        _relaunchRequests.ShouldBe(1);
+    }
+
+    [Fact]
     public async Task Grant_NoBundle_NeverRelaunches()
     {
         // Arrange

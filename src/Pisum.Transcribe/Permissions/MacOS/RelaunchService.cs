@@ -10,7 +10,7 @@ namespace Pisum.Transcribe.Permissions;
 /// in a new process (design D4 of add-macos-setup). It checks the grant every <see cref="CheckInterval"/> while it's
 /// not granted, and only a change from not granted to granted counts, so a process that starts with the grant never
 /// restarts. The restart waits until no model download runs, and shows a notice in the setup window for
-/// <see cref="NoticeDuration"/> when it's open.
+/// <see cref="NoticeDuration"/> when it's open. A download that starts during the notice delays the restart again.
 /// </summary>
 internal sealed class RelaunchService : IHostedService
 {
@@ -147,7 +147,10 @@ internal sealed class RelaunchService : IHostedService
 
         if (_modelStore.IsDownloading)
         {
-            if (_viewModel!.Accessibility.Note is null)
+            // A download that starts during the notice ends the notice, so the restart doesn't cancel it.
+            _noticeTimer?.Dispose();
+            _noticeTimer = null;
+            if (_viewModel!.Accessibility.Note != WaitingForDownloadText)
             {
                 _logger.LogInformation("The restart waits until the model download has ended");
             }
@@ -156,17 +159,34 @@ internal sealed class RelaunchService : IHostedService
             return;
         }
 
-        _restarting = true;
-        _modelStore.DownloadStateChanged -= OnDownloadStateChanged;
+        if (_noticeTimer is not null)
+        {
+            return;
+        }
+
         if (!_setupWindow.IsOpen)
         {
-            RelaunchRequested?.Invoke(this, EventArgs.Empty);
+            Relaunch();
             return;
         }
 
         _viewModel!.Accessibility.Note = RestartingText;
-        _noticeTimer = _timeProvider.CreateTimer(
-            _ => _ = _uiDispatcher.InvokeAsync(() => RelaunchRequested?.Invoke(this, EventArgs.Empty)), null,
-            NoticeDuration, Timeout.InfiniteTimeSpan);
+        ITimer? noticeTimer = null;
+        noticeTimer = _timeProvider.CreateTimer(_ => _ = _uiDispatcher.InvokeAsync(() =>
+        {
+            // The callback of a notice that a download ended may still run after it was queued.
+            if (_noticeTimer == noticeTimer)
+            {
+                Relaunch();
+            }
+        }), null, NoticeDuration, Timeout.InfiniteTimeSpan);
+        _noticeTimer = noticeTimer;
+    }
+
+    private void Relaunch()
+    {
+        _restarting = true;
+        _modelStore.DownloadStateChanged -= OnDownloadStateChanged;
+        RelaunchRequested?.Invoke(this, EventArgs.Empty);
     }
 }
