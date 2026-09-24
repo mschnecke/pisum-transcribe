@@ -117,6 +117,8 @@ internal sealed partial class PermissionsViewModel : ObservableObject
 
     /// <summary>
     /// Reads now whether both required permissions are granted, for a check outside the window such as the menu.
+    /// Unlike <see cref="AreRequiredGranted"/>, an Accessibility grant made while the process runs counts at once,
+    /// because <c>RelaunchService</c> restarts the application right after it.
     /// </summary>
     /// <returns><see langword="true"/> if Accessibility and the microphone are granted.</returns>
     public bool ReadRequiredGranted()
