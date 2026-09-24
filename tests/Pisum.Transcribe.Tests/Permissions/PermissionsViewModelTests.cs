@@ -1,3 +1,4 @@
+using Avalonia.Threading;
 using Microsoft.Extensions.Time.Testing;
 using Pisum.Transcribe.Permissions;
 
@@ -217,29 +218,31 @@ public sealed class PermissionsViewModelTests
     }
 
     [Fact]
-    public async Task OpenAsync_PasteAtDefault_ProbesOnceOffTheCallingThread()
+    public Task OpenAsync_PasteAtDefault_ProbesOnceOffTheUiThread()
     {
-        // Arrange
-        _states[Permission.PasteFromOtherApps] = PermissionState.NotDetermined;
-        var callingThread = Environment.CurrentManagedThreadId;
-        var probeThreads = new List<int>();
-        A.CallTo(() => _permissions.ProbePasteboard()).Invokes(() =>
+        // On the headless UI thread, which the thread pool never runs work on, unlike a test's own pool thread.
+        return HeadlessUi.RunAsync(async () =>
         {
-            probeThreads.Add(Environment.CurrentManagedThreadId);
-            _states[Permission.PasteFromOtherApps] = PermissionState.Granted;
+            // Arrange
+            _states[Permission.PasteFromOtherApps] = PermissionState.NotDetermined;
+            var probesOnUiThread = new List<bool>();
+            A.CallTo(() => _permissions.ProbePasteboard()).Invokes(() =>
+            {
+                probesOnUiThread.Add(Dispatcher.UIThread.CheckAccess());
+                _states[Permission.PasteFromOtherApps] = PermissionState.Granted;
+            });
+            var sut = CreateSut();
+
+            // Act
+            await sut.OpenAsync().WaitAsync(SignalTimeout, TestContext.Current.CancellationToken);
+            sut.Close();
+            _states[Permission.PasteFromOtherApps] = PermissionState.NotDetermined;
+            await sut.OpenAsync().WaitAsync(SignalTimeout, TestContext.Current.CancellationToken);
+
+            // Assert
+            probesOnUiThread.ShouldBe([false]);
+            sut.PasteFromOtherApps.State.ShouldBe(PermissionState.NotDetermined);
         });
-        var sut = CreateSut();
-
-        // Act
-        await sut.OpenAsync().WaitAsync(SignalTimeout, TestContext.Current.CancellationToken);
-        sut.Close();
-        _states[Permission.PasteFromOtherApps] = PermissionState.NotDetermined;
-        await sut.OpenAsync().WaitAsync(SignalTimeout, TestContext.Current.CancellationToken);
-
-        // Assert
-        probeThreads.Count.ShouldBe(1);
-        probeThreads.Single().ShouldNotBe(callingThread);
-        sut.PasteFromOtherApps.State.ShouldBe(PermissionState.NotDetermined);
     }
 
     [Theory]
