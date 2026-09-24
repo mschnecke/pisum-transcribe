@@ -1,3 +1,4 @@
+using System.Collections.Frozen;
 using System.Runtime.InteropServices;
 
 namespace Pisum.Transcribe.Recording;
@@ -9,7 +10,8 @@ namespace Pisum.Transcribe.Recording;
 /// </summary>
 /// <remarks>
 /// The HID system state reads the physical keys, so it also sees a release while secure input hides key events from
-/// the hook.
+/// the hook. <c>CGEventSourceKeyState</c> never reads a modifier key as down, so a modifier is read from its
+/// device-dependent bit in the HID flags, which tells the left key from the right one.
 /// </remarks>
 internal sealed class MacHotkeyKeyState : IHotkeyKeyState
 {
@@ -26,6 +28,21 @@ internal sealed class MacHotkeyKeyState : IHotkeyKeyState
     // locked.
     private static readonly Lazy<nint> OnConsoleKey = new(() => CreateString("kCGSSessionOnConsoleKey"));
     private static readonly Lazy<nint> ScreenIsLockedKey = new(() => CreateString("CGSSessionScreenIsLocked"));
+
+    // The device-dependent flag of each modifier key by its macOS key code (NX_DEVICE*KEYMASK in IOLLEvent.h, and
+    // kCGEventFlagMaskSecondaryFn for fn).
+    private static readonly FrozenDictionary<int, ulong> ModifierFlags = new Dictionary<int, ulong>
+    {
+        [0x3B] = 0x0000_0001, // left Control
+        [0x38] = 0x0000_0002, // left Shift
+        [0x3C] = 0x0000_0004, // right Shift
+        [0x37] = 0x0000_0008, // left Command
+        [0x36] = 0x0000_0010, // right Command
+        [0x3A] = 0x0000_0020, // left Option
+        [0x3D] = 0x0000_0040, // right Option
+        [0x3E] = 0x0000_2000, // right Control
+        [0x3F] = 0x0080_0000, // fn
+    }.ToFrozenDictionary();
 
     private readonly Func<int, bool> _isKeyDown;
     private readonly Func<SessionState> _readSession;
@@ -62,7 +79,22 @@ internal sealed class MacHotkeyKeyState : IHotkeyKeyState
     /// <returns><see langword="true"/> if the key is down.</returns>
     internal static bool IsKeyDown(int keyCode)
     {
-        return CGEventSourceKeyState(HidSystemState, (ushort) keyCode);
+        return IsKeyDown(keyCode, () => CGEventSourceFlagsState(HidSystemState),
+            key => CGEventSourceKeyState(HidSystemState, (ushort) key));
+    }
+
+    /// <summary>
+    /// Reads whether a key is down: a modifier from its bit in the flags, any other key from the key state.
+    /// </summary>
+    /// <param name="keyCode">The macOS key code.</param>
+    /// <param name="readFlags">Reads the HID flags.</param>
+    /// <param name="readKeyState">Reads the HID key state of a key code.</param>
+    /// <returns><see langword="true"/> if the key is down.</returns>
+    internal static bool IsKeyDown(int keyCode, Func<ulong> readFlags, Func<int, bool> readKeyState)
+    {
+        return ModifierFlags.TryGetValue(keyCode, out var flag)
+            ? (readFlags() & flag) != 0
+            : readKeyState(keyCode);
     }
 
     /// <summary>
@@ -106,6 +138,9 @@ internal sealed class MacHotkeyKeyState : IHotkeyKeyState
     [DllImport(CoreGraphicsPath)]
     [return: MarshalAs(UnmanagedType.U1)]
     private static extern bool CGEventSourceKeyState(int stateId, ushort key);
+
+    [DllImport(CoreGraphicsPath)]
+    private static extern ulong CGEventSourceFlagsState(int stateId);
 
     [DllImport(CoreGraphicsPath)]
     private static extern nint CGSessionCopyCurrentDictionary();

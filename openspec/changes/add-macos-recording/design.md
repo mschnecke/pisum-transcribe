@@ -47,12 +47,12 @@ See proposal.md for the motivation. The decisions come from the section "Decided
 
 ### D2: Lock and user switch folded into the missed-release timer
 
-On macOS, the physical key state comes from `CGEventSourceKeyState(kCGEventSourceStateHIDSystemState, keycode)`. SharpHook's raw code on macOS is the CG key code. That state still reads *down* behind the lock screen while the user keeps holding the key. The shell design planned two notifications for that: the distributed `com.apple.screenIsLocked` and `NSWorkspace`'s session notifications through the helper.
+On macOS, the physical key state comes from the HID system state. SharpHook's raw code on macOS is the CG key code. `CGEventSourceKeyState(kCGEventSourceStateHIDSystemState, keycode)` never reads a modifier key as down (found by hand on 2026-09-24: right Command read up while held, so every hold was cancelled after 500 ms). A modifier key, fn included, is therefore read from its device-dependent bit in `CGEventSourceFlagsState(kCGEventSourceStateHIDSystemState)`, such as `NX_DEVICERCMDKEYMASK` (0x10) for right Command or `kCGEventFlagMaskSecondaryFn` for fn, which tells the left key from the right one. Every other key uses `CGEventSourceKeyState`. That state still reads *down* behind the lock screen while the user keeps holding the key. The shell design planned two notifications for that: the distributed `com.apple.screenIsLocked` and `NSWorkspace`'s session notifications through the helper.
 
 Instead, `MacHotkeyKeyState` answers "observably held" as:
 
 ```
-held = CGEventSourceKeyState(HIDSystemState, keycode)
+held = key down in the HID state (a modifier's flag bit, or CGEventSourceKeyState)
        && session on console      (kCGSessionOnConsoleKey)
        && screen not locked       (CGSSessionScreenIsLocked)
 ```
@@ -167,7 +167,7 @@ The new device's mute state isn't checked on a swap. That matches Windows, where
   - `HotkeyTextTests` and `HotkeyRecorderTests` for both `HotkeyKeyNames` tables. `DictationSectionViewModel` shows the fn hint only on macOS with `VcFunction`.
   - `RelaunchService` and `PermissionsViewModel` with a fake `IPermissions` whose grant drops.
 - **macOS `Integration`** (the real APIs, no hardware):
-  - `CGEventSourceKeyState` reads an idle key as up
+  - an idle key and an idle modifier read as up
   - `CGSessionCopyCurrentDictionary` reports the session on console and the screen not locked
   - the default input device and its mute property can be read
   - `AudioQueueCaptureSessionFactory` fails with `MicrophoneAccessDeniedException` for a fake status that isn't 3

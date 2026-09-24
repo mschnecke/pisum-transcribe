@@ -34,7 +34,7 @@ src/Pisum.Transcribe/            Avalonia tray app (WinExe), no main window, for
   Permissions/                   macOS only: IPermissions, PermissionsViewModel (the setup window's four permission rows); MacOS/ MacPermissions, RelaunchService (restart after the Accessibility grant), AddPermissions()
   Transcription/                 ITranscriber, TranscribeCppTranscriber (worker, fallback), native seam and adapter, hosted service
   Recording/                     Push-to-talk hotkey (SharpHook) with its key-state read (IHotkeyKeyState) and grant check (IHookAccess) per platform, microphone capture (NAudio WASAPI), AudioRecorder, HotkeyParser (the default hotkey per platform)
-    MacOS/                       MacHotkeyKeyState (CGEventSourceKeyState, lock and user switch), MacHookAccess (the Accessibility grant in effect), CoreAudio interop, AudioQueueCaptureSession(Factory), which follows the default input device
+    MacOS/                       MacHotkeyKeyState (the HID key state, modifiers from their flag bits, lock and user switch), MacHookAccess (the Accessibility grant in effect), CoreAudio interop, AudioQueueCaptureSession(Factory), which follows the default input device
   VoiceActivity/                 Silero VAD on ONNX Runtime (Assets/silero_vad.onnx), AudioTrimmer
   TextInsertion/                 TextInserter: clipboard paste with restore or typed input, foreground window and elevation checks; the Win32 parts and SharpHookKeyboardInput in Windows/
   Dictation/                     DictationController (the hold-to-talk loop), recording overlay (placement and styles behind IOverlayPlatform, Win32OverlayPlatform in Windows/), tray status and notifications

@@ -19,6 +19,16 @@ public sealed class MacHotkeyKeyStateIntegrationTests
     }
 
     [Fact]
+    public void IsKeyDown_IdleModifier_IsFalse()
+    {
+        // Act: right Option, which no test run holds.
+        var isDown = MacHotkeyKeyState.IsKeyDown(0x3D);
+
+        // Assert
+        isDown.ShouldBeFalse();
+    }
+
+    [Fact]
     public void ReadSession_TestHost_IsOnConsoleAndNotLocked()
     {
         // Act
