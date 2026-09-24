@@ -8,7 +8,7 @@ import Foundation
 /// every change of a function's signature or meaning.
 @_cdecl("pisum_abi_version")
 public func pisumAbiVersion() -> Int32 {
-    return 2
+    return 3
 }
 
 /// Frees memory that a function of this library allocated for the caller.

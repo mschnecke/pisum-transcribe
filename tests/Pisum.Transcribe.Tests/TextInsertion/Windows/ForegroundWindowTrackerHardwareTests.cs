@@ -23,7 +23,7 @@ public sealed class ForegroundWindowTrackerHardwareTests
         var target = _sut.CaptureForeground();
 
         // Assert
-        target.WindowHandle.ShouldBe(window.Handle);
+        target.Window.ShouldBe(window.Handle);
         target.ProcessId.ShouldBe(Environment.ProcessId);
         _sut.IsForeground(target).ShouldBeTrue();
     }

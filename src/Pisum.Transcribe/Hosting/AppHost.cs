@@ -8,6 +8,7 @@ using Pisum.Transcribe.Recording;
 using Pisum.Transcribe.Settings;
 using Pisum.Transcribe.SettingsWindow;
 using Pisum.Transcribe.SpeechModels;
+using Pisum.Transcribe.TextInsertion;
 using Pisum.Transcribe.Transcription;
 using Pisum.Transcribe.Tray;
 using Pisum.Transcribe.Updates;
@@ -16,7 +17,6 @@ using Pisum.Transcribe.Permissions;
 #endif
 #if WINDOWS
 using Pisum.Transcribe.Dictation;
-using Pisum.Transcribe.TextInsertion;
 using Pisum.Transcribe.VoiceActivity;
 #endif
 using Serilog;
@@ -65,8 +65,8 @@ internal static class AppHost
         builder.Services.AddSpeechModels();
         builder.Services.AddTranscription();
         builder.Services.AddRecording();
-#if WINDOWS
         builder.Services.AddTextInsertion();
+#if WINDOWS
         builder.Services.AddVoiceActivity();
         builder.Services.AddDictation();
 #endif

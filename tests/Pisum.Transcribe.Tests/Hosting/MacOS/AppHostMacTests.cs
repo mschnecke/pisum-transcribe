@@ -5,6 +5,7 @@ using Pisum.Transcribe.Notifications;
 using Pisum.Transcribe.Permissions;
 using Pisum.Transcribe.Recording;
 using Pisum.Transcribe.Settings;
+using Pisum.Transcribe.TextInsertion;
 using Pisum.Transcribe.Tray;
 
 namespace Pisum.Transcribe.Tests.Hosting;
@@ -20,7 +21,7 @@ public sealed class AppHostMacTests : IDisposable
     }
 
     [Fact]
-    public Task Create_MacOS_ResolvesHostedServicesTrayNotifierAndSettings()
+    public Task Create_MacOS_ResolvesHostedServicesTrayNotifierSettingsAndTextInsertion()
     {
         return HeadlessUi.RunAsync(() =>
         {
@@ -39,6 +40,13 @@ public sealed class AppHostMacTests : IDisposable
             host.Services.GetRequiredService<IPushToTalkHotkey>().ShouldBeOfType<SharpHookPushToTalkHotkey>();
             host.Services.GetRequiredService<IHotkeyKeyState>().ShouldBeOfType<MacHotkeyKeyState>();
             host.Services.GetRequiredService<IHookAccess>().ShouldBeOfType<MacHookAccess>();
+            host.Services.GetRequiredService<ITextInserter>().ShouldBeOfType<TextInserter>();
+            host.Services.GetRequiredService<IForegroundWindowTracker>().ShouldBeOfType<MacForegroundWindowTracker>();
+            host.Services.GetRequiredService<IClipboardService>().ShouldBeOfType<MacClipboardService>();
+            host.Services.GetRequiredService<IKeyboardInput>().ShouldBeOfType<MacKeyboardInput>();
+            host.Services.GetRequiredService<ISecureInput>().ShouldBeOfType<MacSecureInput>();
+            hostedServices.ShouldContain(service => service is TextInserter);
+            hostedServices.ShouldContain(service => service is MacKeyboardInput);
             notifier.ShouldBeOfType<MacNotifier>();
             settingsStore.ShouldNotBeNull();
             host.Services.GetRequiredService<QuitEventSender>().ShouldNotBeNull();

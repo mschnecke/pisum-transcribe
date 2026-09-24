@@ -22,6 +22,11 @@ internal enum InsertionOutcome
     TargetWindowElevated,
 
     /// <summary>
+    /// macOS's Secure Event Input was on right before the keystrokes, for example because a password field has focus.
+    /// </summary>
+    SecureInputOn,
+
+    /// <summary>
     /// A modifier key that would change the keystrokes was still held after the wait.
     /// </summary>
     ModifierKeysHeld,

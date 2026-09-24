@@ -124,7 +124,8 @@ graph TD
 - **GitHub #16** is merged in pull request #30. CI passed on Windows and macOS. Its archived tasks leave the first start by hand on the Mac (6.1) and the final validate, build and test run (6.3) unchecked.
 - **GitHub #17** is merged in pull request #31: the hotkey and the microphone on macOS, with right Command as the default hotkey there. Its checks by hand on the Mac and CI on both platforms passed; a user switch and a password field weren't checked by hand. fn isn't a hotkey key on macOS, because the keyboard hook never sees it held.
 - **GitHub #18** is implemented on its branch: Metal is the GPU backend on macOS, and the setting stores `gpu` on both platforms, with settings format 2 migrating `vulkan`. The checkpoint after #18, the checks by hand on the Mac and the migration check on Windows are still open, so the Mac defaults are unchanged until then.
-- **GitHub #19–#22 and #32** have no OpenSpec change yet.
+- **GitHub #19** is implemented on its branch: paste with restore on macOS, typing when the pasteboard can't be read without asking, the nspasteboard.org markers and Universal Clipboard exclusion, and the secure-input outcome. Nothing on the Mac calls the inserter until #20, which also takes over the secure-input tray hint and the notification for the new outcome. Its checks by hand (4.3) are still open.
+- **GitHub #20–#22 and #32** have no OpenSpec change yet.
 
 ### Releases
 

@@ -39,6 +39,7 @@ internal sealed class TextInserter : ITextInserter, IHostedService
     private readonly IClipboardService _clipboard;
     private readonly IKeyboardInput _keyboard;
     private readonly IForegroundWindowTracker _tracker;
+    private readonly ISecureInput _secureInput;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<TextInserter> _logger;
     private readonly bool _isSelfElevated;
@@ -50,12 +51,14 @@ internal sealed class TextInserter : ITextInserter, IHostedService
     /// <param name="clipboard">The clipboard.</param>
     /// <param name="keyboard">The keyboard input.</param>
     /// <param name="tracker">The foreground window tracker.</param>
+    /// <param name="secureInput">The secure input state, checked together with the foreground window.</param>
     /// <param name="timeProvider">The time provider for the modifier wait and the restore delay.</param>
     /// <param name="logger">The logger.</param>
     /// <param name="isSelfElevated">Whether this process runs elevated.</param>
     public TextInserter(IClipboardService clipboard,
                         IKeyboardInput keyboard,
                         IForegroundWindowTracker tracker,
+                        ISecureInput secureInput,
                         TimeProvider timeProvider,
                         ILogger<TextInserter> logger,
                         bool isSelfElevated)
@@ -63,6 +66,7 @@ internal sealed class TextInserter : ITextInserter, IHostedService
         _clipboard = clipboard;
         _keyboard = keyboard;
         _tracker = tracker;
+        _secureInput = secureInput;
         _timeProvider = timeProvider;
         _logger = logger;
         _isSelfElevated = isSelfElevated;
@@ -78,7 +82,7 @@ internal sealed class TextInserter : ITextInserter, IHostedService
         await _pendingRestore.ConfigureAwait(false);
 
         // Without a window, an empty foreground at insertion would match, and Ctrl+V would go nowhere.
-        if (target.WindowHandle == 0 || !_tracker.IsForeground(target))
+        if (target.Window == 0 || !_tracker.IsForeground(target))
         {
             return await FallBackAsync(text, InsertionOutcome.TargetWindowChanged).ConfigureAwait(false);
         }
@@ -96,7 +100,7 @@ internal sealed class TextInserter : ITextInserter, IHostedService
         var waitStarted = _timeProvider.GetTimestamp();
         while (true)
         {
-            // A held Ctrl only matters before typing: Ctrl plus Ctrl+V is still Ctrl+V.
+            // A held Ctrl, or Command on macOS, only matters before typing: Ctrl plus Ctrl+V is still Ctrl+V.
             bool released;
             try
             {
@@ -119,6 +123,13 @@ internal sealed class TextInserter : ITextInserter, IHostedService
             if (!_tracker.IsForeground(target))
             {
                 return await FallBackAsync(text, InsertionOutcome.TargetWindowChanged, paste).ConfigureAwait(false);
+            }
+
+            if (_secureInput.IsEnabled)
+            {
+                _logger.LogInformation("Secure input is on, the text is not sent to process {ProcessId}",
+                    target.ProcessId);
+                return await FallBackAsync(text, InsertionOutcome.SecureInputOn, paste).ConfigureAwait(false);
             }
 
             if (paste is null || _clipboard.SequenceNumber == paste.SequenceNumber)
@@ -167,7 +178,7 @@ internal sealed class TextInserter : ITextInserter, IHostedService
     /// <summary>
     /// Places the transcript on the clipboard, after taking a snapshot if the clipboard is restored.
     /// </summary>
-    /// <returns>The prepared paste, or <see langword="null"/> to type instead because the clipboard was busy.</returns>
+    /// <returns>The prepared paste, or <see langword="null"/> to type instead because the clipboard failed.</returns>
     private async Task<PreparedPaste?> PrepareClipboardAsync(string text, bool restoreClipboard)
     {
         ClipboardSnapshot? snapshot = null;
@@ -176,7 +187,8 @@ internal sealed class TextInserter : ITextInserter, IHostedService
             snapshot = await _clipboard.TrySnapshotAsync().ConfigureAwait(false);
             if (snapshot is null)
             {
-                _logger.LogInformation("The clipboard was busy, typing the text instead");
+                // The service has logged why: a busy clipboard, or a pasteboard that may not be read.
+                _logger.LogInformation("The clipboard could not be read, typing the text instead");
                 return null;
             }
 
@@ -190,18 +202,18 @@ internal sealed class TextInserter : ITextInserter, IHostedService
         var restore = snapshot is {IsSensitive: false} ? snapshot : null;
         if (!await _clipboard.TrySetTextAsync(text, restore is not null).ConfigureAwait(false))
         {
-            _logger.LogInformation("The clipboard was busy, typing the text instead");
+            _logger.LogInformation("The clipboard could not be set, typing the text instead");
             return null;
         }
 
         return new PreparedPaste(_clipboard.SequenceNumber, restore);
     }
 
-    private async Task<bool> WaitForModifiersAsync(bool includeControl,
+    private async Task<bool> WaitForModifiersAsync(bool includePasteModifier,
                                                    long waitStarted,
                                                    CancellationToken cancellationToken)
     {
-        while (_keyboard.AreModifiersDown(includeControl))
+        while (_keyboard.AreModifiersDown(includePasteModifier))
         {
             if (_timeProvider.GetElapsedTime(waitStarted) >= ModifierWait)
             {
@@ -218,7 +230,7 @@ internal sealed class TextInserter : ITextInserter, IHostedService
     /// Restores the snapshot after <see cref="RestoreDelay"/>. Never throws, so awaiting it cannot fail the next
     /// insertion or the shutdown.
     /// </summary>
-    private async Task RestoreAsync(ClipboardSnapshot snapshot, uint sequenceNumber)
+    private async Task RestoreAsync(ClipboardSnapshot snapshot, long sequenceNumber)
     {
         try
         {
@@ -276,5 +288,5 @@ internal sealed class TextInserter : ITextInserter, IHostedService
 
     /// <param name="SequenceNumber">The clipboard sequence number right after the transcript was set.</param>
     /// <param name="Restore">The snapshot to restore after the paste, or <see langword="null"/> for no restore.</param>
-    private sealed record PreparedPaste(uint SequenceNumber, ClipboardSnapshot? Restore);
+    private sealed record PreparedPaste(long SequenceNumber, ClipboardSnapshot? Restore);
 }

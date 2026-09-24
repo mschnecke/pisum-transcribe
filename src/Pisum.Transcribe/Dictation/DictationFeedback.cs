@@ -122,7 +122,7 @@ internal sealed class DictationFeedback : IDictationFeedback, IHostedService
         _ = _uiDispatcher.InvokeAsync(() =>
         {
             EndMessage();
-            Overlay.ShowStarting(target.WindowHandle);
+            Overlay.ShowStarting(target.Window);
         });
     }
 

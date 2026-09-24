@@ -17,7 +17,7 @@ public sealed class MacNativeLibraryIntegrationTests
         var version = PisumMac.AbiVersion();
 
         // Assert
-        version.ShouldBe(2);
+        version.ShouldBe(3);
         version.ShouldBe(MacNativeLibrary.ExpectedAbiVersion);
     }
 
