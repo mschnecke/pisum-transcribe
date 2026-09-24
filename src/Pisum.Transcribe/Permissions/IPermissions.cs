@@ -14,7 +14,8 @@ internal interface IPermissions
 
     /// <summary>
     /// Reads the state of <see cref="Permission.Accessibility"/>, <see cref="Permission.Microphone"/> or
-    /// <see cref="Permission.PasteFromOtherApps"/>. The check is cheap and may also run on another thread.
+    /// <see cref="Permission.PasteFromOtherApps"/>. The check is cheap, so it may run on every refresh of the window
+    /// and every time the menu opens.
     /// </summary>
     /// <param name="permission">The permission, not <see cref="Permission.Notifications"/>.</param>
     /// <returns>The state.</returns>
