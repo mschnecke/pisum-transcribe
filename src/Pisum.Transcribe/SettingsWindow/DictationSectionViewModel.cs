@@ -21,6 +21,7 @@ internal sealed partial class DictationSectionViewModel : ObservableObject
 {
     private readonly IPushToTalkHotkey _hotkey;
     private readonly IUiDispatcher _uiDispatcher;
+    private readonly HotkeyKeyNames _keyNames;
     private SpeechModel _model;
     private HotkeyRecorder? _recorder;
 
@@ -34,13 +35,18 @@ internal sealed partial class DictationSectionViewModel : ObservableObject
     /// <param name="model">The model selected in the window, whose languages the pickers offer.</param>
     /// <param name="hotkey">The push-to-talk hotkey, suspended while a new hotkey is recorded.</param>
     /// <param name="uiDispatcher">Reaches the UI thread.</param>
+    /// <param name="keyNames">
+    /// The platform's key names and valid-hotkey rule, <see langword="null"/> for <see cref="HotkeyKeyNames.Current"/>.
+    /// </param>
     public DictationSectionViewModel(AppSettings settings,
                                      SpeechModel model,
                                      IPushToTalkHotkey hotkey,
-                                     IUiDispatcher uiDispatcher)
+                                     IUiDispatcher uiDispatcher,
+                                     HotkeyKeyNames? keyNames = null)
     {
         _hotkey = hotkey;
         _uiDispatcher = uiDispatcher;
+        _keyNames = keyNames ?? HotkeyKeyNames.Current;
         _model = model;
 
         _isUpdating = true;
@@ -195,9 +201,9 @@ internal sealed partial class DictationSectionViewModel : ObservableObject
     public partial IReadOnlyList<string> Hotkey { get; private set; }
 
     /// <summary>
-    /// The push-to-talk hotkey for display, such as <c>Right Ctrl</c>.
+    /// The push-to-talk hotkey for display, such as <c>Right Ctrl</c> or <c>Right Command</c>.
     /// </summary>
-    public string HotkeyName => HotkeyText.Format(HotkeyParser.Parse(Hotkey, NullLogger.Instance));
+    public string HotkeyName => HotkeyText.Format(HotkeyParser.Parse(Hotkey, NullLogger.Instance), _keyNames);
 
     /// <summary>
     /// Why the last recorded hotkey was rejected, or <see langword="null"/>.
@@ -260,7 +266,7 @@ internal sealed partial class DictationSectionViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(CanChangeHotkey))]
     private void ChangeHotkey()
     {
-        _recorder = new HotkeyRecorder();
+        _recorder = new HotkeyRecorder(_keyNames);
         HotkeyError = null;
         IsRecordingHotkey = true;
 
@@ -289,11 +295,11 @@ internal sealed partial class DictationSectionViewModel : ObservableObject
         switch (_recorder.OnKey(key, isPressed))
         {
             case HotkeyRecordingState.Captured:
-                Hotkey = HotkeyText.Order(_recorder.Keys).Select(keyCode => keyCode.ToString()).ToList();
+                Hotkey = HotkeyText.Order(_recorder.Keys, _keyNames).Select(keyCode => keyCode.ToString()).ToList();
                 EndHotkeyRecording();
                 break;
             case HotkeyRecordingState.Rejected:
-                HotkeyError = HotkeyRecorder.RejectedMessage;
+                HotkeyError = _recorder.RejectedMessage;
                 EndHotkeyRecording();
                 break;
             case HotkeyRecordingState.Cancelled:

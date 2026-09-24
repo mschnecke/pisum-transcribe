@@ -8,7 +8,8 @@ namespace Pisum.Transcribe.Permissions;
 /// <summary>
 /// Restarts the application when Accessibility is granted while it runs, because the keyboard hook sees the grant only
 /// in a new process (design D4 of add-macos-setup). It checks the grant every <see cref="CheckInterval"/> while it's
-/// not granted, and only a change from not granted to granted counts, so a process that starts with the grant never
+/// not in effect: from the start when the process started without it, and from a revoke on otherwise (design D4 of
+/// add-macos-recording). Only a change from not granted to granted counts, so a process that keeps its grant never
 /// restarts. The restart waits until no model download runs, and shows a notice in the setup window for
 /// <see cref="NoticeDuration"/> when it's open. A download that starts during the notice delays the restart again.
 /// </summary>
@@ -89,21 +90,27 @@ internal sealed class RelaunchService : IHostedService
     public Task StartAsync(CancellationToken cancellationToken)
     {
         // Without a view model the permissions are skipped outside an app bundle, which is logged there.
-        if (_viewModel is null || _permissions.IsAccessibilityGrantedAtStart)
+        if (_viewModel is null)
         {
             return Task.CompletedTask;
         }
 
         if (_bundlePath is null)
         {
-            _logger.LogInformation(
-                "No restart after the Accessibility grant, because no app bundle encloses the application");
+            if (!_permissions.IsAccessibilityInEffect)
+            {
+                _logger.LogInformation(
+                    "No restart after the Accessibility grant, because no app bundle encloses the application");
+            }
+
             return Task.CompletedTask;
         }
 
         return _uiDispatcher.InvokeAsync(() =>
-            _checkTimer = _timeProvider.CreateTimer(_ => _ = _uiDispatcher.InvokeAsync(CheckAccessibility), null,
-                CheckInterval, CheckInterval));
+        {
+            _permissions.AccessibilityInEffectChanged += OnAccessibilityInEffectChanged;
+            StartCheckingWhenNotInEffect();
+        });
     }
 
     /// <inheritdoc />
@@ -111,10 +118,28 @@ internal sealed class RelaunchService : IHostedService
     {
         return _uiDispatcher.InvokeAsync(() =>
         {
+            _permissions.AccessibilityInEffectChanged -= OnAccessibilityInEffectChanged;
             _checkTimer?.Dispose();
             _noticeTimer?.Dispose();
             _modelStore.DownloadStateChanged -= OnDownloadStateChanged;
         });
+    }
+
+    private void OnAccessibilityInEffectChanged(object? sender, EventArgs e)
+    {
+        // Raised on the UI thread.
+        StartCheckingWhenNotInEffect();
+    }
+
+    private void StartCheckingWhenNotInEffect()
+    {
+        if (_permissions.IsAccessibilityInEffect || _checkTimer is not null || _granted)
+        {
+            return;
+        }
+
+        _checkTimer = _timeProvider.CreateTimer(_ => _ = _uiDispatcher.InvokeAsync(CheckAccessibility), null,
+            CheckInterval, CheckInterval);
     }
 
     private void CheckAccessibility()

@@ -5,6 +5,7 @@ namespace Pisum.Transcribe.Tests.Recording;
 [Trait(Traits.Category, Traits.Categories.Unit)]
 public sealed class RecordingFailedExceptionTests
 {
+#if WINDOWS
     [Fact]
     public void MicrophoneAccessDeniedException_Message_PointsToMicrophonePrivacySettingsAndDesktopApps()
     {
@@ -16,6 +17,18 @@ public sealed class RecordingFailedExceptionTests
         message.ShouldContain("desktop apps");
         message.ShouldContain("Pisum Transcribe");
     }
+#else
+    [Fact]
+    public void MicrophoneAccessDeniedException_MessageOnMacOS_PointsToMicrophonePrivacySettings()
+    {
+        // Act
+        var message = new MicrophoneAccessDeniedException().Message;
+
+        // Assert
+        message.ShouldContain("System Settings → Privacy & Security → Microphone", Case.Sensitive);
+        message.ShouldContain("Pisum Transcribe");
+    }
+#endif
 
     [Fact]
     public void MicrophoneMutedException_Message_TellsUserToUnmute()

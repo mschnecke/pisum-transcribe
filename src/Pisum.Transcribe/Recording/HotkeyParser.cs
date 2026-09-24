@@ -9,15 +9,22 @@ namespace Pisum.Transcribe.Recording;
 /// </summary>
 internal static class HotkeyParser
 {
+#if WINDOWS
     /// <summary>
-    /// The key name of the default hotkey, the right Ctrl key held alone.
+    /// The key name of the default hotkey, the right Ctrl key held alone on Windows.
     /// </summary>
     public const string DefaultKeyName = nameof(KeyCode.VcRightControl);
+#else
+    /// <summary>
+    /// The key name of the default hotkey, the right Command key held alone on macOS.
+    /// </summary>
+    public const string DefaultKeyName = nameof(KeyCode.VcRightMeta);
+#endif
 
     /// <summary>
-    /// The default hotkey, the right Ctrl key held alone.
+    /// The default hotkey, the key of <see cref="DefaultKeyName"/> held alone.
     /// </summary>
-    public static readonly IReadOnlySet<KeyCode> DefaultHotkey = new[] {KeyCode.VcRightControl}.ToFrozenSet();
+    public static readonly IReadOnlySet<KeyCode> DefaultHotkey = new[] {Enum.Parse<KeyCode>(DefaultKeyName)}.ToFrozenSet();
 
     // Exact names only: Enum.TryParse would also accept numbers and comma-separated lists.
     private static readonly FrozenDictionary<string, KeyCode> KeyCodesByName = Enum.GetNames<KeyCode>()

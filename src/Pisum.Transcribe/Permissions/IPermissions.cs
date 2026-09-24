@@ -7,10 +7,22 @@ namespace Pisum.Transcribe.Permissions;
 internal interface IPermissions
 {
     /// <summary>
-    /// Whether the process had the Accessibility grant when it started. macOS makes a later grant visible to the
-    /// keyboard hook only in a new process, so only this grant is in effect.
+    /// Whether the Accessibility grant is in effect for the keyboard hook: the process had it when it started, and it
+    /// wasn't revoked since. macOS makes a later grant visible to the hook only in a new process, so a grant made while
+    /// the process runs, also after a revoke, is never in effect.
     /// </summary>
-    bool IsAccessibilityGrantedAtStart { get; }
+    bool IsAccessibilityInEffect { get; }
+
+    /// <summary>
+    /// Raised when <see cref="IsAccessibilityInEffect"/> changes, on the thread that changed it: the UI thread.
+    /// </summary>
+    event EventHandler? AccessibilityInEffectChanged;
+
+    /// <summary>
+    /// Records that the keyboard hook lost the Accessibility grant while it ran. From then on the grant isn't in effect
+    /// until the process restarts.
+    /// </summary>
+    void OnAccessibilityRevoked();
 
     /// <summary>
     /// Reads the state of <see cref="Permission.Accessibility"/>, <see cref="Permission.Microphone"/> or

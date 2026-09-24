@@ -79,6 +79,7 @@ internal sealed partial class PermissionsViewModel : ObservableObject
 
         Accessibility.PropertyChanged += OnRequiredRowChanged;
         Microphone.PropertyChanged += OnRequiredRowChanged;
+        _permissions.AccessibilityInEffectChanged += (_, _) => OnPropertyChanged(nameof(AreRequiredGranted));
         ReadStates();
     }
 
@@ -109,9 +110,9 @@ internal sealed partial class PermissionsViewModel : ObservableObject
 
     /// <summary>
     /// Whether both required permissions are granted and in effect, as the rows last showed them. An Accessibility
-    /// grant made while the process runs counts only after the restart.
+    /// grant made while the process runs, also after a revoke, counts only after the restart.
     /// </summary>
-    public bool AreRequiredGranted => _permissions.IsAccessibilityGrantedAtStart
+    public bool AreRequiredGranted => _permissions.IsAccessibilityInEffect
                                       && Accessibility.State == PermissionState.Granted
                                       && Microphone.State == PermissionState.Granted;
 

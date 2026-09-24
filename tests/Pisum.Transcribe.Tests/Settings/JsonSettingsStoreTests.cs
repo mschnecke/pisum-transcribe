@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Pisum.Transcribe.Hosting;
+using Pisum.Transcribe.Recording;
 using Pisum.Transcribe.Settings;
 using Pisum.Transcribe.TextInsertion;
 using Pisum.Transcribe.Transcription;
@@ -146,7 +147,7 @@ public sealed class JsonSettingsStoreTests : IDisposable
         _sut.Load();
 
         // Assert
-        _sut.Current.Recording.Hotkey.ShouldBe(["VcRightControl"]);
+        _sut.Current.Recording.Hotkey.ShouldBe([HotkeyParser.DefaultKeyName]);
     }
 
     [Fact]
@@ -160,7 +161,7 @@ public sealed class JsonSettingsStoreTests : IDisposable
 
         // Assert
         _sut.Current.Recording.ShouldBe(new RecordingSettings());
-        _sut.Current.Recording.Hotkey.ShouldBe(["VcRightControl"]);
+        _sut.Current.Recording.Hotkey.ShouldBe([HotkeyParser.DefaultKeyName]);
     }
 
     [Fact]

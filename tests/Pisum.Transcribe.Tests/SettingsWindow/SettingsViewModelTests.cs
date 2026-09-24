@@ -39,7 +39,7 @@ public sealed class SettingsViewModelTests
         sut.Dictation.Task.ShouldBe(TranscriptionTask.Translate);
         sut.Dictation.SourceLanguage.ShouldBe("de");
         sut.Dictation.TargetLanguage.ShouldBe("en");
-        sut.Dictation.HotkeyName.ShouldBe("Right Ctrl");
+        sut.Dictation.HotkeyName.ShouldBe(HotkeyText.Format(HotkeyParser.DefaultHotkey));
         sut.Model.SelectedModelId.ShouldBe(ModelCatalog.DefaultModelId);
         sut.TextInsertion.Method.ShouldBe(InsertionMethod.ClipboardPaste);
         sut.General.StartWithWindows.ShouldBeFalse();
@@ -353,7 +353,7 @@ public sealed class SettingsViewModelTests
         RecordHotkey(sut, KeyCode.VcLeftControl, KeyCode.VcLeftMeta);
 
         // Assert
-        sut.Dictation.HotkeyName.ShouldBe("Left Ctrl+Left Win");
+        sut.Dictation.HotkeyName.ShouldBe(HotkeyText.Format([KeyCode.VcLeftControl, KeyCode.VcLeftMeta]));
         sut.Dictation.IsRecordingHotkey.ShouldBeFalse();
         sut.SaveCommand.CanExecute(null).ShouldBeTrue();
         A.CallTo(() => _hotkey.Suspend()).MustHaveHappenedOnceExactly()
@@ -370,8 +370,8 @@ public sealed class SettingsViewModelTests
         RecordHotkey(sut, KeyCode.VcA);
 
         // Assert
-        sut.Dictation.HotkeyError.ShouldBe(HotkeyRecorder.RejectedMessage);
-        sut.Dictation.HotkeyName.ShouldBe("Right Ctrl");
+        sut.Dictation.HotkeyError.ShouldBe(HotkeyKeyNames.Current.RejectedMessage);
+        sut.Dictation.HotkeyName.ShouldBe(HotkeyText.Format(HotkeyParser.DefaultHotkey));
         sut.HasChanges.ShouldBeFalse();
         A.CallTo(() => _hotkey.Resume()).MustHaveHappenedOnceExactly();
     }
@@ -390,7 +390,7 @@ public sealed class SettingsViewModelTests
         // Assert
         A.CallTo(() => _hotkey.Resume()).MustHaveHappenedOnceExactly();
         sut.Dictation.IsRecordingHotkey.ShouldBeFalse();
-        sut.Dictation.HotkeyName.ShouldBe("Right Ctrl");
+        sut.Dictation.HotkeyName.ShouldBe(HotkeyText.Format(HotkeyParser.DefaultHotkey));
     }
 
     [Fact]
@@ -406,7 +406,7 @@ public sealed class SettingsViewModelTests
         RaiseRawKey(KeyCode.VcF13, false);
 
         // Assert
-        sut.Dictation.HotkeyName.ShouldBe("Right Ctrl");
+        sut.Dictation.HotkeyName.ShouldBe(HotkeyText.Format(HotkeyParser.DefaultHotkey));
         A.CallTo(() => _hotkey.Resume()).MustHaveHappenedOnceExactly();
     }
 

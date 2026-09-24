@@ -120,7 +120,8 @@ graph TD
 - **GitHub #14** is implemented on its branch. The regression pass by hand against the specs, on Windows 11 and Windows 10 22H2, is still open.
 - **GitHub #15** is implemented on its branch, and its checks by hand on the Mac passed. The Windows run of its tests and the checks by hand on Windows 11 (its tasks 10.1 and 10.3) are still open.
 - **GitHub #16** is implemented on its branch. Its first start by hand on the Mac (its task 6.1) and the Windows run of its tests are still open.
-- **GitHub #17–#22** have no OpenSpec change yet.
+- **GitHub #17** is implemented on its branch: the hotkey and the microphone on macOS, with right Command as the default hotkey there. Its checks by hand on the Mac and CI on both platforms passed; a user switch and a password field weren't checked by hand. fn isn't a hotkey key on macOS, because the keyboard hook never sees it held.
+- **GitHub #18–#22** have no OpenSpec change yet.
 
 ### Releases
 

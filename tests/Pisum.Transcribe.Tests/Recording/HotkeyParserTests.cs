@@ -12,13 +12,13 @@ public sealed class HotkeyParserTests
     private readonly CapturingLogger<HotkeyParserTests> _logger = new();
 
     [Fact]
-    public void Parse_DefaultSettings_ReturnsRightControlWithoutWarning()
+    public void Parse_DefaultSettings_ReturnsPlatformDefaultWithoutWarning()
     {
         // Act
         var hotkey = HotkeyParser.Parse(new RecordingSettings().Hotkey, _logger);
 
         // Assert
-        hotkey.ShouldBe([KeyCode.VcRightControl], ignoreOrder: true);
+        hotkey.ShouldBe([Enum.Parse<KeyCode>(HotkeyParser.DefaultKeyName)], ignoreOrder: true);
         _logger.Entries.ShouldBeEmpty();
     }
 
@@ -55,7 +55,7 @@ public sealed class HotkeyParserTests
         var hotkey = HotkeyParser.Parse(["VcLeftControl", name], _logger);
 
         // Assert
-        hotkey.ShouldBe([KeyCode.VcRightControl], ignoreOrder: true);
+        hotkey.ShouldBe([Enum.Parse<KeyCode>(HotkeyParser.DefaultKeyName)], ignoreOrder: true);
         _logger.Entries.ShouldHaveSingleItem().Level.ShouldBe(LogLevel.Warning);
     }
 
@@ -66,7 +66,7 @@ public sealed class HotkeyParserTests
         var hotkey = HotkeyParser.Parse([], _logger);
 
         // Assert
-        hotkey.ShouldBe([KeyCode.VcRightControl], ignoreOrder: true);
+        hotkey.ShouldBe([Enum.Parse<KeyCode>(HotkeyParser.DefaultKeyName)], ignoreOrder: true);
         _logger.Entries.ShouldHaveSingleItem().Level.ShouldBe(LogLevel.Warning);
     }
 
@@ -77,7 +77,7 @@ public sealed class HotkeyParserTests
         var hotkey = HotkeyParser.Parse(null, _logger);
 
         // Assert
-        hotkey.ShouldBe([KeyCode.VcRightControl], ignoreOrder: true);
+        hotkey.ShouldBe([Enum.Parse<KeyCode>(HotkeyParser.DefaultKeyName)], ignoreOrder: true);
         _logger.Entries.ShouldHaveSingleItem().Level.ShouldBe(LogLevel.Warning);
     }
 }

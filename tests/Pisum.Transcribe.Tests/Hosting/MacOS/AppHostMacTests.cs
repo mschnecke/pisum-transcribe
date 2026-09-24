@@ -3,6 +3,7 @@ using Microsoft.Extensions.Hosting;
 using Pisum.Transcribe.Hosting;
 using Pisum.Transcribe.Notifications;
 using Pisum.Transcribe.Permissions;
+using Pisum.Transcribe.Recording;
 using Pisum.Transcribe.Settings;
 using Pisum.Transcribe.Tray;
 
@@ -34,6 +35,10 @@ public sealed class AppHostMacTests : IDisposable
 
             // Assert
             hostedServices.ShouldNotBeEmpty();
+            hostedServices.ShouldContain(service => service is SharpHookPushToTalkHotkey);
+            host.Services.GetRequiredService<IPushToTalkHotkey>().ShouldBeOfType<SharpHookPushToTalkHotkey>();
+            host.Services.GetRequiredService<IHotkeyKeyState>().ShouldBeOfType<MacHotkeyKeyState>();
+            host.Services.GetRequiredService<IHookAccess>().ShouldBeOfType<MacHookAccess>();
             notifier.ShouldBeOfType<MacNotifier>();
             settingsStore.ShouldNotBeNull();
             host.Services.GetRequiredService<QuitEventSender>().ShouldNotBeNull();

@@ -52,7 +52,7 @@ The application SHALL read the microphone permission from macOS's authorization 
 - **THEN** the Microphone row shows the permission as denied, without the microphone having been opened
 
 ### Requirement: Relaunch after the Accessibility grant
-On macOS, when Accessibility turns from not granted to granted while the application runs, the application SHALL restart itself, so that the push-to-talk hotkey can use the grant, which macOS makes visible only to a new process. This SHALL hold whether the setup window is open or closed. While a model download is running, the restart SHALL wait until the download has succeeded, failed or been cancelled. Before the restart, the setup window, when it is open, SHALL say for at least 3 seconds that Pisum Transcribe restarts. The restart SHALL end the application as **Quit Pisum Transcribe** does, and the new instance SHALL start once the old one has ended. After the restart, the setup window SHALL open again when the selected model isn't installed or a required permission is missing.
+On macOS, when Accessibility turns from not granted to granted while the application runs, the application SHALL restart itself, so that the push-to-talk hotkey can use the grant, which macOS makes visible only to a new process. This SHALL hold whether the setup window is open or closed, and also when the grant was in place at start and was revoked while the application runs: from the revoke on, the grant SHALL count as not in effect until the restart, so the setup window SHALL NOT close as complete on a new grant alone. While a model download is running, the restart SHALL wait until the download has succeeded, failed or been cancelled. Before the restart, the setup window, when it is open, SHALL say for at least 3 seconds that Pisum Transcribe restarts. The restart SHALL end the application as **Quit Pisum Transcribe** does, and the new instance SHALL start once the old one has ended. After the restart, the setup window SHALL open again when the selected model isn't installed or a required permission is missing.
 
 #### Scenario: Grant without a download
 - **WHEN** no download is running and the user grants Accessibility
@@ -72,6 +72,11 @@ On macOS, when Accessibility turns from not granted to granted while the applica
 #### Scenario: Grant while the window is closed
 - **WHEN** the setup window is closed and the user grants Accessibility in System Settings
 - **THEN** the application restarts within 10 seconds
+
+#### Scenario: Grant again after a revoke
+- **WHEN** the application started with the Accessibility grant, the user revoked it while the application runs, and the user then grants it again through **Set up Pisum Transcribe…**
+- **THEN** the setup window says that Pisum Transcribe restarts, and doesn't close as complete before that
+- **AND** after the restart, holding the push-to-talk hotkey raises *pressed*
 
 ### Requirement: Set up menu item
 On macOS, the menu bar menu SHALL contain one **Set up Pisum Transcribe…** item, in place of **Download model…**, that opens the setup window. It SHALL be shown while the selected model is not installed, or Accessibility or the microphone permission is not granted, and hidden otherwise. Whether the item is shown SHALL reflect the model and the permissions at the moment the menu opens, including a model file removed or a permission revoked while the application runs.
