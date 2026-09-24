@@ -29,10 +29,10 @@ The order follows the dependencies. First the platform-neutral seams and the per
 
 ## 5. End to end and docs
 
-- [ ] 5.1 Run the checks by hand of D10 on the dev Mac with the dev bundle and its Debug log. They include the revoke, the grant again and the relaunch, fn rejected by the editor, the lock, a user switch, secure input, the tap timeout, Quit while holding, and AirPods. Verify: each step as described, noted in the PR, with the answer to the open question.
+- [x] 5.1 Run the checks by hand of D10 on the dev Mac with the dev bundle and its Debug log. They include the revoke, the grant again and the relaunch, fn rejected by the editor, the lock, a user switch, secure input, the tap timeout, Quit while holding, and AirPods. Verify: each step as described, noted in the PR, with the answer to the open question.
 - [x] 5.2 Update the docs:
   - `CLAUDE.md`: the recording on macOS in the layout and in the macOS registration of `AppHost.Create`, the default hotkey per platform, and the AudioQueue interop under macOS APIs
   - `docs/roadmap.md`: the change done
 
   Verify: the texts match the code.
-- [ ] 5.3 Run `openspec validate add-macos-recording --strict`, and `dotnet build` plus `dotnet test Pisum.Transcribe.slnx` on the Mac and in CI on Windows. Verify: all pass.
+- [x] 5.3 Run `openspec validate add-macos-recording --strict`, and `dotnet build` plus `dotnet test Pisum.Transcribe.slnx` on the Mac and in CI on Windows. Verify: all pass.
