@@ -1,6 +1,7 @@
 using System.Net;
 using System.Security.Cryptography;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Pisum.Transcribe.Hosting;
 using Pisum.Transcribe.Settings;
@@ -22,6 +23,8 @@ public sealed partial class ModelStoreTests : IDisposable
     private readonly ISettingsStore _settingsStore = A.Fake<ISettingsStore>();
     private readonly IProgress<DownloadProgress> _progress = A.Fake<IProgress<DownloadProgress>>();
     private readonly List<SpeechModel> _installedEvents = [];
+    private readonly List<bool> _downloadStates = [];
+    private readonly List<string> _backupExclusions = [];
     private readonly ModelStore _sut;
 
     public ModelStoreTests()
@@ -32,8 +35,9 @@ public sealed partial class ModelStoreTests : IDisposable
         A.CallTo(() => _lifetime.ApplicationStopping).Returns(_applicationStopping.Token);
         A.CallTo(() => _settingsStore.Current).Returns(new AppSettings());
         _sut = new ModelStore(_paths, _httpClientFactory, _lifetime, _settingsStore, NullLogger<ModelStore>.Instance,
-            _ => long.MaxValue);
+            _ => long.MaxValue, _backupExclusions.Add);
         _sut.ModelInstalled += (_, model) => _installedEvents.Add(model);
+        _sut.DownloadStateChanged += (_, _) => _downloadStates.Add(_sut.IsDownloading);
     }
 
     public void Dispose()
@@ -112,13 +116,170 @@ public sealed partial class ModelStoreTests : IDisposable
     }
 
     [Fact]
-    public async Task StartAsync_ModelsDirectoryMissing_Completes()
+    public async Task StartAsync_ModelsDirectoryMissing_CreatesAndExcludesItFromBackup()
     {
+        // Arrange
+        var existedWhenExcluded = false;
+        var sut = new ModelStore(_paths, _httpClientFactory, _lifetime, _settingsStore, NullLogger<ModelStore>.Instance,
+            _ => long.MaxValue, path => existedWhenExcluded = Directory.Exists(path));
+
+        // Act
+        await sut.StartAsync(TestContext.Current.CancellationToken);
+
+        // Assert
+        Directory.Exists(_paths.ModelsDirectory).ShouldBeTrue();
+        existedWhenExcluded.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task StartAsync_ModelsDirectoryExists_ExcludesItFromBackup()
+    {
+        // Arrange
+        Directory.CreateDirectory(_paths.ModelsDirectory);
+
         // Act
         await _sut.StartAsync(TestContext.Current.CancellationToken);
 
         // Assert
-        Directory.Exists(_paths.ModelsDirectory).ShouldBeFalse();
+        _backupExclusions.ShouldBe([_paths.ModelsDirectory]);
+    }
+
+    [Fact]
+    public async Task StartAsync_ExcludeFromBackupThrows_LogsWarningAndCompletes()
+    {
+        // Arrange
+        var logger = new CapturingLogger<ModelStore>();
+        var sut = new ModelStore(_paths, _httpClientFactory, _lifetime, _settingsStore, logger, _ => long.MaxValue,
+            _ => throw new IOException("Read-only volume"));
+
+        // Act
+        await sut.StartAsync(TestContext.Current.CancellationToken);
+
+        // Assert
+        logger.Entries.ShouldContain(entry => entry.Level == LogLevel.Warning && entry.Exception is IOException);
+    }
+
+    [Fact]
+    public async Task InstallAsync_Download_ExcludesModelsFolderBeforeRequest()
+    {
+        // Arrange
+        var content = RandomContent(1000);
+        var model = CreateModel(content);
+        var requestsWhenExcluded = -1;
+        var sut = new ModelStore(_paths, _httpClientFactory, _lifetime, _settingsStore, NullLogger<ModelStore>.Instance,
+            _ => long.MaxValue, _ => requestsWhenExcluded = _handler.Requests.Count);
+        RespondWith(new ByteArrayContent(content));
+
+        // Act
+        await sut.InstallAsync(model, _progress, TestContext.Current.CancellationToken);
+
+        // Assert
+        requestsWhenExcluded.ShouldBe(0);
+        sut.IsInstalled(model).ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task InstallAsync_ExcludeFromBackupThrows_DownloadContinues()
+    {
+        // Arrange
+        var content = RandomContent(1000);
+        var model = CreateModel(content);
+        var sut = new ModelStore(_paths, _httpClientFactory, _lifetime, _settingsStore, NullLogger<ModelStore>.Instance,
+            _ => long.MaxValue, _ => throw new IOException("Read-only volume"));
+        RespondWith(new ByteArrayContent(content));
+
+        // Act
+        await sut.InstallAsync(model, _progress, TestContext.Current.CancellationToken);
+
+        // Assert
+        sut.IsInstalled(model).ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task InstallAsync_Succeeds_RaisesDownloadStateChangedAtStartAndEnd()
+    {
+        // Arrange
+        var content = RandomContent(1000);
+        var model = CreateModel(content);
+        RespondWith(new ByteArrayContent(content));
+
+        // Act
+        await _sut.InstallAsync(model, _progress, TestContext.Current.CancellationToken);
+
+        // Assert
+        _downloadStates.ShouldBe([true, false]);
+        _sut.IsDownloading.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task InstallAsync_Fails_RaisesDownloadStateChangedAtStartAndEnd()
+    {
+        // Arrange
+        var model = CreateModel(RandomContent(1000));
+        RespondWith(new ByteArrayContent(RandomContent(1000)));
+
+        // Act
+        await Should.ThrowAsync<ModelIntegrityException>(
+            _sut.InstallAsync(model, _progress, TestContext.Current.CancellationToken));
+
+        // Assert
+        _downloadStates.ShouldBe([true, false]);
+    }
+
+    [Fact]
+    public async Task InstallAsync_Cancelled_RaisesDownloadStateChangedAtStartAndEnd()
+    {
+        // Arrange
+        var content = RandomContent(200_000);
+        var model = CreateModel(content);
+        var body = new ResponseBodyStream(content[..100_000], ResponseBodyStream.End.Stall);
+        RespondWith(new StreamContent(body));
+        using var cancellation = new CancellationTokenSource();
+        var install = _sut.InstallAsync(model, _progress, cancellation.Token);
+        await body.AllDataRead.Task.WaitAsync(PromptStopTimeout, TestContext.Current.CancellationToken);
+        var isDownloading = _sut.IsDownloading;
+
+        // Act
+        await cancellation.CancelAsync();
+
+        // Assert
+        await Should.ThrowAsync<OperationCanceledException>(install.WaitAsync(PromptStopTimeout,
+            TestContext.Current.CancellationToken));
+        isDownloading.ShouldBeTrue();
+        _downloadStates.ShouldBe([true, false]);
+    }
+
+    [Fact]
+    public async Task InstallAsync_TwoModelsInParallel_RaisesEndOnlyWhenBothAreOver()
+    {
+        // Arrange
+        var firstContent = RandomContent(1000);
+        var secondContent = RandomContent(1000);
+        var first = CreateModel(firstContent);
+        var second = CreateModel(secondContent) with {Id = "second-model", FileName = "second-model.gguf"};
+        var firstGate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var secondGate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _handler.Respond = request => new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = _handler.Requests.Count == 1
+                ? new GatedContent(firstContent, firstGate.Task)
+                : new GatedContent(secondContent, secondGate.Task),
+        };
+        var firstInstall = _sut.InstallAsync(first, _progress, TestContext.Current.CancellationToken);
+        var secondInstall = _sut.InstallAsync(second, _progress, TestContext.Current.CancellationToken);
+
+        // Act
+        firstGate.SetResult();
+        await firstInstall.WaitAsync(PromptStopTimeout, TestContext.Current.CancellationToken);
+        var statesAfterFirst = _downloadStates.ToList();
+        var isDownloadingAfterFirst = _sut.IsDownloading;
+        secondGate.SetResult();
+        await secondInstall.WaitAsync(PromptStopTimeout, TestContext.Current.CancellationToken);
+
+        // Assert
+        statesAfterFirst.ShouldBe([true]);
+        isDownloadingAfterFirst.ShouldBeTrue();
+        _downloadStates.ShouldBe([true, false]);
     }
 
     [Fact]

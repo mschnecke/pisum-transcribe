@@ -16,7 +16,7 @@ internal static class NotificationsServiceCollectionExtensions
     /// <summary>
     /// Adds <see cref="INotifier"/>: on Windows as toasts, with <c>ToastRegistration</c>, which registers the
     /// application's AppUserModelID at startup, and on macOS as notifications from the app bundle, with
-    /// <c>MacNotifier</c>, which asks for permission at startup.
+    /// <c>MacNotifier</c>, which reads at startup whether the user refused them.
     /// </summary>
     /// <param name="services">The service collection.</param>
     /// <returns>The same service collection, for chaining.</returns>

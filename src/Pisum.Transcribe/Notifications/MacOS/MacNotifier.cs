@@ -6,8 +6,9 @@ namespace Pisum.Transcribe.Notifications;
 
 /// <summary>
 /// The <see cref="INotifier"/> that shows a notification from Pisum Transcribe in the macOS notification center. It
-/// asks for permission when the host starts, which macOS shows the user once. The notification has no actions, and it
-/// stays in the notification center after the application has ended.
+/// doesn't ask for permission, which the setup window does (design D7 of add-macos-setup), and reads at startup whether
+/// the user refused. The notification has no actions, and it stays in the notification center after the application
+/// has ended.
 /// </summary>
 /// <remarks>
 /// Outside an app bundle macOS can't show notifications, so each one is written to the log instead. After the user
@@ -64,7 +65,8 @@ internal sealed class MacNotifier : INotifier, IHostedService
     {
         return _uiDispatcher.InvokeAsync(() =>
         {
-            _unavailable = _center.Start(OnAuthorizationCompleted) == NotificationStatus.Unavailable;
+            _unavailable = _center.Start() == NotificationStatus.Unavailable
+                           || _center.ReadAuthorization(OnAuthorizationRead) == NotificationStatus.Unavailable;
             if (_unavailable)
             {
                 _logger.LogInformation(
@@ -79,16 +81,14 @@ internal sealed class MacNotifier : INotifier, IHostedService
         return Task.CompletedTask;
     }
 
-    private void OnAuthorizationCompleted(NotificationStatus status)
+    private void OnAuthorizationRead(NotificationAuthorization authorization)
     {
-        _denied = status != NotificationStatus.Ok;
-        if (status == NotificationStatus.Failed)
+        _denied = authorization == NotificationAuthorization.Denied;
+        _logger.LogInformation("Notifications are {State}", authorization switch
         {
-            _logger.LogWarning("Could not ask for permission to show notifications");
-        }
-        else
-        {
-            _logger.LogInformation("Notifications are {State}", status == NotificationStatus.Ok ? "allowed" : "not allowed");
-        }
+            NotificationAuthorization.Authorized => "allowed",
+            NotificationAuthorization.Denied => "not allowed",
+            _ => "not asked yet",
+        });
     }
 }

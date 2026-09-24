@@ -153,7 +153,7 @@ When the application receives a termination request (`SIGTERM`) on macOS, for ex
 - **AND** the process ends within 5 seconds
 
 ### Requirement: Notifications come from Pisum Transcribe
-Every notification the application shows SHALL be a system notification with the sender name "Pisum Transcribe" and the application's icon: a Windows notification on Windows, and a macOS notification on macOS. On Windows this SHALL hold both when the application is installed and when it runs from a build that isn't installed. On macOS it SHALL hold when the application runs as an app bundle; a build that doesn't run as an app bundle SHALL write the notification to the log instead. The system SHALL list Pisum Transcribe in its notification settings, where the user can turn its notifications off. On macOS the application SHALL ask for permission to show notifications once, at its first start. A notification SHALL stay in the notification center until the user clears it, also after the application has ended. A notification SHALL have no click action. When the system doesn't show a notification, for example because the user turned them off or refused the permission, the application SHALL keep running.
+Every notification the application shows SHALL be a system notification with the sender name "Pisum Transcribe" and the application's icon: a Windows notification on Windows, and a macOS notification on macOS. On Windows this SHALL hold both when the application is installed and when it runs from a build that isn't installed. On macOS it SHALL hold when the application runs as an app bundle; a build that doesn't run as an app bundle SHALL write the notification to the log instead. The system SHALL list Pisum Transcribe in its notification settings, where the user can turn its notifications off. On macOS the application SHALL ask for permission to show notifications when the setup window opens and the user hasn't answered yet, and SHALL NOT ask at a start that doesn't open the setup window (see `macos-permissions`). A notification SHALL stay in the notification center until the user clears it, also after the application has ended. A notification SHALL have no click action. When the system doesn't show a notification, for example because the user turned them off or refused the permission, the application SHALL keep running.
 
 #### Scenario: A notification names the application
 - **WHEN** the application shows a notification
@@ -168,7 +168,7 @@ Every notification the application shows SHALL be a system notification with the
 - **THEN** System Settings → Notifications lists "Pisum Transcribe", and the user can turn its notifications off there
 
 #### Scenario: Permission asked on the first start on macOS
-- **WHEN** Pisum Transcribe starts on macOS for the first time
+- **WHEN** Pisum Transcribe starts on macOS for the first time and opens the setup window
 - **THEN** macOS asks the user whether Pisum Transcribe may show notifications
 - **AND** it doesn't ask again at later starts
 

@@ -25,4 +25,10 @@ internal enum ShutdownReason
     /// <see cref="UserExit"/>. Exit code 0.
     /// </summary>
     TerminationRequest,
+
+    /// <summary>
+    /// macOS only: Accessibility was granted while the application ran, which the keyboard hook sees only in a new
+    /// process. A new instance is started first, and the application then ends like <see cref="UserExit"/>. Exit code 0.
+    /// </summary>
+    Relaunch,
 }

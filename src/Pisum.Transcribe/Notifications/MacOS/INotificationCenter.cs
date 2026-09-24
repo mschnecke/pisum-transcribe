@@ -6,15 +6,30 @@ namespace Pisum.Transcribe.Notifications;
 internal interface INotificationCenter
 {
     /// <summary>
+    /// Prepares the center to show notifications, without asking for permission.
+    /// </summary>
+    /// <returns><see cref="NotificationStatus.Ok"/>, or <see cref="NotificationStatus.Unavailable"/>.</returns>
+    NotificationStatus Start();
+
+    /// <summary>
     /// Asks for permission to show notifications. macOS asks the user once and remembers the answer.
     /// </summary>
-    /// <param name="authorizationCompleted">
+    /// <param name="completed">
     /// Receives the answer later on a background thread, unless the result is <see cref="NotificationStatus.Unavailable"/>:
     /// <see cref="NotificationStatus.Ok"/>, <see cref="NotificationStatus.Denied"/> or
     /// <see cref="NotificationStatus.Failed"/>.
     /// </param>
     /// <returns><see cref="NotificationStatus.Ok"/> when asked, or <see cref="NotificationStatus.Unavailable"/>.</returns>
-    NotificationStatus Start(Action<NotificationStatus> authorizationCompleted);
+    NotificationStatus RequestAuthorization(Action<NotificationStatus> completed);
+
+    /// <summary>
+    /// Reads whether the user allowed notifications.
+    /// </summary>
+    /// <param name="completed">
+    /// Receives the answer later on a background thread, unless the result is <see cref="NotificationStatus.Unavailable"/>.
+    /// </param>
+    /// <returns><see cref="NotificationStatus.Ok"/> when read, or <see cref="NotificationStatus.Unavailable"/>.</returns>
+    NotificationStatus ReadAuthorization(Action<NotificationAuthorization> completed);
 
     /// <summary>
     /// Adds a notification.

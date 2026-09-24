@@ -14,6 +14,17 @@ internal interface IModelStore
     event EventHandler<SpeechModel>? ModelInstalled;
 
     /// <summary>
+    /// Raised when the first download starts and when the last one ends, whether it succeeded, failed or was
+    /// cancelled, so <see cref="IsDownloading"/> has changed. Raised on the thread that started or ended the download.
+    /// </summary>
+    event EventHandler? DownloadStateChanged;
+
+    /// <summary>
+    /// Whether a download runs, from the setup window or the settings window.
+    /// </summary>
+    bool IsDownloading { get; }
+
+    /// <summary>
     /// Gets the path of the installed model file, whether it exists or not.
     /// </summary>
     /// <param name="model">The catalog model.</param>

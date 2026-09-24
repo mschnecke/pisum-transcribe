@@ -85,7 +85,7 @@ graph TD
     SP(["Spike: M1–M6, W1–W3, T1"]) --> G14
     G14 --> G15["GitHub #15 add-macos-shell"]
     G15 --> G16["GitHub #16 add-macos-setup"]
-    G15 --> G17["GitHub #17 add-macos-recording"]
+    G16 --> G17["GitHub #17 add-macos-recording"]
     G15 --> G18["GitHub #18 add-metal-backend"]
     G15 --> G21["GitHub #21 add-macos-login-item"]
     G17 --> G19["GitHub #19 add-macos-text-insertion"]
@@ -107,7 +107,7 @@ graph TD
 | 19 | [GitHub #14](https://github.com/mschnecke/pisum-transcribe/issues/14) | `move-windows-shell-to-avalonia` | GitHub #10–#13, the spike | The Avalonia shell on Windows, the last Windows step before the macOS track. A left click on the tray icon opens the settings |
 | 20 | [GitHub #15](https://github.com/mschnecke/pisum-transcribe/issues/15) | `add-macos-shell` | GitHub #14 | The Mac build as a menu bar app: quit and logout, data folders, the Swift helper, a dev bundle, macOS CI |
 | 21 | [GitHub #16](https://github.com/mschnecke/pisum-transcribe/issues/16) | `add-macos-setup` | GitHub #15 | One setup window for the model and the permissions |
-| 22 | [GitHub #17](https://github.com/mschnecke/pisum-transcribe/issues/17) | `add-macos-recording` | GitHub #15 | Hold right Command to record, with microphone and secure-input handling |
+| 22 | [GitHub #17](https://github.com/mschnecke/pisum-transcribe/issues/17) | `add-macos-recording` | GitHub #16 | Hold right Command to record, with microphone and secure-input handling |
 | 23 | [GitHub #18](https://github.com/mschnecke/pisum-transcribe/issues/18) | `add-metal-backend` | GitHub #15 | Metal with CPU fallback, the GPU setting renamed with a migration, the M4 benchmark |
 | 24 | [GitHub #19](https://github.com/mschnecke/pisum-transcribe/issues/19) | `add-macos-text-insertion` | GitHub #17 | Paste with restore, typing when the pasteboard can't be read, the secure-input hint |
 | 25 | [GitHub #20](https://github.com/mschnecke/pisum-transcribe/issues/20) | `add-macos-dictation` | GitHub #16, #18, #19 | **Mac MVP:** hold, speak, release, text appears |
@@ -119,7 +119,8 @@ graph TD
 - **The spike** is done: the macOS half on 2026-09-22 and the Windows half on 2026-09-23, both go.
 - **GitHub #14** is implemented on its branch. The regression pass by hand against the specs, on Windows 11 and Windows 10 22H2, is still open.
 - **GitHub #15** is implemented on its branch, and its checks by hand on the Mac passed. The Windows run of its tests and the checks by hand on Windows 11 (its tasks 10.1 and 10.3) are still open.
-- **GitHub #16–#22** have no OpenSpec change yet.
+- **GitHub #16** is implemented on its branch. Its first start by hand on the Mac (its task 6.1) and the Windows run of its tests are still open.
+- **GitHub #17–#22** have no OpenSpec change yet.
 
 ### Releases
 
@@ -150,7 +151,7 @@ These are no-regret changes on the WPF shell. They're needed whichever shell mac
 The swap from WPF to Avalonia, checked against the existing specs. It ships as 1.3.0.
 
 #### Phase 8: The macOS track (GitHub #15–#21)
-- After #15, three tracks can run in parallel: #16 setup, #17 recording followed by #19 text insertion, and #18 Metal.
+- After #15, #16 setup comes first, followed by #17 recording and #19 text insertion. #17 builds on #16's permission checks, its microphone status and its relaunch after the Accessibility grant. #18 Metal runs in parallel with them.
 - #21 depends only on #15.
 - #20 joins the tracks into the Mac MVP.
 

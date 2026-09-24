@@ -1,8 +1,11 @@
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Time.Testing;
 using Pisum.Transcribe.Dialogs;
+using Pisum.Transcribe.Permissions;
 using Pisum.Transcribe.Settings;
 using Pisum.Transcribe.SpeechModels;
 
@@ -140,6 +143,80 @@ public sealed class ModelSetupWindowTests : IDisposable
         });
     }
 
+    [Fact]
+    public Task Show_WithPermissions_ShowsFourPermissionRowsAndSetupHeading()
+    {
+        return HeadlessUi.RunAsync(() =>
+        {
+            // Arrange
+            var sut = new ModelSetupWindow(CreateViewModel(CreatePermissions()));
+
+            // Act
+            sut.Show();
+
+            // Assert
+            sut.PermissionPart.IsVisible.ShouldBeTrue();
+            sut.PermissionRows.ItemCount.ShouldBe(4);
+            sut.PermissionRows.GetRealizedContainers().Count().ShouldBe(4);
+            TextsOf(sut).ShouldContain("Set up Pisum Transcribe");
+            sut.Close();
+        });
+    }
+
+    [Fact]
+    public Task Show_WithoutPermissions_ShowsNoPermissionRows()
+    {
+        return HeadlessUi.RunAsync(() =>
+        {
+            // Arrange
+            var sut = new ModelSetupWindow(CreateViewModel());
+
+            // Act
+            sut.Show();
+
+            // Assert
+            sut.PermissionPart.IsVisible.ShouldBeFalse();
+            sut.PermissionRows.ItemCount.ShouldBe(0);
+            TextsOf(sut).ShouldContain("Download a speech model");
+            sut.ModelPart.IsVisible.ShouldBeTrue();
+            sut.InstalledModelLine.IsVisible.ShouldBeFalse();
+            sut.Close();
+        });
+    }
+
+    [Fact]
+    public Task Show_ModelInstalled_CollapsesModelPartToOneLine()
+    {
+        return HeadlessUi.RunAsync(() =>
+        {
+            // Arrange
+            A.CallTo(() => _modelStore.IsInstalled(A<SpeechModel>._)).Returns(true);
+            var sut = new ModelSetupWindow(CreateViewModel(CreatePermissions()));
+
+            // Act
+            sut.Show();
+
+            // Assert
+            sut.ModelPart.IsVisible.ShouldBeFalse();
+            sut.InstalledModelLine.IsVisible.ShouldBeTrue();
+            sut.InstalledModelLine.Text.ShouldBe("Speech model: Canary 1B v2 (Q8_0), installed");
+            sut.Close();
+        });
+    }
+
+    private static List<string?> TextsOf(Window window)
+    {
+        return window.GetVisualDescendants().OfType<TextBlock>().Where(text => text.IsEffectivelyVisible)
+            .Select(text => text.Text).ToList();
+    }
+
+    private static PermissionsViewModel CreatePermissions()
+    {
+        var permissions = A.Fake<IPermissions>();
+        A.CallTo(() => permissions.GetNotificationsStateAsync()).Returns(PermissionState.NotDetermined);
+        return new PermissionsViewModel(permissions, new InlineUiDispatcher(), new FakeTimeProvider(), _ => { });
+    }
+
     private (ModelSetupWindow Window, ModelSetupViewModel ViewModel, Func<bool> Closed) ShowWindowWithDownload()
     {
         var viewModel = CreateViewModel();
@@ -152,8 +229,8 @@ public sealed class ModelSetupWindowTests : IDisposable
         return (window, viewModel, () => closed);
     }
 
-    private ModelSetupViewModel CreateViewModel()
+    private ModelSetupViewModel CreateViewModel(PermissionsViewModel? permissions = null)
     {
-        return new ModelSetupViewModel(_modelStore, _settingsStore, _lifetime);
+        return new ModelSetupViewModel(_modelStore, _settingsStore, _lifetime, permissions);
     }
 }

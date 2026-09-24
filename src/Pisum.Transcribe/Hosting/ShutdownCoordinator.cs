@@ -11,9 +11,9 @@ namespace Pisum.Transcribe.Hosting;
 /// </summary>
 /// <remarks>
 /// Create it on the UI thread. The shutdown runs once: it starts a watchdog that ends the process after
-/// <see cref="ExitTimeout"/>, removes the tray icon (at once for every reason but <see cref="ShutdownReason.Error"/>; for
-/// that one after the error notification and after the host has stopped), stops and disposes the host, and shuts down
-/// the Avalonia lifetime. The error notification stays in the notification center after the process has ended.
+/// <see cref="ExitTimeout"/>, for <see cref="ShutdownReason.Relaunch"/> starts the new instance, removes the tray icon
+/// (at once for every reason but <see cref="ShutdownReason.Error"/>; for that one after the error notification and
+/// after the host has stopped), stops and disposes the host, and shuts down the Avalonia lifetime. The error notification stays in the notification center after the process has ended.
 /// </remarks>
 internal sealed class ShutdownCoordinator
 {
@@ -30,6 +30,7 @@ internal sealed class ShutdownCoordinator
     private readonly Action<int> _shutdownApplication;
     private readonly Action<int> _exitProcess;
     private readonly ILogger<ShutdownCoordinator> _logger;
+    private readonly Action? _startNewInstance;
     private readonly SynchronizationContext? _uiContext;
 
     // Without RunContinuationsAsynchronously, like an async method's task: a synchronous continuation runs in the
@@ -53,6 +54,10 @@ internal sealed class ShutdownCoordinator
     /// <param name="shutdownApplication">Shuts down the Avalonia lifetime with an exit code.</param>
     /// <param name="exitProcess">Ends the process at once with an exit code.</param>
     /// <param name="logger">The logger.</param>
+    /// <param name="startNewInstance">
+    /// Starts a new instance of the application for <see cref="ShutdownReason.Relaunch"/>, or <see langword="null"/>
+    /// where there is no relaunch.
+    /// </param>
     public ShutdownCoordinator(IHost host,
                                IHostApplicationLifetime lifetime,
                                ITrayIconService trayIcon,
@@ -60,7 +65,8 @@ internal sealed class ShutdownCoordinator
                                TimeProvider timeProvider,
                                Action<int> shutdownApplication,
                                Action<int> exitProcess,
-                               ILogger<ShutdownCoordinator> logger)
+                               ILogger<ShutdownCoordinator> logger,
+                               Action? startNewInstance = null)
     {
         _host = host;
         _trayIcon = trayIcon;
@@ -69,6 +75,7 @@ internal sealed class ShutdownCoordinator
         _shutdownApplication = shutdownApplication;
         _exitProcess = exitProcess;
         _logger = logger;
+        _startNewInstance = startNewInstance;
         _uiContext = SynchronizationContext.Current;
 
         trayIcon.ExitRequested += (_, _) => _ = RequestShutdownAsync(ShutdownReason.UserExit);
@@ -114,6 +121,11 @@ internal sealed class ShutdownCoordinator
             _logger.LogInformation("Shutting down, reason {Reason}", reason);
             _watchdog = _timeProvider.CreateTimer(_ => OnWatchdogElapsed(exitCode), null, ExitTimeout,
                 Timeout.InfiniteTimeSpan);
+
+            if (reason == ShutdownReason.Relaunch)
+            {
+                StartNewInstance();
+            }
 
             if (reason != ShutdownReason.Error)
             {
@@ -161,6 +173,21 @@ internal sealed class ShutdownCoordinator
             {
                 _shutdown.SetResult();
             }
+        }
+    }
+
+    private void StartNewInstance()
+    {
+        // First, not after the host has stopped, which the watchdog may cut off. The new instance waits for this one's
+        // single-instance mutex.
+        try
+        {
+            _startNewInstance?.Invoke();
+        }
+        catch (Exception exception)
+        {
+            // The user granted the permission and expects a restart; the next start by hand works.
+            _logger.LogError(exception, "Could not start the new instance, ending without it");
         }
     }
 

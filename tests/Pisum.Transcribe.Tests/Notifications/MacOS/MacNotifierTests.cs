@@ -16,12 +16,25 @@ public sealed class MacNotifierTests
     }
 
     [Fact]
+    public async Task StartAsync_InBundle_ReadsAuthorizationWithoutAsking()
+    {
+        // Arrange
+        ReadAuthorizationReturns(NotificationAuthorization.NotDetermined);
+
+        // Act
+        await _sut.StartAsync(TestContext.Current.CancellationToken);
+
+        // Assert
+        A.CallTo(() => _center.Start()).MustHaveHappenedOnceExactly();
+        A.CallTo(() => _center.RequestAuthorization(A<Action<NotificationStatus>>._)).MustNotHaveHappened();
+        _logger.Entries.ShouldContain(entry => entry.Message == "Notifications are not asked yet");
+    }
+
+    [Fact]
     public async Task Show_Allowed_AddsNotification()
     {
         // Arrange
-        A.CallTo(() => _center.Start(A<Action<NotificationStatus>>._))
-            .Invokes((Action<NotificationStatus> completed) => completed(NotificationStatus.Ok))
-            .Returns(NotificationStatus.Ok);
+        ReadAuthorizationReturns(NotificationAuthorization.Authorized);
         A.CallTo(() => _center.Notify(A<string>._, A<string>._)).Returns(NotificationStatus.Ok);
         await _sut.StartAsync(TestContext.Current.CancellationToken);
 
@@ -37,7 +50,7 @@ public sealed class MacNotifierTests
     public async Task Show_NoBundle_WritesTitleAndMessageToLog()
     {
         // Arrange
-        A.CallTo(() => _center.Start(A<Action<NotificationStatus>>._)).Returns(NotificationStatus.Unavailable);
+        A.CallTo(() => _center.Start()).Returns(NotificationStatus.Unavailable);
         await _sut.StartAsync(TestContext.Current.CancellationToken);
 
         // Act
@@ -53,9 +66,7 @@ public sealed class MacNotifierTests
     public async Task Show_Refused_LogsAtDebugAndDropsIt()
     {
         // Arrange
-        A.CallTo(() => _center.Start(A<Action<NotificationStatus>>._))
-            .Invokes((Action<NotificationStatus> completed) => completed(NotificationStatus.Denied))
-            .Returns(NotificationStatus.Ok);
+        ReadAuthorizationReturns(NotificationAuthorization.Denied);
         await _sut.StartAsync(TestContext.Current.CancellationToken);
 
         // Act
@@ -64,5 +75,13 @@ public sealed class MacNotifierTests
         // Assert
         A.CallTo(() => _center.Notify(A<string>._, A<string>._)).MustNotHaveHappened();
         _logger.Entries.ShouldContain(entry => entry.Level == LogLevel.Debug && entry.Message.Contains("Model ready"));
+    }
+
+    private void ReadAuthorizationReturns(NotificationAuthorization authorization)
+    {
+        A.CallTo(() => _center.Start()).Returns(NotificationStatus.Ok);
+        A.CallTo(() => _center.ReadAuthorization(A<Action<NotificationAuthorization>>._))
+            .Invokes((Action<NotificationAuthorization> completed) => completed(authorization))
+            .Returns(NotificationStatus.Ok);
     }
 }
