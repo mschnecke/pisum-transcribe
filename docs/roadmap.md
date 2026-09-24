@@ -123,9 +123,11 @@ graph TD
 - **GitHub #15** is merged in pull request #29, and its checks by hand on the Mac passed. CI passed on Windows and macOS. Its archived tasks leave the Windows `Hardware` tests (10.1) and the checks by hand on Windows 11 (10.3) unchecked.
 - **GitHub #16** is merged in pull request #30. CI passed on Windows and macOS. Its archived tasks leave the first start by hand on the Mac (6.1) and the final validate, build and test run (6.3) unchecked.
 - **GitHub #17** is merged in pull request #31: the hotkey and the microphone on macOS, with right Command as the default hotkey there. Its checks by hand on the Mac and CI on both platforms passed; a user switch and a password field weren't checked by hand. fn isn't a hotkey key on macOS, because the keyboard hook never sees it held.
-- **GitHub #18** is implemented on its branch: Metal is the GPU backend on macOS, and the setting stores `gpu` on both platforms, with settings format 2 migrating `vulkan`. The checkpoint after #18, the checks by hand on the Mac and the migration check on Windows are still open, so the Mac defaults are unchanged until then.
-- **GitHub #19** is implemented on its branch: paste with restore on macOS, typing when the pasteboard can't be read without asking, the nspasteboard.org markers and Universal Clipboard exclusion, and the secure-input outcome. Nothing on the Mac calls the inserter until #20, which also takes over the secure-input tray hint and the notification for the new outcome. Its checks by hand (4.3) are still open.
-- **GitHub #20–#22 and #32** have no OpenSpec change yet.
+- **GitHub #18** is merged in pull request #33: Metal is the GPU backend on macOS, and the setting stores `gpu` on both platforms, with settings format 2 migrating `vulkan`. The checks by hand on the Mac and the migration check on Windows are still open.
+- **The checkpoint after #18** ran on 2026-09-24 and changed no default: Metal and Canary 1B v2 Q8_0 stay the Mac defaults. The numbers are in the design of `add-macos-dictation`.
+- **GitHub #19** is merged in pull request #34 and archived: paste with restore on macOS, typing when the pasteboard can't be read without asking, the nspasteboard.org markers and Universal Clipboard exclusion, and the secure-input outcome. Its checks by hand (4.3) moved to #20.
+- **GitHub #20** is implemented on its branch as `add-macos-dictation`: dictation on the Mac, with the overlay, the menu bar states and the hotkey's reasons for *unavailable*, App Nap activities, the relaunch waiting for a dictation, and the fallback when keystrokes aren't allowed. Its checks by hand, and #19's, are still open.
+- **GitHub #21, #22 and #32** have no OpenSpec change yet.
 
 ### Releases
 
@@ -161,11 +163,15 @@ The swap from WPF to Avalonia, checked against the existing specs. It ships as 1
 - #32 depends only on #18, whose settings format version and migration it builds on. It hardens the settings on both platforms and doesn't block the Mac MVP.
 - #20 joins the tracks into the Mac MVP.
 
-**Checkpoint after #18:** run the benchmark on the development Mac, a MacBook Air M4 with 16 GB.
+**Checkpoint after #18** (done on 2026-09-24, no default changed): run the benchmark on the development Mac, a MacBook Air M4 with 16 GB.
 - The target is warm transcription of a 10 s clip well under 3 s.
 - Compare Metal with the CPU, and Q8_0 with Q4_K_M.
 - Run long clips up to 399 s on Metal, to see whether the out-of-memory return matters on unified memory.
 - If Metal is slower than the CPU or unstable, or Q4_K_M matches Q8_0, change the Mac defaults before #20.
+- **Result:**
+  - A warm 10.5 s clip took 0.25 s on Metal and 0.58 s on the CPU.
+  - 399 s ran on Metal in 19 s without running out of memory.
+  - Q4_K_M matched Q8_0 on a short, quiet clip, too little to switch the default, so Q8_0 stays (user decision).
 
 #### Phase 9: The first lockstep release (GitHub #22)
 The `.pkg`, its signing and its upgrade behavior. It ships as 1.4.0, with the MSI.

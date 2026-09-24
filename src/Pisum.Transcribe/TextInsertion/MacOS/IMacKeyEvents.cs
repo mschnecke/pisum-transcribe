@@ -24,4 +24,10 @@ internal interface IMacKeyEvents
     /// </summary>
     /// <returns>The <c>CGEventFlags</c> of the HID system state.</returns>
     ulong ReadFlags();
+
+    /// <summary>
+    /// Checks whether this process may post events, with <c>CGPreflightPostEventAccess</c>.
+    /// </summary>
+    /// <returns><see langword="true"/> if posted events reach the system.</returns>
+    bool CanPost();
 }

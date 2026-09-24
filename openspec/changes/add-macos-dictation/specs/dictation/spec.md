@@ -43,8 +43,24 @@ When the application exits while a dictation is in progress, the application SHA
 - **THEN** the recording is aborted before the process has ended
 - **AND** nothing is inserted
 
+### Requirement: Engine not ready
+When the hotkey is pressed while the transcription engine is not ready, the application SHALL NOT record and SHALL show a notification explaining the reason: no model installed (pointing to **Download model…** in the tray menu on Windows, and to **Set up Pisum Transcribe…** in the menu bar on macOS), model still loading, or model failed to load. The same notification SHALL be shown at most once every 10 seconds.
+
+#### Scenario: Press while model loads
+- **WHEN** the engine status is `Loading` and the user presses the hotkey
+- **THEN** no recording starts
+- **AND** a notification says the model is still loading
+
+#### Scenario: Repeated presses without model
+- **WHEN** no model is installed and the user presses the hotkey three times within 5 seconds
+- **THEN** exactly one notification is shown
+
+#### Scenario: Press without model on macOS
+- **WHEN** no model is installed on macOS and the user presses the hotkey
+- **THEN** the notification points to **Set up Pisum Transcribe…** in the menu bar
+
 ### Requirement: Insertion fallback notification
-When text insertion ends with "target window changed", "target window is elevated", "secure input is on", "keystrokes not allowed" or "modifier keys held", the application SHALL show a notification that the text was copied to the clipboard, with the reason:
+When text insertion ends with "target window changed", "target window is elevated", "secure input is on", "keystrokes not allowed" or "modifier keys held", the application SHALL show a notification that the text was copied to the clipboard, with the reason and the platform's paste shortcut, Ctrl+V on Windows and Command+V on macOS:
 - "the active window changed"
 - "the target window runs as administrator" (Windows only)
 - "secure input is on, for example in a password field" (macOS only)
@@ -60,7 +76,7 @@ When text insertion ends with "clipboard unavailable", the application SHALL sho
 #### Scenario: Password field focused during transcription on macOS
 - **WHEN** the recording started in a browser window on macOS, and a password field of that window has focus when the transcript is ready
 - **THEN** nothing is typed into the password field
-- **AND** a notification says the text was copied to the clipboard because secure input is on
+- **AND** a notification says the text was copied to the clipboard because secure input is on, and to paste it with Command+V
 
 #### Scenario: Accessibility granted again during a transcription on macOS
 - **WHEN** the user revokes the Accessibility grant during a transcription on macOS and grants it again before the transcript is ready

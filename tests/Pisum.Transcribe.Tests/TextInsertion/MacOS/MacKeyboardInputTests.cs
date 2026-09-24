@@ -183,11 +183,28 @@ public sealed class MacKeyboardInputTests
         down.ShouldBe(expected);
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void CanPostEvents_Always_ReturnsWhatTheEventsAllow(bool allowed)
+    {
+        // Arrange
+        _events.CanPostEvents = allowed;
+
+        // Act
+        var canPost = _sut.CanPostEvents();
+
+        // Assert
+        canPost.ShouldBe(allowed);
+    }
+
     private sealed class RecordingKeyEvents : IMacKeyEvents
     {
         public List<string> Posted { get; } = [];
 
         public ulong Flags { get; set; }
+
+        public bool CanPostEvents { get; set; } = true;
 
         public void PostKey(ushort keyCode, bool down, ulong flags)
         {
@@ -202,6 +219,11 @@ public sealed class MacKeyboardInputTests
         public ulong ReadFlags()
         {
             return Flags;
+        }
+
+        public bool CanPost()
+        {
+            return CanPostEvents;
         }
     }
 }

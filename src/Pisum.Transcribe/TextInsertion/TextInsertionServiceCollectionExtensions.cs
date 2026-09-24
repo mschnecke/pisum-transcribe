@@ -34,7 +34,9 @@ internal static class TextInsertionServiceCollectionExtensions
 #else
         services.TryAddSingleton<MacNativeLibrary>();
         services.AddSingleton<IFocusedWindowReader, AccessibilityFocusedWindowReader>();
-        services.AddSingleton<IForegroundWindowTracker, MacForegroundWindowTracker>();
+        services.AddSingleton<MacForegroundWindowTracker>();
+        services.AddSingleton<IForegroundWindowTracker>(provider =>
+            provider.GetRequiredService<MacForegroundWindowTracker>());
         services.AddSingleton<IClipboardService, MacClipboardService>();
         services.AddSingleton<IMacKeyEvents, CoreGraphicsKeyEvents>();
         services.AddSingleton<IKeyboardLayout, MacKeyboardLayout>();

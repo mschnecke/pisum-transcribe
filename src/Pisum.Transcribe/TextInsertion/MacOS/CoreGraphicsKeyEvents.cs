@@ -18,6 +18,13 @@ internal sealed class CoreGraphicsKeyEvents : IMacKeyEvents
     private const int HidSystemState = 1;
 
     /// <inheritdoc />
+    public bool CanPost()
+    {
+        // A cheap check, safe on any thread. It stays false after a grant made while the process runs (spike M3).
+        return CGPreflightPostEventAccess();
+    }
+
+    /// <inheritdoc />
     public void PostKey(ushort keyCode, bool down, ulong flags)
     {
         var keyEvent = CGEventCreateKeyboardEvent(0, keyCode, down);
@@ -87,6 +94,10 @@ internal sealed class CoreGraphicsKeyEvents : IMacKeyEvents
 
     [DllImport(CoreGraphicsPath)]
     private static extern ulong CGEventSourceFlagsState(int stateId);
+
+    [DllImport(CoreGraphicsPath)]
+    [return: MarshalAs(UnmanagedType.U1)]
+    private static extern bool CGPreflightPostEventAccess();
 
     [DllImport(CoreFoundationPath)]
     private static extern void CFRelease(nint reference);

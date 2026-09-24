@@ -84,12 +84,14 @@ internal sealed partial class RecordingOverlayWindow : Window, IRecordingOverlay
     {
         ShowContent(StartingBrush, false, null);
 
-        var bounds = CalculateBounds(_platform.GetWorkArea(targetWindow, out var dpi), dpi);
+        var bounds = CalculateBounds(_platform.GetWorkArea(this, targetWindow, out var dpi), dpi);
         Position = bounds.Position;
-        Show();
 
-        // Avalonia resets the extended styles on every Show, so they are set again each time. ShowActivated=false keeps
-        // the focus in the target window until then.
+        // Before the Show, because on macOS the window must join the target's Space before it is ordered front. After
+        // it, because Avalonia resets the extended styles on every Show on Windows. ShowActivated=false keeps the focus
+        // in the target window until then.
+        _platform.Configure(this);
+        Show();
         _platform.Configure(this);
 
         // A window that moved to a monitor with another DPI was rescaled by Avalonia, which can shift it.
@@ -129,8 +131,8 @@ internal sealed partial class RecordingOverlayWindow : Window, IRecordingOverlay
 #if WINDOWS
         return new Win32OverlayPlatform();
 #else
-        // add-macos-dictation adds the overlay on macOS.
-        throw new PlatformNotSupportedException("The recording overlay is not available on this platform yet.");
+        // Only the XAML loader uses this; the application passes the platform from the service collection.
+        return new MacOverlayPlatform(null, null);
 #endif
     }
 

@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Pisum.Transcribe.Recording;
+using Pisum.Transcribe.Tests.Hosting;
 using Pisum.Transcribe.VoiceActivity;
 
 namespace Pisum.Transcribe.Tests.VoiceActivity;
@@ -10,6 +11,7 @@ public sealed class VoiceActivityWarmupServiceTests
     private static readonly TimeSpan SignalTimeout = TimeSpan.FromSeconds(10);
 
     private readonly CapturingLogger<VoiceActivityWarmupService> _logger = new();
+    private readonly RecordingProcessActivity _processActivity = new();
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
@@ -23,7 +25,7 @@ public sealed class VoiceActivityWarmupServiceTests
             loadGate.Wait(SignalTimeout);
             return new SileroVadModel(SileroVadModel.BundledModelPath);
         });
-        var sut = new VoiceActivityWarmupService(detector, _logger);
+        var sut = new VoiceActivityWarmupService(detector, _processActivity, _logger);
         var clip = Noise.Create(3 * AudioClip.SampleRate, 0.1f);
         var start = sut.StartAsync(Ct);
 
@@ -52,7 +54,7 @@ public sealed class VoiceActivityWarmupServiceTests
         using var root = new TempDirectory();
         using var detector =
             new SileroVoiceActivityDetector(() => new SileroVadModel(Path.Combine(root.Path, "missing.onnx")));
-        var sut = new VoiceActivityWarmupService(detector, _logger);
+        var sut = new VoiceActivityWarmupService(detector, _processActivity, _logger);
 
         // Act
         await sut.StartAsync(Ct);
@@ -64,5 +66,38 @@ public sealed class VoiceActivityWarmupServiceTests
         entry.Exception.ShouldNotBeNull();
         Should.Throw<Exception>(() => detector.DetectSpeech(new float[AudioClip.SampleRate], Ct));
         Should.Throw<Exception>(() => detector.DetectSpeech(new float[AudioClip.SampleRate], Ct));
+    }
+
+    [Fact]
+    public async Task StartAsync_UntilWarmupEnds_RunsInOneActivity()
+    {
+        // Arrange
+        using var loadGate = new ManualResetEventSlim();
+        using var detector = new SileroVoiceActivityDetector(() =>
+        {
+            loadGate.Wait(SignalTimeout);
+            return new SileroVadModel(SileroVadModel.BundledModelPath);
+        });
+        var sut = new VoiceActivityWarmupService(detector, _processActivity, _logger);
+
+        // Act
+        await sut.StartAsync(Ct);
+        await WaitUntilAsync(() => _processActivity.Running == 1);
+        loadGate.Set();
+        await sut.StopAsync(Ct).WaitAsync(SignalTimeout, Ct);
+
+        // Assert
+        _processActivity.Begun.ShouldBe([VoiceActivityWarmupService.ActivityReason]);
+        _processActivity.Running.ShouldBe(0);
+    }
+
+    private static async Task WaitUntilAsync(Func<bool> condition)
+    {
+        var started = DateTime.UtcNow;
+        while (!condition())
+        {
+            (DateTime.UtcNow - started).ShouldBeLessThan(SignalTimeout);
+            await Task.Delay(5, Ct);
+        }
     }
 }

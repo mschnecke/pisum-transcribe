@@ -1,6 +1,7 @@
 using System.Threading.Channels;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Pisum.Transcribe.Hosting;
 using Pisum.Transcribe.Recording;
 using Pisum.Transcribe.Settings;
 using Pisum.Transcribe.TextInsertion;
@@ -35,6 +36,11 @@ internal sealed class DictationController : IHostedService
     /// </summary>
     public static readonly TimeSpan NotReadyNotificationInterval = TimeSpan.FromSeconds(10);
 
+    /// <summary>
+    /// The reason of the process activity that each dictation runs in, as macOS lists it.
+    /// </summary>
+    public const string ActivityReason = "Dictation";
+
     private readonly IPushToTalkHotkey _hotkey;
     private readonly IAudioRecorder _recorder;
     private readonly ITranscriber _transcriber;
@@ -43,6 +49,8 @@ internal sealed class DictationController : IHostedService
     private readonly ITextInserter _inserter;
     private readonly ISettingsStore _settingsStore;
     private readonly IDictationFeedback _feedback;
+    private readonly DictationState _dictationState;
+    private readonly IProcessActivity _processActivity;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<DictationController> _logger;
     private readonly Channel<DictationEvent> _events =
@@ -50,8 +58,9 @@ internal sealed class DictationController : IHostedService
     private readonly CancellationTokenSource _stopping = new();
 
     // Owned by the loop. StopAsync reads _state, _recordingStarted and _processing only after the loop has ended.
-    // _processingCancellation is set while the state is Processing.
+    // _processingCancellation is set while the state is Processing. _activity is set from BeginDictation to EndDictation.
     private readonly Dictionary<string, long> _notReadyNotified = [];
+    private IDisposable? _activity;
     private State _state;
     private ActiveDictation? _dictation;
     private long _recordingStarted;
@@ -71,6 +80,8 @@ internal sealed class DictationController : IHostedService
     /// <param name="inserter">The text inserter.</param>
     /// <param name="settingsStore">The settings store, read at each press.</param>
     /// <param name="feedback">The overlay, tray and notification feedback.</param>
+    /// <param name="dictationState">Tells other services whether a dictation is in progress.</param>
+    /// <param name="processActivity">Keeps macOS from throttling a dictation through App Nap.</param>
     /// <param name="timeProvider">The time provider for durations and the notification throttle.</param>
     /// <param name="logger">The logger.</param>
     public DictationController(IPushToTalkHotkey hotkey,
@@ -81,6 +92,8 @@ internal sealed class DictationController : IHostedService
                                ITextInserter inserter,
                                ISettingsStore settingsStore,
                                IDictationFeedback feedback,
+                               DictationState dictationState,
+                               IProcessActivity processActivity,
                                TimeProvider timeProvider,
                                ILogger<DictationController> logger)
     {
@@ -92,6 +105,8 @@ internal sealed class DictationController : IHostedService
         _inserter = inserter;
         _settingsStore = settingsStore;
         _feedback = feedback;
+        _dictationState = dictationState;
+        _processActivity = processActivity;
         _timeProvider = timeProvider;
         _logger = logger;
     }
@@ -157,6 +172,11 @@ internal sealed class DictationController : IHostedService
             _logger.LogInformation("The recording was aborted at exit after {RecordingSeconds:0.00} s",
                 duration.TotalSeconds);
         }
+
+        // A dictation that the stop interrupted, such as a pending start or a transcription, ends here, because the
+        // loop no longer handles ProcessingCompleted. Without ShowIdle: the feedback hides the overlay as it stops.
+        _state = State.Idle;
+        EndActivity();
     }
 
     private static TranscriptionOptions ToOptions(TranscriptionSettings settings)
@@ -284,6 +304,8 @@ internal sealed class DictationController : IHostedService
             return;
         }
 
+        BeginDictation();
+
         // Taken at the press, so a settings save during the dictation applies to the next one.
         var settings = _settingsStore.Current;
         var target = _tracker.CaptureForeground();
@@ -297,7 +319,7 @@ internal sealed class DictationController : IHostedService
         catch (RecordingFailedException exception)
         {
             _feedback.Notify(DictationMessages.RecordingFailedTitle, exception.Message);
-            _feedback.ShowIdle();
+            EndDictation();
             return;
         }
 
@@ -379,11 +401,28 @@ internal sealed class DictationController : IHostedService
         EndDictation();
     }
 
+    /// <summary>
+    /// Starts the span of a dictation: the process activity and the dictation state. <see cref="EndDictation"/> ends it.
+    /// </summary>
+    private void BeginDictation()
+    {
+        _activity = _processActivity.Begin(ActivityReason);
+        _dictationState.SetActive(true);
+    }
+
     private void EndDictation()
     {
         _state = State.Idle;
         _dictation = null;
+        EndActivity();
         _feedback.ShowIdle();
+    }
+
+    private void EndActivity()
+    {
+        _activity?.Dispose();
+        _activity = null;
+        _dictationState.SetActive(false);
     }
 
     private async Task ProcessAsync(AudioClip clip, ActiveDictation dictation, CancellationToken cancellationToken)
@@ -507,6 +546,12 @@ internal sealed class DictationController : IHostedService
                 break;
             case InsertionOutcome.TargetWindowElevated:
                 NotifyCopied(DictationMessages.TargetWindowElevatedReason);
+                break;
+            case InsertionOutcome.SecureInputOn:
+                NotifyCopied(DictationMessages.SecureInputReason);
+                break;
+            case InsertionOutcome.KeystrokesNotAllowed:
+                NotifyCopied(DictationMessages.KeystrokesNotAllowedReason);
                 break;
             case InsertionOutcome.ModifierKeysHeld:
                 NotifyCopied(DictationMessages.ModifierKeysHeldReason);

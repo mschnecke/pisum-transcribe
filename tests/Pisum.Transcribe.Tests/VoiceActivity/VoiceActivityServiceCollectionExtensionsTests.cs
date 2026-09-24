@@ -1,5 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Pisum.Transcribe.Hosting;
+using Pisum.Transcribe.Tests.Hosting;
 using Pisum.Transcribe.VoiceActivity;
 
 namespace Pisum.Transcribe.Tests.VoiceActivity;
@@ -13,6 +15,7 @@ public sealed class VoiceActivityServiceCollectionExtensionsTests
         // Arrange
         await using var provider = new ServiceCollection()
             .AddLogging()
+            .AddSingleton<IProcessActivity, RecordingProcessActivity>()
             .AddVoiceActivity()
             .BuildServiceProvider(new ServiceProviderOptions {ValidateOnBuild = true, ValidateScopes = true});
 

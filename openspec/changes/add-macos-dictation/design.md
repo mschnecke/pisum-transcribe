@@ -161,6 +161,7 @@ otherwise                       -> ready, "Ready (<backend>)"
 
 - `NotifyOutcome` gets `case InsertionOutcome.SecureInputOn`, with `DictationMessages.SecureInputReason` = "secure input is on, for example in a password field", in the existing "copied to the clipboard" message.
 - The blocked-microphone text already names the macOS path (`MicrophoneAccessDeniedException`, #17). Only the spec changes.
+- Two texts named Windows controls on the Mac, found during implementation (user decision to fix them here): the fallback notification's "Paste it with Ctrl+V" becomes `DictationMessages.PasteShortcut`, Command+V on macOS, and `NoModelMessage` names **Set up Pisum Transcribe…** in the menu bar on macOS. A run without an app bundle shows **Download model…** instead, which only a development run sees.
 - The orange indicator, **Quit Pisum Transcribe** and the logout need no code: `ShutdownCoordinator` already ends the dictation for every `ShutdownReason`, and the macOS recorder releases the AudioQueue on abort. They are checked by hand.
 
 ### D9: ABI 4
@@ -190,7 +191,7 @@ otherwise                       -> ready, "Ready (<backend>)"
 ## Risks / Trade-offs
 
 - **[`CGPreflightPostEventAccess` reports true while posting still fails]** → The spike only showed the opposite case (false after a grant in the same process). Posting can also fail for reasons the preflight doesn't know, and those stay undetectable, as they are today. The check by hand revokes and re-grants during a transcription and confirms the fallback.
-- **[Avalonia changes its macOS coordinates]** → The spike measured 12.1.1. A macOS `Hardware` test places the overlay and compares its window server bounds with the expected bottom center of `NSScreen.visibleFrame`, so an Avalonia update that changes the units fails a test.
+- **[Avalonia changes its macOS coordinates]** → The spike measured 12.1.1. A test can't show the overlay on Avalonia.Native: AppKit creates windows only on the process's main thread, which the test platform owns (found during implementation). The check by hand of the placement (task 4.2) therefore runs after every Avalonia update, and `MacOverlayPlatform.ChooseWorkArea` is unit-tested with the spike's numbers.
 - **[The configure-before-Show is too late for the first full-screen Space]** → The overlay window is created at startup (`DictationFeedback.StartAsync`), so its `NSWindow` exists and is configured long before the first press. The check by hand dictates into full-screen TextEdit as the very first dictation after a start.
 - **[A second display with a negative origin]** → `ScreenFromPoint` works in the same global points as the AX frame, and negative coordinates are valid there. It is unchecked without hardware. The primary-screen fallback bounds the damage to "wrong screen".
 - **[A cancelled CPU run blocks the next dictation for up to 52 s on a 399 s clip]** → Only after a CPU fallback, the same trade-off as on Windows. Metal ran 399 s without failing, so the fallback is unlikely on the target Mac.

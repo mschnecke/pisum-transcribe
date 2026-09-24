@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 #endif
 using Microsoft.Extensions.Hosting;
+using Pisum.Transcribe.Dictation;
 using Pisum.Transcribe.Notifications;
 using Pisum.Transcribe.Recording;
 using Pisum.Transcribe.Settings;
@@ -12,12 +13,9 @@ using Pisum.Transcribe.TextInsertion;
 using Pisum.Transcribe.Transcription;
 using Pisum.Transcribe.Tray;
 using Pisum.Transcribe.Updates;
+using Pisum.Transcribe.VoiceActivity;
 #if !WINDOWS
 using Pisum.Transcribe.Permissions;
-#endif
-#if WINDOWS
-using Pisum.Transcribe.Dictation;
-using Pisum.Transcribe.VoiceActivity;
 #endif
 using Serilog;
 
@@ -29,9 +27,8 @@ namespace Pisum.Transcribe.Hosting;
 internal static class AppHost
 {
     /// <summary>
-    /// Creates the host. Each feature registers its services with one <c>services.Add&lt;Feature&gt;()</c> call here.
-    /// On macOS only the shell and the setup with its permissions run so far: no recording, voice activity detection,
-    /// text insertion or dictation.
+    /// Creates the host. Each feature registers its services with one <c>services.Add&lt;Feature&gt;()</c> call here,
+    /// on both platforms; only the permissions are macOS-only.
     /// Call it on the UI thread.
     /// </summary>
     /// <param name="paths">The application data folders.</param>
@@ -50,10 +47,13 @@ internal static class AppHost
         builder.Services.AddSerilog((_, configuration) => configuration.WriteToAppLog(paths));
         builder.Services.AddSingleton(paths);
         builder.Services.AddSingleton<IUiDispatcher>(new AvaloniaUiDispatcher());
-#if !WINDOWS
+#if WINDOWS
+        builder.Services.AddSingleton<IProcessActivity, NoProcessActivity>();
+#else
         builder.Services.AddSingleton<IHostLifetime, SignalFreeHostLifetime>();
         builder.Services.TryAddSingleton<MacNativeLibrary>();
         builder.Services.AddSingleton<QuitEventSender>();
+        builder.Services.AddSingleton<IProcessActivity, MacProcessActivity>();
 #endif
 
         builder.Services.AddTray();
@@ -66,10 +66,8 @@ internal static class AppHost
         builder.Services.AddTranscription();
         builder.Services.AddRecording();
         builder.Services.AddTextInsertion();
-#if WINDOWS
         builder.Services.AddVoiceActivity();
         builder.Services.AddDictation();
-#endif
         builder.Services.AddSettingsWindow();
         builder.Services.AddUpdates();
 

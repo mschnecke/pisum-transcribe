@@ -22,7 +22,7 @@ internal sealed class Win32OverlayPlatform : IOverlayPlatform
                                                   WINDOW_EX_STYLE.WS_EX_TOOLWINDOW | WINDOW_EX_STYLE.WS_EX_LAYERED;
 
     /// <inheritdoc />
-    public PixelRect GetWorkArea(nint targetWindow, out uint dpi)
+    public PixelRect GetWorkArea(Window overlay, nint targetWindow, out uint dpi)
     {
         var monitor = PInvoke.MonitorFromWindow((HWND) targetWindow,
             targetWindow == 0 ? MONITOR_FROM_FLAGS.MONITOR_DEFAULTTOPRIMARY : MONITOR_FROM_FLAGS.MONITOR_DEFAULTTONEAREST);

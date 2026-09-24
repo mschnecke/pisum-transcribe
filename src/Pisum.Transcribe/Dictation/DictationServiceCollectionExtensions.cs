@@ -1,5 +1,9 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+#if !WINDOWS
+using Pisum.Transcribe.Hosting;
+using Pisum.Transcribe.TextInsertion;
+#endif
 
 namespace Pisum.Transcribe.Dictation;
 
@@ -18,6 +22,20 @@ internal static class DictationServiceCollectionExtensions
     public static IServiceCollection AddDictation(this IServiceCollection services)
     {
         services.TryAddSingleton(TimeProvider.System);
+        services.AddSingleton<DictationState>();
+        services.AddSingleton<IDictationState>(provider => provider.GetRequiredService<DictationState>());
+#if WINDOWS
+        services.AddSingleton<IHotkeyAvailability, AlwaysAvailableHotkey>();
+        services.AddSingleton<IOverlayPlatform, Win32OverlayPlatform>();
+#else
+        services.AddSingleton<MacHotkeyAvailability>();
+        services.AddSingleton<IHotkeyAvailability>(provider => provider.GetRequiredService<MacHotkeyAvailability>());
+
+        // Before the feedback, so the availability is known at the tray's first render.
+        services.AddHostedService(provider => provider.GetRequiredService<MacHotkeyAvailability>());
+        services.AddSingleton<IOverlayPlatform>(provider => new MacOverlayPlatform(
+            provider.GetRequiredService<MacForegroundWindowTracker>(), provider.GetRequiredService<MacNativeLibrary>()));
+#endif
         services.AddSingleton<DictationFeedback>();
         services.AddSingleton<IDictationFeedback>(provider => provider.GetRequiredService<DictationFeedback>());
 

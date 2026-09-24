@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Pisum.Transcribe.Dictation;
 using Pisum.Transcribe.Hosting;
 using Pisum.Transcribe.SpeechModels;
 
@@ -11,7 +12,9 @@ namespace Pisum.Transcribe.Permissions;
 /// not in effect: from the start when the process started without it, and from a revoke on otherwise (design D4 of
 /// add-macos-recording). Only a change from not granted to granted counts, so a process that keeps its grant never
 /// restarts. The restart waits until no model download runs, and shows a notice in the setup window for
-/// <see cref="NoticeDuration"/> when it's open. A download that starts during the notice delays the restart again.
+/// <see cref="NoticeDuration"/> when it's open. A download that starts during the notice delays the restart again. A
+/// dictation in progress at the moment of the restart delays it until the dictation has ended (design D7 of
+/// add-macos-dictation).
 /// </summary>
 internal sealed class RelaunchService : IHostedService
 {
@@ -38,6 +41,7 @@ internal sealed class RelaunchService : IHostedService
     private readonly IPermissions _permissions;
     private readonly PermissionsViewModel? _viewModel;
     private readonly IModelStore _modelStore;
+    private readonly IDictationState _dictationState;
     private readonly ISetupWindow _setupWindow;
     private readonly IUiDispatcher _uiDispatcher;
     private readonly TimeProvider _timeProvider;
@@ -49,6 +53,7 @@ internal sealed class RelaunchService : IHostedService
     private ITimer? _noticeTimer;
     private bool _granted;
     private bool _restarting;
+    private bool _waitingForDictation;
 
     /// <summary>
     /// Initializes a new instance.
@@ -56,6 +61,7 @@ internal sealed class RelaunchService : IHostedService
     /// <param name="permissions">Reads the Accessibility grant.</param>
     /// <param name="viewModel">The setup window's permission rows, or <see langword="null"/> outside an app bundle.</param>
     /// <param name="modelStore">Tells whether a download runs.</param>
+    /// <param name="dictationState">Tells whether a dictation is in progress.</param>
     /// <param name="setupWindow">Tells whether the setup window is open.</param>
     /// <param name="uiDispatcher">Reaches the UI thread.</param>
     /// <param name="timeProvider">The time provider for the checks and the notice.</param>
@@ -64,6 +70,7 @@ internal sealed class RelaunchService : IHostedService
     public RelaunchService(IPermissions permissions,
                            PermissionsViewModel? viewModel,
                            IModelStore modelStore,
+                           IDictationState dictationState,
                            ISetupWindow setupWindow,
                            IUiDispatcher uiDispatcher,
                            TimeProvider timeProvider,
@@ -73,6 +80,7 @@ internal sealed class RelaunchService : IHostedService
         _permissions = permissions;
         _viewModel = viewModel;
         _modelStore = modelStore;
+        _dictationState = dictationState;
         _setupWindow = setupWindow;
         _uiDispatcher = uiDispatcher;
         _timeProvider = timeProvider;
@@ -122,6 +130,7 @@ internal sealed class RelaunchService : IHostedService
             _checkTimer?.Dispose();
             _noticeTimer?.Dispose();
             _modelStore.DownloadStateChanged -= OnDownloadStateChanged;
+            _dictationState.ActiveChanged -= OnDictationActiveChanged;
         });
     }
 
@@ -208,9 +217,48 @@ internal sealed class RelaunchService : IHostedService
         _noticeTimer = noticeTimer;
     }
 
+    private void OnDictationActiveChanged(object? sender, EventArgs e)
+    {
+        // Raised on the dictation's thread.
+        _ = _uiDispatcher.InvokeAsync(RestartAfterDictation);
+    }
+
+    private void RestartAfterDictation()
+    {
+        if (_restarting || _dictationState.IsActive)
+        {
+            return;
+        }
+
+        // A download that started during the dictation delays the restart again, with its note and a new notice.
+        if (_modelStore.IsDownloading)
+        {
+            _noticeTimer?.Dispose();
+            _noticeTimer = null;
+            RestartWhenNoDownload();
+            return;
+        }
+
+        Relaunch();
+    }
+
     private void Relaunch()
     {
+        // The restart would end a dictation in progress, and with it the transcript.
+        if (_dictationState.IsActive)
+        {
+            if (!_waitingForDictation)
+            {
+                _waitingForDictation = true;
+                _dictationState.ActiveChanged += OnDictationActiveChanged;
+                _logger.LogInformation("The restart waits until the dictation has ended");
+            }
+
+            return;
+        }
+
         _restarting = true;
+        _dictationState.ActiveChanged -= OnDictationActiveChanged;
         _modelStore.DownloadStateChanged -= OnDownloadStateChanged;
         RelaunchRequested?.Invoke(this, EventArgs.Empty);
     }

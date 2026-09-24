@@ -25,6 +25,7 @@ Tracked in GitHub issue #20. The decisions come from the section "Decided for la
   - the blocked-microphone notification names *System Settings → Privacy & Security → Microphone* (the text exists since #17)
   - an exit during a recording turns off the orange microphone indicator
   - the menu item is **Quit Pisum Transcribe**, and a logout counts as a sign-out
+  - the fallback notification says to paste with Command+V, and the no-model notification points to **Set up Pisum Transcribe…** in the menu bar
 - **Unchanged defaults:** the checkpoint after #18 confirmed them. Metal and Canary 1B v2 Q8_0 stay the Mac defaults.
 - **Not included:**
   - opening System Settings by clicking a notification (both platforms, its own change)
@@ -43,7 +44,8 @@ Tracked in GitHub issue #20. The decisions come from the section "Decided for la
   - "Insertion outcome": the outcome "keystrokes not allowed".
 - `dictation`:
   - "Tray icon states": the macOS reasons for *unavailable* (Accessibility not in effect, secure input on), and the menu bar wording.
-  - "Insertion fallback notification": the reasons "secure input is on" and "Accessibility access isn't in effect" on macOS.
+  - "Engine not ready": the no-model notification points to **Set up Pisum Transcribe…** on macOS.
+  - "Insertion fallback notification": the reasons "secure input is on" and "Accessibility access isn't in effect" on macOS, and the platform's paste shortcut.
   - "Error notifications": the macOS path of the blocked-microphone message.
   - "Dictation ends when the application exits": the orange microphone indicator, **Quit Pisum Transcribe** and a macOS logout.
   - "Recording overlay behavior": Mission Control, the window switcher and full-screen Spaces on macOS, and the screen's visible frame.

@@ -1,3 +1,4 @@
+using Avalonia;
 using Pisum.Transcribe.TextInsertion;
 
 namespace Pisum.Transcribe.Tests.TextInsertion;
@@ -149,12 +150,78 @@ public sealed class MacForegroundWindowTrackerTests
     /// <summary>
     /// Hands out a new element per read, whose identity is the focused window, and counts retains and releases.
     /// </summary>
+    [Fact]
+    public void TryGetFrame_LatestCapture_ReturnsTheFrameReadAtTheCapture()
+    {
+        // Arrange
+        _reader.Focus(ProcessId, 100);
+        var target = _sut.CaptureForeground();
+        _reader.Frame = new Rect(0, 0, 10, 10);
+
+        // Act
+        var found = _sut.TryGetFrame(target.Window, out var frame);
+
+        // Assert
+        found.ShouldBeTrue();
+        frame.ShouldBe(new Rect(100, 200, 800, 600));
+    }
+
+    [Fact]
+    public void TryGetFrame_OlderCapture_ReturnsFalse()
+    {
+        // Arrange
+        _reader.Focus(ProcessId, 100);
+        var older = _sut.CaptureForeground();
+        _sut.CaptureForeground();
+
+        // Act
+        var found = _sut.TryGetFrame(older.Window, out _);
+
+        // Assert
+        found.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void CaptureForeground_FrameUnreadable_SucceedsWithoutFrame()
+    {
+        // Arrange
+        _reader.Focus(ProcessId, 100);
+        _reader.Frame = null;
+
+        // Act
+        var target = _sut.CaptureForeground();
+        var found = _sut.TryGetFrame(target.Window, out _);
+
+        // Assert
+        target.Window.ShouldNotBe(0);
+        _sut.IsForeground(target).ShouldBeTrue();
+        found.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void TryGetFrame_CaptureWithoutWindow_ReturnsFalse()
+    {
+        // Arrange
+        var target = _sut.CaptureForeground();
+
+        // Act
+        var found = _sut.TryGetFrame(target.Window, out _);
+
+        // Assert
+        found.ShouldBeFalse();
+    }
+
     private sealed class FakeReader : IFocusedWindowReader
     {
         private readonly Dictionary<nint, int> _windowOfElement = [];
         private int? _processId;
         private int _window;
         private nint _nextElement = 1;
+
+        /// <summary>
+        /// Gets or sets the frame of every window, or <see langword="null"/> when it can't be read.
+        /// </summary>
+        public Rect? Frame { get; set; } = new Rect(100, 200, 800, 600);
 
         public int Outstanding => _windowOfElement.Count;
 
@@ -188,6 +255,13 @@ public sealed class MacForegroundWindowTrackerTests
         public bool AreSameWindow(nint first, nint second)
         {
             return _windowOfElement[first] == _windowOfElement[second];
+        }
+
+        public bool TryReadFrame(nint window, out Rect frame)
+        {
+            _windowOfElement.ContainsKey(window).ShouldBeTrue("The frame of a released element was read.");
+            frame = Frame ?? default;
+            return Frame is not null;
         }
 
         public void Release(nint window)
