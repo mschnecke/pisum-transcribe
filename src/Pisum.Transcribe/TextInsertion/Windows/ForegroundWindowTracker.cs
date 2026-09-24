@@ -44,6 +44,6 @@ internal sealed class ForegroundWindowTracker : IForegroundWindowTracker
     /// <inheritdoc />
     public bool IsForeground(InsertionTarget target)
     {
-        return PInvoke.GetForegroundWindow() == target.WindowHandle;
+        return PInvoke.GetForegroundWindow() == target.Window;
     }
 }

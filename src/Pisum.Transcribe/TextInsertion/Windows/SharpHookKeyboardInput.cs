@@ -66,10 +66,10 @@ internal sealed class SharpHookKeyboardInput : IKeyboardInput, IDisposable
     }
 
     /// <inheritdoc />
-    public bool AreModifiersDown(bool includeControl)
+    public bool AreModifiersDown(bool includePasteModifier)
     {
         return IsDown(VkShift) || IsDown(VkMenu) || IsDown(VkLeftWindows) || IsDown(VkRightWindows) ||
-               (includeControl && IsDown(VkControl));
+               (includePasteModifier && IsDown(VkControl));
     }
 
     /// <summary>

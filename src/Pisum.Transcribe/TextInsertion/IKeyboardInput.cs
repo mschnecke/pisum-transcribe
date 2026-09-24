@@ -6,7 +6,7 @@ namespace Pisum.Transcribe.TextInsertion;
 internal interface IKeyboardInput
 {
     /// <summary>
-    /// Sends Ctrl+V.
+    /// Sends the paste shortcut: Ctrl+V on Windows, Command+V on macOS.
     /// </summary>
     void SendPaste();
 
@@ -17,10 +17,10 @@ internal interface IKeyboardInput
     void TypeText(string text);
 
     /// <summary>
-    /// Checks whether a modifier key that would change the keystrokes is held: Shift, Alt or Windows, and optionally
-    /// Ctrl.
+    /// Checks whether a modifier key that would change the keystrokes is held: Shift, Alt or Windows on Windows, Shift,
+    /// Option or Control on macOS, and optionally the paste shortcut's modifier.
     /// </summary>
-    /// <param name="includeControl">Whether a held Ctrl counts.</param>
+    /// <param name="includePasteModifier">Whether a held Ctrl on Windows, or a held Command on macOS, counts.</param>
     /// <returns><see langword="true"/> if one of these keys is down.</returns>
-    bool AreModifiersDown(bool includeControl);
+    bool AreModifiersDown(bool includePasteModifier);
 }

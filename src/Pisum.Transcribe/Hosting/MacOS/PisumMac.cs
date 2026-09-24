@@ -6,7 +6,8 @@ namespace Pisum.Transcribe.Hosting;
 /// The functions of the Swift helper <c>libPisumMac.dylib</c> (design D3 of add-macos-shell and of add-macos-setup),
 /// and the libc functions that go with them. Call the helper's functions only while
 /// <see cref="MacNativeLibrary.IsAvailable"/> is <see langword="true"/>, and on the UI thread, except
-/// <see cref="PasteboardProbe"/>.
+/// <see cref="PasteboardProbe"/> and the text insertion's pasteboard functions, which run on its pasteboard thread
+/// (design D2 of add-macos-text-insertion).
 /// </summary>
 internal static class PisumMac
 {
@@ -105,6 +106,73 @@ internal static class PisumMac
     /// <returns>0.</returns>
     [DllImport(Library, EntryPoint = "pisum_pasteboard_probe")]
     public static extern int PasteboardProbe();
+
+    /// <summary>
+    /// The pasteboard's change count, which rises with every write. Never alerts.
+    /// </summary>
+    /// <param name="name">The pasteboard's name, or <see langword="null"/> for the general pasteboard.</param>
+    /// <returns>The change count.</returns>
+    [DllImport(Library, EntryPoint = "pisum_pasteboard_change_count")]
+    public static extern long PasteboardChangeCount([MarshalAs(UnmanagedType.LPUTF8Str)] string? name);
+
+    /// <summary>
+    /// Copies every item of the pasteboard with every type except file promises into a buffer. Reads the pasteboard,
+    /// so check <see cref="PasteboardAccessBehavior"/> first for the general pasteboard.
+    /// </summary>
+    /// <param name="name">The pasteboard's name, or <see langword="null"/> for the general pasteboard.</param>
+    /// <param name="buffer">The buffer, to free with <see cref="Free"/> when the result is 0.</param>
+    /// <param name="length">The buffer's length in bytes.</param>
+    /// <returns>0, or 1 when the buffer couldn't be allocated.</returns>
+    [DllImport(Library, EntryPoint = "pisum_pasteboard_snapshot")]
+    public static extern int PasteboardSnapshot([MarshalAs(UnmanagedType.LPUTF8Str)] string? name,
+                                                out nint buffer,
+                                                out long length);
+
+    /// <summary>
+    /// Replaces the pasteboard's contents with text.
+    /// </summary>
+    /// <param name="name">The pasteboard's name, or <see langword="null"/> for the general pasteboard.</param>
+    /// <param name="text">The text.</param>
+    /// <param name="exclude">
+    /// 1 to keep the text on this Mac and mark it for clipboard managers as transient, concealed and auto-generated.
+    /// </param>
+    /// <returns>0, or 1 when it wasn't written.</returns>
+    [DllImport(Library, EntryPoint = "pisum_pasteboard_set_text")]
+    public static extern int PasteboardSetText([MarshalAs(UnmanagedType.LPUTF8Str)] string? name,
+                                               [MarshalAs(UnmanagedType.LPUTF8Str)] string text,
+                                               int exclude);
+
+    /// <summary>
+    /// Replaces the pasteboard's contents with the items of a snapshot buffer. An empty snapshot clears it.
+    /// </summary>
+    /// <param name="name">The pasteboard's name, or <see langword="null"/> for the general pasteboard.</param>
+    /// <param name="buffer">The buffer, in the format of <see cref="PasteboardSnapshot"/>.</param>
+    /// <param name="length">The buffer's length in bytes.</param>
+    /// <param name="mark">
+    /// 1 for a restore: the content stays on this Mac and carries the transient and restored markers. 0 writes the
+    /// items as they are, for tests.
+    /// </param>
+    /// <returns>0, 1 when it wasn't written, or 2 for a malformed buffer.</returns>
+    [DllImport(Library, EntryPoint = "pisum_pasteboard_restore")]
+    public static extern int PasteboardRestore([MarshalAs(UnmanagedType.LPUTF8Str)] string? name,
+                                               byte[] buffer,
+                                               long length,
+                                               int mark);
+
+    /// <summary>
+    /// Releases a named pasteboard, for tests.
+    /// </summary>
+    /// <param name="name">The pasteboard's name.</param>
+    /// <returns>0, or 1 for <see langword="null"/>, the general pasteboard, which is never released.</returns>
+    [DllImport(Library, EntryPoint = "pisum_pasteboard_release")]
+    public static extern int PasteboardRelease([MarshalAs(UnmanagedType.LPUTF8Str)] string? name);
+
+    /// <summary>
+    /// Frees memory that a helper function allocated for the caller.
+    /// </summary>
+    /// <param name="pointer">The memory.</param>
+    [DllImport(Library, EntryPoint = "pisum_free")]
+    public static extern void Free(nint pointer);
 
     /// <summary>
     /// Adds a notification with the default sound and no actions. Call it on the main thread.

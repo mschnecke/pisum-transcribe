@@ -91,7 +91,7 @@ internal sealed class Win32ClipboardService : IClipboardService, IDisposable
     }
 
     /// <inheritdoc />
-    public uint SequenceNumber => PInvoke.GetClipboardSequenceNumber();
+    public long SequenceNumber => PInvoke.GetClipboardSequenceNumber();
 
     /// <inheritdoc />
     public Task<ClipboardSnapshot?> TrySnapshotAsync()

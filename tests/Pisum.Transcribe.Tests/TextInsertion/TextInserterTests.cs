@@ -20,12 +20,13 @@ public sealed class TextInserterTests
     private readonly IClipboardService _clipboard = A.Fake<IClipboardService>();
     private readonly IKeyboardInput _keyboard = A.Fake<IKeyboardInput>();
     private readonly IForegroundWindowTracker _tracker = A.Fake<IForegroundWindowTracker>();
+    private readonly ISecureInput _secureInput = A.Fake<ISecureInput>();
     private readonly FakeTimeProvider _time = new();
     private readonly CapturingLogger<TextInserter> _logger = new();
     private readonly ClipboardSnapshot _snapshot = new TextSnapshot("invoice 4711");
     private readonly long _start;
     private readonly TextInserter _sut;
-    private uint _sequenceNumber = 1;
+    private long _sequenceNumber = 1;
 
     public TextInserterTests()
     {
@@ -113,6 +114,70 @@ public sealed class TextInserterTests
         // Assert
         outcome.ShouldBe(InsertionOutcome.Inserted);
         A.CallTo(() => _keyboard.SendPaste()).MustHaveHappenedOnceExactly();
+    }
+
+    [Fact]
+    public async Task InsertAsync_SecureInputOn_ReturnsSecureInputOnAndLeavesTranscriptOnClipboard()
+    {
+        // Arrange
+        A.CallTo(() => _secureInput.IsEnabled).Returns(true);
+
+        // Act
+        var outcome = await InsertAsync(Paste);
+
+        // Assert
+        outcome.ShouldBe(InsertionOutcome.SecureInputOn);
+        A.CallTo(() => _clipboard.TrySetTextAsync(Transcript, true)).MustHaveHappenedOnceExactly()
+            .Then(A.CallTo(() => _clipboard.TrySetTextAsync(Transcript, false)).MustHaveHappenedOnceExactly());
+        A.CallTo(() => _clipboard.TryRestoreAsync(A<ClipboardSnapshot>._)).MustNotHaveHappened();
+        ShouldNotHaveSentKeystrokes();
+    }
+
+    [Fact]
+    public async Task InsertAsync_SecureInputOnBeforeTyping_ReturnsSecureInputOn()
+    {
+        // Arrange
+        A.CallTo(() => _secureInput.IsEnabled).Returns(true);
+
+        // Act
+        var outcome = await InsertAsync(Type);
+
+        // Assert
+        outcome.ShouldBe(InsertionOutcome.SecureInputOn);
+        A.CallTo(() => _clipboard.TrySetTextAsync(Transcript, false)).MustHaveHappenedOnceExactly();
+        ShouldNotHaveSentKeystrokes();
+    }
+
+    [Fact]
+    public async Task InsertAsync_SecureInputTurnsOffDuringModifierWait_PastesWithoutCheckingBeforeTheWait()
+    {
+        // Arrange
+        var waitEnd = TimeSpan.FromMilliseconds(500);
+        HoldModifiers(waitEnd);
+        A.CallTo(() => _secureInput.IsEnabled).ReturnsLazily(() => Elapsed < waitEnd);
+
+        // Act
+        var outcome = await InsertAsync(Paste);
+
+        // Assert
+        outcome.ShouldBe(InsertionOutcome.Inserted);
+        A.CallTo(() => _secureInput.IsEnabled).MustHaveHappenedOnceExactly();
+        A.CallTo(() => _keyboard.SendPaste()).MustHaveHappenedOnceExactly();
+    }
+
+    [Fact]
+    public async Task InsertAsync_TargetChangedAndSecureInputOn_ReturnsTargetWindowChanged()
+    {
+        // Arrange
+        A.CallTo(() => _tracker.IsForeground(Target)).Returns(false);
+        A.CallTo(() => _secureInput.IsEnabled).Returns(true);
+
+        // Act
+        var outcome = await InsertAsync(Paste);
+
+        // Assert
+        outcome.ShouldBe(InsertionOutcome.TargetWindowChanged);
+        ShouldNotHaveSentKeystrokes();
     }
 
     [Fact]
@@ -632,7 +697,7 @@ public sealed class TextInserterTests
 
     private TextInserter CreateSut(bool isSelfElevated)
     {
-        return new TextInserter(_clipboard, _keyboard, _tracker, _time, _logger, isSelfElevated);
+        return new TextInserter(_clipboard, _keyboard, _tracker, _secureInput, _time, _logger, isSelfElevated);
     }
 
     /// <summary>
@@ -687,7 +752,7 @@ public sealed class TextInserterTests
     private void HoldControl(TimeSpan until)
     {
         A.CallTo(() => _keyboard.AreModifiersDown(A<bool>._))
-            .ReturnsLazily((bool includeControl) => includeControl && Elapsed < until);
+            .ReturnsLazily((bool includePasteModifier) => includePasteModifier && Elapsed < until);
     }
 
     private void ShouldNotHaveSentKeystrokes()

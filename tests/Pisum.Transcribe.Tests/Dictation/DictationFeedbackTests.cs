@@ -81,7 +81,7 @@ public sealed class DictationFeedbackTests
         _sut.ShowStarting(Target);
 
         // Assert
-        A.CallTo(() => _overlay.ShowStarting(Target.WindowHandle)).MustHaveHappenedOnceExactly();
+        A.CallTo(() => _overlay.ShowStarting(Target.Window)).MustHaveHappenedOnceExactly();
         Status.ShouldBe((TrayStatus.Ready, "Pisum Transcribe – Ready (Vulkan)"));
     }
 
