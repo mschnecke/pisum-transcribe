@@ -32,4 +32,4 @@ The order follows the dependencies. First the platform-neutral seams, then the h
   - `docs/roadmap.md`: the change done, with #20 picking up the tray hint and the `SecureInputOn` notification
 
   Verify: the texts match the code.
-- [ ] 5.2 Run `openspec validate add-macos-text-insertion --strict`, and `dotnet build` plus `dotnet test Pisum.Transcribe.slnx` on the Mac and in CI on Windows. Verify: all pass.
+- [x] 5.2 Run `openspec validate add-macos-text-insertion --strict`, and `dotnet build` plus `dotnet test Pisum.Transcribe.slnx` on the Mac and in CI on Windows. Verify: all pass.
