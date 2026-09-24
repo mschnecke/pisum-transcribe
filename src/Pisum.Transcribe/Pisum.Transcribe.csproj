@@ -17,6 +17,9 @@
 
   <PropertyGroup Condition="'$(TargetFramework)' == '$(PisumMacTargetFramework)'">
     <RuntimeIdentifier>osx-arm64</RuntimeIdentifier>
+    <!-- For the AudioQueue and CoreAudio callbacks, which are [UnmanagedCallersOnly] function pointers (design D7 of
+         add-macos-recording). CsWin32 turns it on for the Windows framework. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
   <ItemGroup>

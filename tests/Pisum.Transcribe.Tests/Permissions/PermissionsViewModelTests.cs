@@ -26,7 +26,7 @@ public sealed class PermissionsViewModelTests
         A.CallTo(() => _permissions.GetState(A<Permission>._))
             .ReturnsLazily((Permission permission) => _states[permission]);
         A.CallTo(() => _permissions.GetNotificationsStateAsync()).ReturnsLazily(() => Task.FromResult(_notificationsState));
-        A.CallTo(() => _permissions.IsAccessibilityGrantedAtStart).Returns(true);
+        A.CallTo(() => _permissions.IsAccessibilityInEffect).Returns(true);
     }
 
     [Theory]
@@ -129,7 +129,7 @@ public sealed class PermissionsViewModelTests
     public void AreRequiredGranted_AccessibilityGrantedWhileRunning_IsFalseUntilRestart()
     {
         // Arrange
-        A.CallTo(() => _permissions.IsAccessibilityGrantedAtStart).Returns(false);
+        A.CallTo(() => _permissions.IsAccessibilityInEffect).Returns(false);
         _states[Permission.Accessibility] = PermissionState.Granted;
         _states[Permission.Microphone] = PermissionState.Granted;
 
@@ -139,6 +139,30 @@ public sealed class PermissionsViewModelTests
         // Assert
         sut.Accessibility.State.ShouldBe(PermissionState.Granted);
         sut.AreRequiredGranted.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void AreRequiredGranted_AccessibilityRevokedWhileRunning_IsFalseAlsoWhenGrantedAgain()
+    {
+        // Arrange
+        var inEffect = true;
+        A.CallTo(() => _permissions.IsAccessibilityInEffect).ReturnsLazily(() => inEffect);
+        _states[Permission.Accessibility] = PermissionState.Granted;
+        _states[Permission.Microphone] = PermissionState.Granted;
+        var sut = CreateSut();
+        var grantedBefore = sut.AreRequiredGranted;
+        var changed = new List<string?>();
+        sut.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
+
+        // Act
+        inEffect = false;
+        _permissions.AccessibilityInEffectChanged += Raise.WithEmpty();
+
+        // Assert
+        grantedBefore.ShouldBeTrue();
+        sut.Accessibility.State.ShouldBe(PermissionState.Granted);
+        sut.AreRequiredGranted.ShouldBeFalse();
+        changed.ShouldContain(nameof(PermissionsViewModel.AreRequiredGranted));
     }
 
     [Fact]

@@ -16,6 +16,8 @@ public sealed class SharpHookPushToTalkHotkeyTests : IDisposable
     private readonly TestGlobalHook _hook = new();
     private readonly ISettingsStore _settingsStore = A.Fake<ISettingsStore>();
     private readonly INotifier _notifier = A.Fake<INotifier>();
+    private readonly IHotkeyKeyState _keyState = A.Fake<IHotkeyKeyState>();
+    private readonly IHookAccess _hookAccess = A.Fake<IHookAccess>();
     private readonly FakeTimeProvider _timeProvider = new();
     private readonly CapturingLogger<SharpHookPushToTalkHotkey> _logger = new();
     private readonly HashSet<int> _physicallyDownRawCodes = [];
@@ -25,12 +27,19 @@ public sealed class SharpHookPushToTalkHotkeyTests : IDisposable
 
     public SharpHookPushToTalkHotkeyTests()
     {
-        A.CallTo(() => _settingsStore.Current).Returns(new AppSettings());
+        // Right Ctrl on both hosts, whatever the platform's default hotkey is.
+        A.CallTo(() => _settingsStore.Current).Returns(new AppSettings
+        {
+            Recording = new RecordingSettings {Hotkey = ["VcRightControl"]},
+        });
+        A.CallTo(() => _keyState.IsHeld(A<int>._)).ReturnsLazily((int rawCode) => IsKeyDown(rawCode));
+        A.CallTo(() => _hookAccess.IsAllowed).Returns(true);
 
         // Distinctive raw codes, so the privacy test can search the log for them.
         _hook.KeyCodeToRawCode = key => key == KeyCode.VcRightControl ? RightControlRawCode : RawCodeOf(key);
 
-        _sut = new SharpHookPushToTalkHotkey(_hook, _settingsStore, _notifier, _timeProvider, _logger, IsKeyDown);
+        _sut = new SharpHookPushToTalkHotkey(_hook, _keyState, _hookAccess, _settingsStore, _notifier, _timeProvider,
+            _logger);
         _sut.Pressed += (_, _) => _signals.Add("Pressed");
         _sut.Released += (_, _) => _signals.Add("Released");
         _sut.Cancelled += (_, _) => _signals.Add("Cancelled");
@@ -153,6 +162,43 @@ public sealed class SharpHookPushToTalkHotkeyTests : IDisposable
         A.CallTo(() => _notifier.Show(SharpHookPushToTalkHotkey.UnavailableTitle,
                 SharpHookPushToTalkHotkey.UnavailableMessage))
             .MustHaveHappenedOnceExactly();
+        A.CallTo(() => _hookAccess.OnRevoked()).MustNotHaveHappened();
+    }
+
+    [Fact]
+    public async Task StartAsync_NotAllowed_DoesNotRunHookAndShowsNothing()
+    {
+        // Arrange
+        A.CallTo(() => _hookAccess.IsAllowed).Returns(false);
+
+        // Act
+        await _sut.StartAsync(TestContext.Current.CancellationToken);
+        Press(KeyCode.VcRightControl);
+
+        // Assert
+        _hook.IsRunning.ShouldBeFalse();
+        _signals.ShouldBeEmpty();
+        _logger.Entries.ShouldContain(entry => entry.Level == LogLevel.Information);
+        _logger.Entries.ShouldNotContain(entry => entry.Level >= LogLevel.Warning);
+        A.CallTo(() => _notifier.Show(A<string>._, A<string>._)).MustNotHaveHappened();
+        A.CallTo(() => _hookAccess.OnRevoked()).MustNotHaveHappened();
+    }
+
+    [Fact]
+    public async Task StartAsync_AccessRevokedWhileRunning_ShowsRevokeAndReportsItOnce()
+    {
+        // Arrange
+        _hook.RunResult = UioHookResult.ErrorAxApiRevoked;
+
+        // Act
+        await _sut.StartAsync(TestContext.Current.CancellationToken);
+
+        // Assert
+        A.CallTo(() => _notifier.Show(SharpHookPushToTalkHotkey.RevokedTitle, SharpHookPushToTalkHotkey.RevokedMessage))
+            .MustHaveHappenedOnceExactly();
+        A.CallTo(() => _notifier.Show(SharpHookPushToTalkHotkey.UnavailableTitle, A<string>._))
+            .MustNotHaveHappened();
+        A.CallTo(() => _hookAccess.OnRevoked()).MustHaveHappenedOnceExactly();
     }
 
     [Fact]

@@ -1,7 +1,7 @@
 namespace Pisum.Transcribe.Recording;
 
 /// <summary>
-/// Opens capture sessions on the Windows default recording device.
+/// Opens capture sessions on the Windows default recording device or the macOS default input device.
 /// </summary>
 internal interface ICaptureSessionFactory
 {

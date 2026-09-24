@@ -26,7 +26,7 @@ public sealed class ModelSetupViewModelTests : IDisposable
         [Permission.PasteFromOtherApps] = PermissionState.NotDetermined,
     };
 
-    private bool _accessibilityGrantedAtStart;
+    private bool _accessibilityInEffect;
     private int _closeRequests;
 
     public ModelSetupViewModelTests()
@@ -43,7 +43,7 @@ public sealed class ModelSetupViewModelTests : IDisposable
         A.CallTo(() => _permissions.GetState(A<Permission>._))
             .ReturnsLazily((Permission permission) => _permissionStates[permission]);
         A.CallTo(() => _permissions.GetNotificationsStateAsync()).Returns(PermissionState.NotDetermined);
-        A.CallTo(() => _permissions.IsAccessibilityGrantedAtStart).ReturnsLazily(() => _accessibilityGrantedAtStart);
+        A.CallTo(() => _permissions.IsAccessibilityInEffect).ReturnsLazily(() => _accessibilityInEffect);
     }
 
     public void Dispose()
@@ -427,7 +427,7 @@ public sealed class ModelSetupViewModelTests : IDisposable
     private void GrantAccessibilityAtStart()
     {
         _permissionStates[Permission.Accessibility] = PermissionState.Granted;
-        _accessibilityGrantedAtStart = true;
+        _accessibilityInEffect = true;
     }
 
     private void InstallSelectedModel()

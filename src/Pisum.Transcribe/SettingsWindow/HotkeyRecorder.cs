@@ -1,4 +1,3 @@
-using System.Collections.Frozen;
 using SharpHook.Data;
 
 namespace Pisum.Transcribe.SettingsWindow;
@@ -39,22 +38,25 @@ internal enum HotkeyRecordingState
 /// </remarks>
 internal sealed class HotkeyRecorder
 {
-    /// <summary>
-    /// The validation message for a rejected hotkey.
-    /// </summary>
-    public const string RejectedMessage =
-        "The hotkey must include Ctrl, Alt, Shift, the Windows key or a function key F1–F24.";
-
-    // By name, because the key codes of F1-F24 are not contiguous.
-    private static readonly FrozenSet<KeyCode> RequiredKeys =
-    [
-        KeyCode.VcLeftControl, KeyCode.VcRightControl, KeyCode.VcLeftAlt, KeyCode.VcRightAlt, KeyCode.VcLeftShift,
-        KeyCode.VcRightShift, KeyCode.VcLeftMeta, KeyCode.VcRightMeta,
-        ..Enumerable.Range(1, 24).Select(number => Enum.Parse<KeyCode>($"VcF{number}")),
-    ];
-
+    private readonly HotkeyKeyNames _names;
     private readonly HashSet<KeyCode> _held = [];
     private HashSet<KeyCode> _keys = [];
+
+    /// <summary>
+    /// Initializes a new instance.
+    /// </summary>
+    /// <param name="names">
+    /// The platform's key names and valid-hotkey rule, <see langword="null"/> for <see cref="HotkeyKeyNames.Current"/>.
+    /// </param>
+    public HotkeyRecorder(HotkeyKeyNames? names = null)
+    {
+        _names = names ?? HotkeyKeyNames.Current;
+    }
+
+    /// <summary>
+    /// The validation message for a rejected hotkey, in the platform's key names.
+    /// </summary>
+    public string RejectedMessage => _names.RejectedMessage;
 
     /// <summary>
     /// The state of the recording.
@@ -68,13 +70,13 @@ internal sealed class HotkeyRecorder
     public IReadOnlySet<KeyCode> Keys => _keys;
 
     /// <summary>
-    /// Checks whether keys may form a hotkey: at least one of Ctrl, Alt, Shift, the Windows key or F1–F24.
+    /// Checks whether keys may form a hotkey: at least one of <see cref="HotkeyKeyNames.RequiredKeys"/>.
     /// </summary>
     /// <param name="keys">The keys.</param>
     /// <returns><see langword="true"/> if the keys may form a hotkey.</returns>
-    public static bool IsValid(IEnumerable<KeyCode> keys)
+    public bool IsValid(IEnumerable<KeyCode> keys)
     {
-        return keys.Any(RequiredKeys.Contains);
+        return keys.Any(_names.RequiredKeys.Contains);
     }
 
     /// <summary>

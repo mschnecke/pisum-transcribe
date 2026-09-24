@@ -63,6 +63,33 @@ public sealed class SettingsDialogTests : IDisposable
     }
 
     [Fact]
+    public Task Constructor_HotkeyWithFn_ShowsTheFnHintUnderTheHotkeyOnlyOnMacOS()
+    {
+        return HeadlessUi.RunAsync(() =>
+        {
+            // Arrange
+            var settings = new AppSettings {Recording = new RecordingSettings {Hotkey = ["VcFunction"]}};
+            var sut = new SettingsDialog(CreateViewModel(settings));
+
+            // Act
+            sut.Show();
+            sut.UpdateLayout();
+
+            // Assert
+            var hotkeyRow = sut.GetLogicalDescendants().OfType<TextBlock>()
+                .Single(textBlock => textBlock.Text == "fn" || textBlock.Text == "Function");
+            var hint = sut.GetLogicalDescendants().OfType<TextBlock>()
+                .Single(textBlock => textBlock.Text?.StartsWith("Set \"Press 🌐 key to\" to \"Do Nothing\"",
+                    StringComparison.Ordinal) == true);
+            hint.IsEffectivelyVisible.ShouldBe(HotkeyKeyNames.Current.ShowsFnHint);
+            var panel = hint.GetLogicalParent().ShouldBeOfType<StackPanel>();
+            var hotkeyLine = (Control) hotkeyRow.GetLogicalParent()!;
+            panel.Children.IndexOf(hint).ShouldBeGreaterThan(panel.Children.IndexOf(hotkeyLine));
+            sut.Close();
+        });
+    }
+
+    [Fact]
     public Task Constructor_Always_CanBeMinimizedButNotResizedOrMaximized()
     {
         return HeadlessUi.RunAsync(() =>

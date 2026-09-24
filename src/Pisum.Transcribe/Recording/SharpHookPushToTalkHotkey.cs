@@ -1,4 +1,3 @@
-using System.Runtime.InteropServices;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Pisum.Transcribe.Notifications;
@@ -14,9 +13,14 @@ namespace Pisum.Transcribe.Recording;
 /// </summary>
 /// <remarks>
 /// <para>
-/// A non-elevated hook sees no key-up while an elevated window, the UAC prompt or the lock screen has focus. While a
-/// hotkey key is down, a timer therefore checks every <see cref="CheckInterval"/> whether the key still reads as down; a
-/// key that reads as up on two ticks in a row resets the detector, which cancels an active hotkey.
+/// A non-elevated hook sees no key-up while an elevated window, the UAC prompt or the lock screen has focus, and on
+/// macOS while secure input hides key events. While a hotkey key is down, a timer therefore checks every
+/// <see cref="CheckInterval"/> whether the key still reads as held through <see cref="IHotkeyKeyState"/>; a key that
+/// reads as up on two ticks in a row resets the detector, which cancels an active hotkey.
+/// </para>
+/// <para>
+/// The hook runs only while <see cref="IHookAccess"/> allows it. When its access is revoked while it runs, the hook ends
+/// with <see cref="UioHookResult.ErrorAxApiRevoked"/>, which is shown and reported.
 /// </para>
 /// <para>
 /// The hook sees every key on the system. Only hotkey keys are kept, and only as long as they are down; logs name the
@@ -36,6 +40,17 @@ internal sealed class SharpHookPushToTalkHotkey : IPushToTalkHotkey, IHostedServ
     public const string UnavailableMessage = "The push-to-talk key could not be set up. Details are in the log.";
 
     /// <summary>
+    /// The notification title when the hook's Accessibility access was revoked while it ran.
+    /// </summary>
+    public const string RevokedTitle = "Push-to-talk stopped";
+
+    /// <summary>
+    /// The notification text when the hook's Accessibility access was revoked while it ran.
+    /// </summary>
+    public const string RevokedMessage =
+        "Accessibility access for Pisum Transcribe was turned off. Choose Set up Pisum Transcribe… in the menu to allow it again.";
+
+    /// <summary>
     /// How often a held hotkey key is checked for a missed key-up.
     /// </summary>
     public static readonly TimeSpan CheckInterval = TimeSpan.FromMilliseconds(250);
@@ -44,11 +59,12 @@ internal sealed class SharpHookPushToTalkHotkey : IPushToTalkHotkey, IHostedServ
     private const int UpReadingsBeforeReset = 2;
 
     private readonly IGlobalHook _hook;
+    private readonly IHotkeyKeyState _keyState;
+    private readonly IHookAccess _hookAccess;
     private readonly ISettingsStore _settingsStore;
     private readonly INotifier _notifier;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<SharpHookPushToTalkHotkey> _logger;
-    private readonly Func<int, bool> _isKeyDown;
 
     // Guards the detector, the held keys and the timer. Hook handlers and the timer run on different threads, and signals
     // are raised inside the lock, so consumers see them in order.
@@ -63,27 +79,27 @@ internal sealed class SharpHookPushToTalkHotkey : IPushToTalkHotkey, IHostedServ
     /// Initializes a new instance.
     /// </summary>
     /// <param name="hook">The global hook, not yet running. Disposed on stop.</param>
+    /// <param name="keyState">Reads whether a held hotkey key is still observably held.</param>
+    /// <param name="hookAccess">Whether the hook may run, and where a revoke is reported.</param>
     /// <param name="settingsStore">The settings store, already loaded.</param>
     /// <param name="notifier">Shows the notification when the hook cannot run.</param>
     /// <param name="timeProvider">The time provider for the missed-release check.</param>
     /// <param name="logger">The logger.</param>
-    /// <param name="isKeyDown">
-    /// Reads whether a key is down by its Windows virtual-key code, for tests. <see langword="null"/> uses
-    /// <c>GetAsyncKeyState</c>.
-    /// </param>
     public SharpHookPushToTalkHotkey(IGlobalHook hook,
+                                     IHotkeyKeyState keyState,
+                                     IHookAccess hookAccess,
                                      ISettingsStore settingsStore,
                                      INotifier notifier,
                                      TimeProvider timeProvider,
-                                     ILogger<SharpHookPushToTalkHotkey> logger,
-                                     Func<int, bool>? isKeyDown = null)
+                                     ILogger<SharpHookPushToTalkHotkey> logger)
     {
         _hook = hook;
+        _keyState = keyState;
+        _hookAccess = hookAccess;
         _settingsStore = settingsStore;
         _notifier = notifier;
         _timeProvider = timeProvider;
         _logger = logger;
-        _isKeyDown = isKeyDown ?? IsKeyDown;
     }
 
     /// <inheritdoc />
@@ -148,6 +164,13 @@ internal sealed class SharpHookPushToTalkHotkey : IPushToTalkHotkey, IHostedServ
             _detector = new PushToTalkDetector(hotkey);
         }
 
+        if (!_hookAccess.IsAllowed)
+        {
+            // The setup window and its menu item already say that the grant is missing.
+            _logger.LogInformation("Push-to-talk waits for the Accessibility grant, the keyboard hook isn't started");
+            return Task.CompletedTask;
+        }
+
         _hook.KeyPressed += OnKeyPressed;
         _hook.KeyReleased += OnKeyReleased;
         _ = RunHookAsync();
@@ -171,15 +194,6 @@ internal sealed class SharpHookPushToTalkHotkey : IPushToTalkHotkey, IHostedServ
         return Task.CompletedTask;
     }
 
-    private static bool IsKeyDown(int virtualKey)
-    {
-        // Reads as up when UIPI blocks access to the foreground window or another desktop is active.
-        return (GetAsyncKeyState(virtualKey) & 0x8000) != 0;
-    }
-
-    [DllImport("user32.dll")]
-    private static extern short GetAsyncKeyState(int virtualKey);
-
     private async Task RunHookAsync()
     {
         try
@@ -195,6 +209,14 @@ internal sealed class SharpHookPushToTalkHotkey : IPushToTalkHotkey, IHostedServ
                 {
                     return;
                 }
+            }
+
+            if (exception is HookException {Result: UioHookResult.ErrorAxApiRevoked})
+            {
+                _logger.LogWarning("Accessibility access was revoked, push-to-talk stopped");
+                _notifier.Show(RevokedTitle, RevokedMessage);
+                _hookAccess.OnRevoked();
+                return;
             }
 
             _logger.LogError(exception, "The keyboard hook could not run, push-to-talk is unavailable");
@@ -227,7 +249,7 @@ internal sealed class SharpHookPushToTalkHotkey : IPushToTalkHotkey, IHostedServ
             var signal = _detector.OnKeyDown(key);
             if (_detector.DownKeys.Contains(key))
             {
-                // On Windows, the raw code is the left/right-distinguishing virtual-key code.
+                // The raw code is the left/right-distinguishing virtual-key code on Windows, and the key code on macOS.
                 _heldKeys[key] = new HeldKey(e.Data.RawCode);
             }
 
@@ -276,7 +298,7 @@ internal sealed class SharpHookPushToTalkHotkey : IPushToTalkHotkey, IHostedServ
             var missedRelease = false;
             foreach (var heldKey in _heldKeys.Values)
             {
-                heldKey.UpReadings = _isKeyDown(heldKey.RawCode) ? 0 : heldKey.UpReadings + 1;
+                heldKey.UpReadings = _keyState.IsHeld(heldKey.RawCode) ? 0 : heldKey.UpReadings + 1;
                 missedRelease |= heldKey.UpReadings >= UpReadingsBeforeReset;
             }
 

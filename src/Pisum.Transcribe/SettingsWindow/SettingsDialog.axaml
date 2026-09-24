@@ -80,6 +80,8 @@
                         </DockPanel>
                         <TextBlock Classes="hint" IsVisible="{Binding IsRecordingHotkey}"
                                    Text="Hold the new key combination, then release it. Press Esc to cancel." />
+                        <TextBlock Classes="hint" IsVisible="{Binding ShowsFnHint}"
+                                   Text="Set &quot;Press 🌐 key to&quot; to &quot;Do Nothing&quot; in System Settings → Keyboard, or every press also runs that action." />
                         <TextBlock Classes="error" Text="{Binding HotkeyError}" />
 
                         <TextBlock Classes="fieldLabel" Text="Task" />

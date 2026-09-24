@@ -21,11 +21,26 @@ internal sealed class MacPermissions : IPermissions
     {
         _library = library;
         _notificationCenter = notificationCenter;
-        IsAccessibilityGrantedAtStart = CoreFoundation.IsProcessTrusted();
+        IsAccessibilityInEffect = CoreFoundation.IsProcessTrusted();
     }
 
     /// <inheritdoc />
-    public bool IsAccessibilityGrantedAtStart { get; }
+    public event EventHandler? AccessibilityInEffectChanged;
+
+    /// <inheritdoc />
+    public bool IsAccessibilityInEffect { get; private set; }
+
+    /// <inheritdoc />
+    public void OnAccessibilityRevoked()
+    {
+        if (!IsAccessibilityInEffect)
+        {
+            return;
+        }
+
+        IsAccessibilityInEffect = false;
+        AccessibilityInEffectChanged?.Invoke(this, EventArgs.Empty);
+    }
 
     /// <inheritdoc />
     public PermissionState GetState(Permission permission)

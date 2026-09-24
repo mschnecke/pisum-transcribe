@@ -20,6 +20,7 @@ public sealed class RelaunchServiceTests
     private readonly FakeTimeProvider _timeProvider = new();
     private readonly PermissionsViewModel _viewModel;
     private PermissionState _accessibility = PermissionState.NotDetermined;
+    private bool _accessibilityInEffect;
     private bool _isDownloading;
     private int _relaunchRequests;
 
@@ -30,6 +31,12 @@ public sealed class RelaunchServiceTests
         A.CallTo(() => _permissions.GetState(Permission.PasteFromOtherApps)).Returns(PermissionState.Granted);
         A.CallTo(() => _permissions.GetNotificationsStateAsync()).Returns(PermissionState.Granted);
         A.CallTo(() => _modelStore.IsDownloading).ReturnsLazily(() => _isDownloading);
+        A.CallTo(() => _permissions.IsAccessibilityInEffect).ReturnsLazily(() => _accessibilityInEffect);
+        A.CallTo(() => _permissions.OnAccessibilityRevoked()).Invokes(() =>
+        {
+            _accessibilityInEffect = false;
+            _permissions.AccessibilityInEffectChanged += Raise.WithEmpty();
+        });
         _viewModel = new PermissionsViewModel(_permissions, new InlineUiDispatcher(), _timeProvider, _ => { });
     }
 
@@ -37,7 +44,7 @@ public sealed class RelaunchServiceTests
     public async Task StartAsync_GrantedAtStart_NeverRelaunches()
     {
         // Arrange
-        A.CallTo(() => _permissions.IsAccessibilityGrantedAtStart).Returns(true);
+        _accessibilityInEffect = true;
         _accessibility = PermissionState.Granted;
         var sut = CreateSut();
 
@@ -151,6 +158,55 @@ public sealed class RelaunchServiceTests
         requestsDuringDownload.ShouldBe(0);
         noteAfterDownload.ShouldBe("Pisum Transcribe restarts to turn on the hotkey");
         requestsBeforeNoticeEnds.ShouldBe(0);
+        _relaunchRequests.ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task GrantAgain_AfterRevokeWhileRunning_RelaunchesOnce()
+    {
+        // Arrange
+        _accessibilityInEffect = true;
+        _accessibility = PermissionState.Granted;
+        var sut = CreateSut();
+        await sut.StartAsync(TestContext.Current.CancellationToken);
+        _timeProvider.Advance(TimeSpan.FromMinutes(1));
+
+        // Act
+        _accessibility = PermissionState.NotDetermined;
+        _permissions.OnAccessibilityRevoked();
+        _timeProvider.Advance(RelaunchService.CheckInterval);
+        var requestsAfterRevoke = _relaunchRequests;
+        _accessibility = PermissionState.Granted;
+        _timeProvider.Advance(RelaunchService.CheckInterval);
+        _timeProvider.Advance(TimeSpan.FromMinutes(1));
+
+        // Assert
+        requestsAfterRevoke.ShouldBe(0);
+        _relaunchRequests.ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task GrantAgain_AfterRevokeDuringDownload_WaitsUntilDownloadEnds()
+    {
+        // Arrange
+        _accessibilityInEffect = true;
+        _accessibility = PermissionState.Granted;
+        _isDownloading = true;
+        var sut = CreateSut();
+        await sut.StartAsync(TestContext.Current.CancellationToken);
+        _accessibility = PermissionState.NotDetermined;
+        _permissions.OnAccessibilityRevoked();
+
+        // Act
+        _accessibility = PermissionState.Granted;
+        _timeProvider.Advance(RelaunchService.CheckInterval);
+        _timeProvider.Advance(TimeSpan.FromMinutes(1));
+        var requestsDuringDownload = _relaunchRequests;
+        _isDownloading = false;
+        _modelStore.DownloadStateChanged += Raise.WithEmpty();
+
+        // Assert
+        requestsDuringDownload.ShouldBe(0);
         _relaunchRequests.ShouldBe(1);
     }
 

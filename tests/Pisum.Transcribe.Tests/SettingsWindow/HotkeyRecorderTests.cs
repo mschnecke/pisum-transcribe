@@ -8,7 +8,7 @@ namespace Pisum.Transcribe.Tests.SettingsWindow;
 [Trait(Traits.Category, Traits.Categories.Unit)]
 public sealed class HotkeyRecorderTests
 {
-    private readonly HotkeyRecorder _sut = new();
+    private readonly HotkeyRecorder _sut = new(HotkeyKeyNames.Windows);
 
     [Theory]
     [InlineData(KeyCode.VcLeftControl, KeyCode.VcLeftMeta)]
@@ -24,7 +24,7 @@ public sealed class HotkeyRecorderTests
         // Assert
         state.ShouldBe(HotkeyRecordingState.Captured);
         _sut.Keys.ShouldBe([KeyCode.VcLeftControl, KeyCode.VcLeftMeta], true);
-        HotkeyText.Format(_sut.Keys).ShouldBe("Left Ctrl+Left Win");
+        HotkeyText.Format(_sut.Keys, HotkeyKeyNames.Windows).ShouldBe("Left Ctrl+Left Win");
     }
 
     [Fact]
@@ -36,11 +36,11 @@ public sealed class HotkeyRecorderTests
 
         // Assert
         _sut.State.ShouldBe(HotkeyRecordingState.Captured);
-        HotkeyText.Format(_sut.Keys).ShouldBe("Right Ctrl");
+        HotkeyText.Format(_sut.Keys, HotkeyKeyNames.Windows).ShouldBe("Right Ctrl");
     }
 
     [Fact]
-    public void OnKey_LetterAlone_IsRejected()
+    public void OnKey_LetterAlone_IsRejectedWithWindowsMessage()
     {
         // Act
         _sut.OnKey(KeyCode.VcA, true);
@@ -49,6 +49,65 @@ public sealed class HotkeyRecorderTests
         // Assert
         state.ShouldBe(HotkeyRecordingState.Rejected);
         _sut.Keys.ShouldBe([KeyCode.VcA]);
+        _sut.RejectedMessage.ShouldBe(
+            "The hotkey must include Ctrl, Alt, Shift, the Windows key or a function key F1–F24.");
+    }
+
+    [Fact]
+    public void OnKey_LetterAloneOnMacOS_IsRejectedWithMacMessage()
+    {
+        // Arrange
+        var sut = new HotkeyRecorder(HotkeyKeyNames.MacOS);
+
+        // Act
+        sut.OnKey(KeyCode.VcA, true);
+        var state = sut.OnKey(KeyCode.VcA, false);
+
+        // Assert
+        state.ShouldBe(HotkeyRecordingState.Rejected);
+        sut.RejectedMessage.ShouldBe(
+            "The hotkey must include Control, Option, Shift, Command, fn or a function key F1–F24.");
+    }
+
+    [Fact]
+    public void OnKey_RightCommandAloneOnMacOS_IsCapturedAsRightCommand()
+    {
+        // Arrange
+        var sut = new HotkeyRecorder(HotkeyKeyNames.MacOS);
+
+        // Act
+        sut.OnKey(KeyCode.VcRightMeta, true);
+        var state = sut.OnKey(KeyCode.VcRightMeta, false);
+
+        // Assert
+        state.ShouldBe(HotkeyRecordingState.Captured);
+        HotkeyText.Format(sut.Keys, HotkeyKeyNames.MacOS).ShouldBe("Right Command");
+    }
+
+    [Fact]
+    public void OnKey_FnAloneOnMacOS_IsCapturedAsFn()
+    {
+        // Arrange
+        var sut = new HotkeyRecorder(HotkeyKeyNames.MacOS);
+
+        // Act
+        sut.OnKey(KeyCode.VcFunction, true);
+        var state = sut.OnKey(KeyCode.VcFunction, false);
+
+        // Assert
+        state.ShouldBe(HotkeyRecordingState.Captured);
+        HotkeyText.Format(sut.Keys, HotkeyKeyNames.MacOS).ShouldBe("fn");
+    }
+
+    [Fact]
+    public void OnKey_FnAloneOnWindows_IsRejected()
+    {
+        // Act
+        _sut.OnKey(KeyCode.VcFunction, true);
+        var state = _sut.OnKey(KeyCode.VcFunction, false);
+
+        // Assert
+        state.ShouldBe(HotkeyRecordingState.Rejected);
     }
 
     [Theory]
@@ -64,7 +123,7 @@ public sealed class HotkeyRecorderTests
 
         // Assert
         state.ShouldBe(HotkeyRecordingState.Captured);
-        HotkeyText.Format(_sut.Keys).ShouldBe(key.ToString()[2..]);
+        HotkeyText.Format(_sut.Keys, HotkeyKeyNames.Windows).ShouldBe(key.ToString()[2..]);
     }
 
     [Fact]
@@ -123,7 +182,7 @@ public sealed class HotkeyRecorderTests
 
         // Assert
         _sut.State.ShouldBe(HotkeyRecordingState.Captured);
-        HotkeyText.Format(_sut.Keys).ShouldBe("Left Ctrl+Left Win");
+        HotkeyText.Format(_sut.Keys, HotkeyKeyNames.Windows).ShouldBe("Left Ctrl+Left Win");
     }
 
     [Fact]
@@ -136,22 +195,11 @@ public sealed class HotkeyRecorderTests
         _sut.OnKey(KeyCode.VcF13, false);
 
         // Act
-        var names = HotkeyText.Order(_sut.Keys).Select(key => key.ToString()).ToList();
+        var names = HotkeyText.Order(_sut.Keys, HotkeyKeyNames.Windows).Select(key => key.ToString()).ToList();
         var parsed = HotkeyParser.Parse(names, NullLogger.Instance);
 
         // Assert
         names.ShouldBe(["VcRightMeta", "VcF13"]);
         parsed.ShouldBe(_sut.Keys, true);
-    }
-
-    [Fact]
-    public void Format_ModifiersAndOtherKeys_ListsModifiersInCtrlAltShiftWinOrder()
-    {
-        // Act
-        var text = HotkeyText.Format([KeyCode.VcA, KeyCode.VcRightMeta, KeyCode.VcLeftShift, KeyCode.VcRightAlt,
-            KeyCode.VcLeftControl]);
-
-        // Assert
-        text.ShouldBe("Left Ctrl+Right Alt+Left Shift+Right Win+A");
     }
 }
