@@ -12,18 +12,18 @@ namespace Pisum.Transcribe.Transcription;
 /// dispose) from a FIFO queue, because the native engine allows one compute call per model at a time.
 /// </summary>
 /// <remarks>
-/// With <see cref="BackendPreference.Auto"/>, a backend failure on Vulkan during load, warm-up or a run moves the engine
-/// to the CPU backend. If the reload makes the model ready on the CPU backend, the request whose run failed runs once
-/// more on it, unless the application is stopping or the caller stopped waiting. A model file rejected as invalid is
-/// hashed: a damaged file is deleted, so it can be downloaded again. On shutdown the worker releases the model, but only
-/// after its native call has returned.
+/// With <see cref="BackendPreference.Auto"/>, a backend failure on the GPU backend during load, warm-up or a run moves
+/// the engine to the CPU backend. If the reload makes the model ready on the CPU backend, the request whose run failed
+/// runs once more on it, unless the application is stopping or the caller stopped waiting. A model file rejected as
+/// invalid is hashed: a damaged file is deleted, so it can be downloaded again. On shutdown the worker releases the
+/// model, but only after its native call has returned.
 /// <para>
-/// After a run ran out of memory on Vulkan, the engine returns to Vulkan once the request has run on the CPU backend or
-/// was cancelled: it queues a reload of the same model behind the queued requests. The status stays
+/// After a run ran out of memory on the GPU backend, the engine returns to it once the request has run on the CPU
+/// backend or was cancelled: it queues a reload of the same model behind the queued requests. The status stays
 /// <see cref="TranscriberStatus.Ready"/> during the reload, so new requests are accepted and wait for it. The engine
-/// returns only if the audio is longer than every request that completed on Vulkan, and longer than the 10 s warm-up
-/// input, and if a request has completed on Vulkan since the last return. Otherwise it stays on the CPU backend. Each
-/// <see cref="LoadAsync"/> call resets both checks.
+/// returns only if the audio is longer than every request that completed on the GPU backend, and longer than the 10 s
+/// warm-up input, and if a request has completed on the GPU backend since the last return. Otherwise it stays on the
+/// CPU backend. Each <see cref="LoadAsync"/> call resets both checks.
 /// </para>
 /// <para>
 /// Each <see cref="LoadAsync"/> call takes the next load generation. The worker skips a queued load that a newer call
@@ -71,7 +71,7 @@ internal sealed class TranscribeCppTranscriber : ITranscriber, IHostedService
     public static readonly TimeSpan StopTimeout = TimeSpan.FromSeconds(3);
 
     private const string WarmUpLanguage = "en";
-    private const int VulkanWarmUpSeconds = 10;
+    private const int GpuWarmUpSeconds = 10;
     private const int WarmUpNoiseSeed = 42;
     private const double WarmUpNoiseAmplitude = 0.1;
 
@@ -110,12 +110,12 @@ internal sealed class TranscribeCppTranscriber : ITranscriber, IHostedService
     private BackendPreference _backendPreference;
     private long _engineGeneration;
 
-    // The two checks before a return to the Vulkan backend after an out-of-memory error. Only touched by the worker, reset
-    // by each load that LoadAsync queued but not by a return, and never saved. _longestVulkanRun is the longest audio of
-    // a request that completed on Vulkan, at least the Vulkan warm-up input. _returnedWithoutVulkanRun is set while no
-    // request has completed on Vulkan since the last return.
-    private TimeSpan _longestVulkanRun;
-    private bool _returnedWithoutVulkanRun;
+    // The two checks before a return to the GPU backend after an out-of-memory error. Only touched by the worker, reset
+    // by each load that LoadAsync queued but not by a return, and never saved. _longestGpuRun is the longest audio of
+    // a request that completed on the GPU backend, at least the GPU warm-up input. _returnedWithoutGpuRun is set while
+    // no request has completed on the GPU backend since the last return.
+    private TimeSpan _longestGpuRun;
+    private bool _returnedWithoutGpuRun;
 
     /// <summary>
     /// Initializes a new instance and starts its worker.
@@ -284,9 +284,9 @@ internal sealed class TranscribeCppTranscriber : ITranscriber, IHostedService
     }
 
     /// <summary>
-    /// Creates the warm-up input for a backend. On Vulkan, 10 s of fixed pseudo-random noise in [-0.1, 0.1], so the warm-up
-    /// compiles the GPU pipelines of a normal dictation; silence of that length makes Canary produce text. On CPU, which
-    /// compiles nothing, 1 s of silence.
+    /// Creates the warm-up input for a backend. On the GPU, 10 s of fixed pseudo-random noise in [-0.1, 0.1], so the
+    /// warm-up compiles the GPU pipelines of a normal dictation; silence of that length makes Canary produce text. On
+    /// CPU, which compiles nothing, 1 s of silence.
     /// </summary>
     /// <param name="backend">The backend the model is loaded on.</param>
     /// <returns>The samples, the same on every call.</returns>
@@ -298,7 +298,7 @@ internal sealed class TranscribeCppTranscriber : ITranscriber, IHostedService
         }
 
         var random = new Random(WarmUpNoiseSeed);
-        var samples = new float[VulkanWarmUpSeconds * SampleRate];
+        var samples = new float[GpuWarmUpSeconds * SampleRate];
         for (var i = 0; i < samples.Length; i++)
         {
             samples[i] = (float) ((random.NextDouble() * 2 - 1) * WarmUpNoiseAmplitude);
@@ -309,7 +309,7 @@ internal sealed class TranscribeCppTranscriber : ITranscriber, IHostedService
 
     private static string BackendName(NativeBackend backend)
     {
-        return backend == NativeBackend.Vulkan ? "Vulkan" : "CPU";
+        return backend == NativeBackend.Gpu ? TranscribeCppEngineFactory.GpuBackendName : "CPU";
     }
 
     private static FailureClass Classify(Exception exception)
@@ -371,8 +371,8 @@ internal sealed class TranscribeCppTranscriber : ITranscriber, IHostedService
                         {
                             // A backend error on the CPU backend released the model after the return was queued.
                             _logger.LogInformation(
-                                "Skipping the return of model {ModelId} to the Vulkan backend, the model is no longer loaded",
-                                load.Model.Id);
+                                "Skipping the return of model {ModelId} to the {Backend} backend, the model is no longer loaded",
+                                load.Model.Id, TranscribeCppEngineFactory.GpuBackendName);
                         }
                         else if (load.IsReturn)
                         {
@@ -387,8 +387,8 @@ internal sealed class TranscribeCppTranscriber : ITranscriber, IHostedService
                             // Releases the previous model first, so two models are never loaded at the same time.
                             ReleaseEngine();
                             _backendPreference = load.Backend;
-                            _longestVulkanRun = TimeSpan.FromSeconds(VulkanWarmUpSeconds);
-                            _returnedWithoutVulkanRun = false;
+                            _longestGpuRun = TimeSpan.FromSeconds(GpuWarmUpSeconds);
+                            _returnedWithoutGpuRun = false;
                             Load(load.Model, load.Backend, load.Generation);
                         }
 
@@ -483,25 +483,26 @@ internal sealed class TranscribeCppTranscriber : ITranscriber, IHostedService
         var modelPath = _modelStore.GetModelPath(model);
         switch (preference)
         {
-            case BackendPreference.Vulkan:
-                return (LoadAndWarmUp(model, modelPath, NativeBackend.Vulkan), NativeBackend.Vulkan);
+            case BackendPreference.Gpu:
+                return (LoadAndWarmUp(model, modelPath, NativeBackend.Gpu), NativeBackend.Gpu);
             case BackendPreference.Cpu:
                 return (LoadAndWarmUp(model, modelPath, NativeBackend.Cpu), NativeBackend.Cpu);
         }
 
         try
         {
-            if (_engineFactory.IsVulkanAvailable())
+            if (_engineFactory.IsGpuAvailable())
             {
-                return (LoadAndWarmUp(model, modelPath, NativeBackend.Vulkan), NativeBackend.Vulkan);
+                return (LoadAndWarmUp(model, modelPath, NativeBackend.Gpu), NativeBackend.Gpu);
             }
 
-            _logger.LogInformation("No Vulkan device is available, using the CPU backend");
+            _logger.LogInformation("No {Backend} device is available, using the CPU backend",
+                TranscribeCppEngineFactory.GpuBackendName);
         }
         catch (Exception exception) when (Classify(exception) == FailureClass.Backend)
         {
-            _logger.LogWarning(exception, "The Vulkan backend failed with {Status}, falling back to the CPU backend",
-                DescribeStatus(exception));
+            _logger.LogWarning(exception, "The {Backend} backend failed with {Status}, falling back to the CPU backend",
+                TranscribeCppEngineFactory.GpuBackendName, DescribeStatus(exception));
         }
 
         return (LoadAndWarmUp(model, modelPath, NativeBackend.Cpu), NativeBackend.Cpu);
@@ -609,10 +610,10 @@ internal sealed class TranscribeCppTranscriber : ITranscriber, IHostedService
         // Taken before the recovery, which replaces the engine for the same load generation.
         var generation = _engineGeneration;
         RecoverAndRunAgain(item, model, backend.Value, exception);
-        if (exception.Status == NativeStatus.ErrOom && backend == NativeBackend.Vulkan &&
+        if (exception.Status == NativeStatus.ErrOom && backend == NativeBackend.Gpu &&
             _backendPreference == BackendPreference.Auto)
         {
-            ReturnToVulkan(model, generation, item.AudioDuration);
+            ReturnToGpu(model, generation, item.AudioDuration);
         }
     }
 
@@ -654,13 +655,13 @@ internal sealed class TranscribeCppTranscriber : ITranscriber, IHostedService
     }
 
     /// <summary>
-    /// Queues the return to the Vulkan backend after a request ran out of memory there, once the request has been
+    /// Queues the return to the GPU backend after a request ran out of memory there, once the request has been
     /// handled. The return is queued only if the model is ready on the CPU backend for the load generation of the failed
     /// run, the application is not stopping, and both checks pass: the audio is longer than every request that
-    /// completed on Vulkan, and a request has completed on Vulkan since the last return. The status stays
+    /// completed on the GPU backend, and a request has completed there since the last return. The status stays
     /// <see cref="TranscriberStatus.Ready"/>, and the load generation stays the same.
     /// </summary>
-    private void ReturnToVulkan(SpeechModel model, long generation, TimeSpan audioDuration)
+    private void ReturnToGpu(SpeechModel model, long generation, TimeSpan audioDuration)
     {
         if (_stopping.IsCancellationRequested)
         {
@@ -677,25 +678,26 @@ internal sealed class TranscribeCppTranscriber : ITranscriber, IHostedService
             }
         }
 
-        if (audioDuration <= _longestVulkanRun)
+        if (audioDuration <= _longestGpuRun)
         {
             _logger.LogInformation(
-                "Staying on the CPU backend, the {AudioDuration} of audio that ran out of memory is not longer than the {LongestVulkanRun} that completed on Vulkan",
-                audioDuration, _longestVulkanRun);
+                "Staying on the CPU backend, the {AudioDuration} of audio that ran out of memory is not longer than the {LongestGpuRun} that completed on {Backend}",
+                audioDuration, _longestGpuRun, TranscribeCppEngineFactory.GpuBackendName);
             return;
         }
 
-        if (_returnedWithoutVulkanRun)
+        if (_returnedWithoutGpuRun)
         {
             _logger.LogInformation(
-                "Staying on the CPU backend, no transcription has completed on Vulkan since the last return");
+                "Staying on the CPU backend, no transcription has completed on {Backend} since the last return",
+                TranscribeCppEngineFactory.GpuBackendName);
             return;
         }
 
         _logger.LogWarning(
-            "Reloading model {ModelId} on the Vulkan backend after it ran out of memory on {AudioDuration} of audio",
-            model.Id, audioDuration);
-        _returnedWithoutVulkanRun = true;
+            "Reloading model {ModelId} on the {Backend} backend after it ran out of memory on {AudioDuration} of audio",
+            model.Id, TranscribeCppEngineFactory.GpuBackendName, audioDuration);
+        _returnedWithoutGpuRun = true;
         Enqueue(new LoadWorkItem(model, BackendPreference.Auto, generation, IsReturn: true));
     }
 
@@ -722,15 +724,16 @@ internal sealed class TranscribeCppTranscriber : ITranscriber, IHostedService
                 _logger.LogWarning("The output stopped at the model's output limit, returning the partial text");
             }
 
-            if (backend == NativeBackend.Vulkan)
+            if (backend == NativeBackend.Gpu)
             {
-                // Audio of this length fits on Vulkan. Truncated output counts too, because the whole clip was encoded.
-                if (item.AudioDuration > _longestVulkanRun)
+                // Audio of this length fits on the GPU backend. Truncated output counts too, because the whole clip was
+                // encoded.
+                if (item.AudioDuration > _longestGpuRun)
                 {
-                    _longestVulkanRun = item.AudioDuration;
+                    _longestGpuRun = item.AudioDuration;
                 }
 
-                _returnedWithoutVulkanRun = false;
+                _returnedWithoutGpuRun = false;
             }
 
             _logger.LogInformation(
@@ -760,8 +763,8 @@ internal sealed class TranscribeCppTranscriber : ITranscriber, IHostedService
     }
 
     /// <summary>
-    /// Handles a backend error of a run. With <see cref="BackendPreference.Auto"/> on Vulkan, reloads the model on the
-    /// CPU backend; otherwise releases the model and sets the status to <see cref="TranscriberStatus.Failed"/>.
+    /// Handles a backend error of a run. With <see cref="BackendPreference.Auto"/> on the GPU backend, reloads the model
+    /// on the CPU backend; otherwise releases the model and sets the status to <see cref="TranscriberStatus.Failed"/>.
     /// </summary>
     /// <returns>
     /// <see langword="true"/> if the model is <see cref="TranscriberStatus.Ready"/> on the CPU backend for the load
@@ -770,7 +773,7 @@ internal sealed class TranscribeCppTranscriber : ITranscriber, IHostedService
     private bool RecoverFromBackendFailure(SpeechModel model, NativeBackend failedBackend)
     {
         var generation = _engineGeneration;
-        if (_backendPreference == BackendPreference.Auto && failedBackend == NativeBackend.Vulkan)
+        if (_backendPreference == BackendPreference.Auto && failedBackend == NativeBackend.Gpu)
         {
             // Runs before the next work item, so requests queued behind the failed one run on the CPU backend.
             if (!TrySetStatus(generation, TranscriberStatus.Loading))
@@ -780,7 +783,8 @@ internal sealed class TranscribeCppTranscriber : ITranscriber, IHostedService
                 return false;
             }
 
-            _logger.LogWarning("Reloading model {ModelId} on the CPU backend after a Vulkan backend failure", model.Id);
+            _logger.LogWarning("Reloading model {ModelId} on the CPU backend after a {Backend} backend failure", model.Id,
+                TranscribeCppEngineFactory.GpuBackendName);
             DisposeEngine();
             return Load(model, BackendPreference.Cpu, generation);
         }
@@ -877,7 +881,7 @@ internal sealed class TranscribeCppTranscriber : ITranscriber, IHostedService
         public abstract void Cancel();
     }
 
-    // IsReturn marks the return to the Vulkan backend after an out-of-memory error, which keeps the status Ready, as
+    // IsReturn marks the return to the GPU backend after an out-of-memory error, which keeps the status Ready, as
     // opposed to a load that LoadAsync queued.
     private sealed record LoadWorkItem(
         SpeechModel Model,

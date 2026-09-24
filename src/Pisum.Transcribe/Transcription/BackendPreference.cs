@@ -6,14 +6,15 @@ namespace Pisum.Transcribe.Transcription;
 internal enum BackendPreference
 {
     /// <summary>
-    /// The Vulkan GPU backend when it is available and loads and warms up, otherwise the CPU backend.
+    /// The GPU backend, Vulkan on Windows and Metal on macOS, when it is available and loads and warms up, otherwise the
+    /// CPU backend.
     /// </summary>
     Auto,
 
     /// <summary>
-    /// Only the Vulkan GPU backend. A Vulkan failure fails the engine, with no CPU fallback.
+    /// Only the GPU backend. A GPU backend failure fails the engine, with no CPU fallback.
     /// </summary>
-    Vulkan,
+    Gpu,
 
     /// <summary>
     /// Only the CPU backend.

@@ -13,7 +13,7 @@ internal interface ITranscriber
     TranscriberStatus Status { get; }
 
     /// <summary>
-    /// The backend in use, <c>Vulkan</c> or <c>CPU</c>, while <see cref="Status"/> is
+    /// The backend in use, <c>Vulkan</c>, <c>Metal</c> or <c>CPU</c>, while <see cref="Status"/> is
     /// <see cref="TranscriberStatus.Ready"/>; otherwise <see langword="null"/>.
     /// </summary>
     string? ActiveBackend { get; }

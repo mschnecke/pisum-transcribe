@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.Logging;
 using Pisum.Transcribe.Hosting;
@@ -82,7 +83,14 @@ internal sealed class JsonSettingsStore : ISettingsStore
         try
         {
             using var stream = File.OpenRead(_settingsFile);
-            return JsonSerializer.Deserialize<AppSettings>(stream, SerializerOptions);
+            var root = JsonNode.Parse(stream);
+            if (Migrate(root, out var fromVersion))
+            {
+                _logger.LogInformation("The settings file of format {FromVersion} is read as format {ToVersion}",
+                    fromVersion, AppSettings.CurrentSchemaVersion);
+            }
+
+            return root.Deserialize<AppSettings>(SerializerOptions);
         }
         catch (JsonException exception)
         {
@@ -93,5 +101,40 @@ internal sealed class JsonSettingsStore : ISettingsStore
                 corruptFile);
             return null;
         }
+    }
+
+    // Brings a file of an older format to the current one before it is read, so a renamed value doesn't make it count
+    // as corrupt. Only the content in memory changes; the next save writes the file in the current format. A version
+    // that isn't a number is left alone, so the file still counts as corrupt.
+    private static bool Migrate(JsonNode? root, out int fromVersion)
+    {
+        fromVersion = 1;
+        if (root is not JsonObject settings)
+        {
+            return false;
+        }
+
+        if (settings.TryGetPropertyValue("schemaVersion", out var version)
+            && !(version is JsonValue value && value.TryGetValue(out fromVersion)))
+        {
+            return false;
+        }
+
+        if (fromVersion >= AppSettings.CurrentSchemaVersion)
+        {
+            return false;
+        }
+
+        // Format 2: the backend value "vulkan" became "gpu".
+        if (settings["transcription"] is JsonObject transcription
+            && transcription["backend"] is JsonValue backend
+            && backend.TryGetValue(out string? backendValue)
+            && backendValue == "vulkan")
+        {
+            transcription["backend"] = "gpu";
+        }
+
+        settings["schemaVersion"] = AppSettings.CurrentSchemaVersion;
+        return true;
     }
 }

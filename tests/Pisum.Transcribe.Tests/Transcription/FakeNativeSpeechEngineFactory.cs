@@ -15,7 +15,7 @@ internal sealed class FakeNativeSpeechEngineFactory : INativeSpeechEngineFactory
     private readonly List<FakeRun> _runs = [];
     private int _activeCalls;
 
-    public bool VulkanAvailable { get; set; } = true;
+    public bool GpuAvailable { get; set; } = true;
 
     public TimeSpan MaxAudio { get; set; } = TimeSpan.FromSeconds(400);
 
@@ -41,7 +41,7 @@ internal sealed class FakeNativeSpeechEngineFactory : INativeSpeechEngineFactory
     public bool Overlapped { get; private set; }
 
     /// <summary>
-    /// The calls in order, such as <c>Load Vulkan</c>, <c>WarmUp Vulkan</c>, <c>Run Vulkan</c> or <c>Dispose Vulkan</c>.
+    /// The calls in order, such as <c>Load Gpu</c>, <c>WarmUp Gpu</c>, <c>Run Gpu</c> or <c>Dispose Gpu</c>.
     /// </summary>
     public IReadOnlyList<string> Calls
     {
@@ -82,11 +82,11 @@ internal sealed class FakeNativeSpeechEngineFactory : INativeSpeechEngineFactory
         }
     }
 
-    public bool IsVulkanAvailable()
+    public bool IsGpuAvailable()
     {
-        Enter("IsVulkanAvailable");
+        Enter("IsGpuAvailable");
         Exit();
-        return VulkanAvailable;
+        return GpuAvailable;
     }
 
     public INativeSpeechEngine Load(string modelPath, NativeBackend backend)

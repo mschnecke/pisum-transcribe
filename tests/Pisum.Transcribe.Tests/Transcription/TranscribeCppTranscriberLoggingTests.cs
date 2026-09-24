@@ -8,6 +8,7 @@ namespace Pisum.Transcribe.Tests.Transcription;
 [Trait(Traits.Category, Traits.Categories.Unit)]
 public sealed class TranscribeCppTranscriberLoggingTests : IAsyncDisposable
 {
+    private const string Gpu = TranscribeCppEngineFactory.GpuBackendName;
     private const string Sentence = "The quarterly numbers stay confidential";
 
     private static readonly TimeSpan SignalTimeout = TimeSpan.FromSeconds(10);
@@ -91,7 +92,7 @@ public sealed class TranscribeCppTranscriberLoggingTests : IAsyncDisposable
     {
         // Arrange
         _engineFactory.OnRun = run =>
-            run is {IsWarmUp: false, Backend: NativeBackend.Vulkan}
+            run is {IsWarmUp: false, Backend: NativeBackend.Gpu}
             && run.Samples.Length is 300 * TranscribeCppTranscriber.SampleRate or 90 * TranscribeCppTranscriber.SampleRate
                 ? throw new NativeEngineException(NativeStatus.ErrOom)
                 : new NativeRunOutput(Sentence, false);
@@ -102,7 +103,7 @@ public sealed class TranscribeCppTranscriberLoggingTests : IAsyncDisposable
 
         // Act
         await _sut.TranscribeAsync(Audio(300), options, TestContext.Current.CancellationToken);
-        await WaitUntilAsync(() => _sut.ActiveBackend == "Vulkan");
+        await WaitUntilAsync(() => _sut.ActiveBackend == Gpu);
         await _sut.TranscribeAsync(Audio(90), options, TestContext.Current.CancellationToken);
 
         // Runs after the worker has decided to stay on the CPU backend.
@@ -114,10 +115,10 @@ public sealed class TranscribeCppTranscriberLoggingTests : IAsyncDisposable
                                                    && HasProperty(entry, "AudioDuration", TimeSpan.FromSeconds(300)));
         var staying = entries.FindIndex(entry => entry.Level == LogLevel.Information
                                                  && HasProperty(entry, "AudioDuration", TimeSpan.FromSeconds(90))
-                                                 && HasProperty(entry, "LongestVulkanRun",
+                                                 && HasProperty(entry, "LongestGpuRun",
                                                      TimeSpan.FromSeconds(120)));
         returning.ShouldBeGreaterThanOrEqualTo(0);
-        entries[returning].Message.ShouldContain("Vulkan");
+        entries[returning].Message.ShouldContain(Gpu);
         staying.ShouldBeGreaterThan(returning);
         entries[staying].Message.ShouldContain("CPU");
         foreach (var entry in entries)

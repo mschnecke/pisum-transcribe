@@ -37,7 +37,7 @@ public sealed class ModelSectionViewModelTests : IDisposable
                 }, TaskScheduler.Default);
             });
         A.CallTo(() => _transcriber.Status).Returns(TranscriberStatus.Ready);
-        A.CallTo(() => _transcriber.ActiveBackend).Returns("Vulkan");
+        A.CallTo(() => _transcriber.ActiveBackend).Returns(TranscribeCppEngineFactory.GpuBackendName);
     }
 
     public void Dispose()
@@ -56,7 +56,7 @@ public sealed class ModelSectionViewModelTests : IDisposable
         item.IsActive.ShouldBeTrue();
         item.IsSelected.ShouldBeTrue();
         sut.Items.Select(candidate => candidate.IsInstalled).ShouldBe([true, true, false]);
-        sut.EngineStatusText.ShouldBe("Ready on Vulkan");
+        sut.EngineStatusText.ShouldBe($"Ready on {TranscribeCppEngineFactory.GpuBackendName}");
     }
 
     [Fact]

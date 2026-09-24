@@ -6,12 +6,13 @@ namespace Pisum.Transcribe.Transcription;
 internal interface INativeSpeechEngineFactory
 {
     /// <summary>
-    /// Checks whether a Vulkan device is available. Initializes the native backends on first use.
+    /// Checks whether a device of the platform's GPU backend is available. Initializes the native backends on first
+    /// use.
     /// </summary>
-    /// <returns><see langword="true"/> if the Vulkan backend can be requested.</returns>
+    /// <returns><see langword="true"/> if the GPU backend can be requested.</returns>
     /// <exception cref="NativeEngineException">The backends could not be initialized.</exception>
     /// <exception cref="DllNotFoundException">The native library is missing.</exception>
-    bool IsVulkanAvailable();
+    bool IsGpuAvailable();
 
     /// <summary>
     /// Loads a model file on a backend and creates a session for it. Blocks until loading has finished.

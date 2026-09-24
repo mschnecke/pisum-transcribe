@@ -9,6 +9,8 @@ namespace Pisum.Transcribe.Tests.Transcription;
 [Trait(Traits.Category, Traits.Categories.Unit)]
 public sealed class TranscribeCppTranscriberTests : IAsyncDisposable
 {
+    private const string Gpu = TranscribeCppEngineFactory.GpuBackendName;
+
     private static readonly TimeSpan SignalTimeout = TimeSpan.FromSeconds(10);
     private static readonly TranscriptionOptions GermanToEnglish = new(TranscriptionTask.Translate, "de", "en");
 
@@ -57,9 +59,9 @@ public sealed class TranscribeCppTranscriberTests : IAsyncDisposable
         initialStatus.ShouldBe(TranscriberStatus.NotLoaded);
         StatusChanges().ShouldBe([TranscriberStatus.Loading, TranscriberStatus.Ready]);
         _sut.Status.ShouldBe(TranscriberStatus.Ready);
-        _sut.ActiveBackend.ShouldBe("Vulkan");
+        _sut.ActiveBackend.ShouldBe(Gpu);
         _sut.FailureMessage.ShouldBeNull();
-        _engineFactory.Calls.ShouldBe(["IsVulkanAvailable", "Load Vulkan", "WarmUp Vulkan"]);
+        _engineFactory.Calls.ShouldBe(["IsGpuAvailable", "Load Gpu", "WarmUp Gpu"]);
     }
 
     [Fact]
@@ -99,7 +101,7 @@ public sealed class TranscribeCppTranscriberTests : IAsyncDisposable
         _sut.Status.ShouldBe(TranscriberStatus.Ready);
         _sut.ActiveBackend.ShouldBe("CPU");
         _engineFactory.Calls.ShouldBe([
-            "IsVulkanAvailable", "Load Vulkan", "WarmUp Vulkan", "Dispose Vulkan", "Load Cpu", "WarmUp Cpu",
+            "IsGpuAvailable", "Load Gpu", "WarmUp Gpu", "Dispose Gpu", "Load Cpu", "WarmUp Cpu",
         ]);
     }
 
@@ -112,7 +114,7 @@ public sealed class TranscribeCppTranscriberTests : IAsyncDisposable
         var runStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         _engineFactory.OnRun = run =>
         {
-            if (run is {IsWarmUp: false, Backend: NativeBackend.Vulkan})
+            if (run is {IsWarmUp: false, Backend: NativeBackend.Gpu})
             {
                 runStarted.TrySetResult();
                 runGate.Wait(SignalTimeout);
@@ -134,9 +136,9 @@ public sealed class TranscribeCppTranscriberTests : IAsyncDisposable
         (await queued.WaitAsync(SignalTimeout, TestContext.Current.CancellationToken)).Text
             .ShouldBe(FakeNativeSpeechEngineFactory.DefaultText);
         await reload.WaitAsync(SignalTimeout, TestContext.Current.CancellationToken);
-        _engineFactory.Runs.Select(run => run.Backend).ShouldBe([NativeBackend.Vulkan, NativeBackend.Vulkan]);
+        _engineFactory.Runs.Select(run => run.Backend).ShouldBe([NativeBackend.Gpu, NativeBackend.Gpu]);
         _engineFactory.Calls.ShouldBe([
-            "IsVulkanAvailable", "Load Vulkan", "WarmUp Vulkan", "Run Vulkan", "Run Vulkan", "Dispose Vulkan",
+            "IsGpuAvailable", "Load Gpu", "WarmUp Gpu", "Run Gpu", "Run Gpu", "Dispose Gpu",
             "Load Cpu", "WarmUp Cpu",
         ]);
         _sut.ActiveBackend.ShouldBe("CPU");
@@ -179,7 +181,7 @@ public sealed class TranscribeCppTranscriberTests : IAsyncDisposable
         using var loadGate = new ManualResetEventSlim();
         _engineFactory.OnLoad = _ => loadGate.Wait(SignalTimeout);
         var firstLoad = _sut.LoadAsync(_model, BackendPreference.Auto, TestContext.Current.CancellationToken);
-        await WaitUntilAsync(() => _engineFactory.Calls.Contains("Load Vulkan"));
+        await WaitUntilAsync(() => _engineFactory.Calls.Contains("Load Gpu"));
 
         // Act
         var secondLoad = _sut.LoadAsync(_model, BackendPreference.Cpu, TestContext.Current.CancellationToken);
@@ -191,7 +193,7 @@ public sealed class TranscribeCppTranscriberTests : IAsyncDisposable
         StatusChanges().ShouldBe([TranscriberStatus.Loading, TranscriberStatus.Ready]);
         _sut.ActiveBackend.ShouldBe("CPU");
         _engineFactory.Calls.ShouldBe([
-            "IsVulkanAvailable", "Load Vulkan", "WarmUp Vulkan", "Dispose Vulkan", "Load Cpu", "WarmUp Cpu",
+            "IsGpuAvailable", "Load Gpu", "WarmUp Gpu", "Dispose Gpu", "Load Cpu", "WarmUp Cpu",
         ]);
         _engineFactory.Overlapped.ShouldBeFalse();
     }
@@ -206,7 +208,7 @@ public sealed class TranscribeCppTranscriberTests : IAsyncDisposable
         await WaitUntilAsync(() => _engineFactory.Calls.Contains("Load Cpu"));
 
         // Act
-        var replacedLoad = _sut.LoadAsync(_model, BackendPreference.Vulkan, TestContext.Current.CancellationToken);
+        var replacedLoad = _sut.LoadAsync(_model, BackendPreference.Gpu, TestContext.Current.CancellationToken);
         var newestLoad = _sut.LoadAsync(_model, BackendPreference.Cpu, TestContext.Current.CancellationToken);
         loadGate.Set();
 
@@ -225,13 +227,13 @@ public sealed class TranscribeCppTranscriberTests : IAsyncDisposable
         _engineFactory.OnLoad = backend =>
         {
             loadGate.Wait(SignalTimeout);
-            if (backend == NativeBackend.Vulkan)
+            if (backend == NativeBackend.Gpu)
             {
                 throw new NativeEngineException(NativeStatus.ErrBackend);
             }
         };
-        var failingLoad = _sut.LoadAsync(_model, BackendPreference.Vulkan, TestContext.Current.CancellationToken);
-        await WaitUntilAsync(() => _engineFactory.Calls.Contains("Load Vulkan"));
+        var failingLoad = _sut.LoadAsync(_model, BackendPreference.Gpu, TestContext.Current.CancellationToken);
+        await WaitUntilAsync(() => _engineFactory.Calls.Contains("Load Gpu"));
 
         // Act
         var newestLoad = _sut.LoadAsync(_model, BackendPreference.Cpu, TestContext.Current.CancellationToken);
@@ -245,7 +247,7 @@ public sealed class TranscribeCppTranscriberTests : IAsyncDisposable
     }
 
     [Fact]
-    public async Task TranscribeAsync_VulkanBackendErrorWhileReloadQueued_SkipsCpuFallbackAndLoadsNewest()
+    public async Task TranscribeAsync_GpuBackendErrorWhileReloadQueued_SkipsCpuFallbackAndLoadsNewest()
     {
         // Arrange
         await LoadAsync(BackendPreference.Auto);
@@ -253,7 +255,7 @@ public sealed class TranscribeCppTranscriberTests : IAsyncDisposable
         var runStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         _engineFactory.OnRun = run =>
         {
-            if (run is {IsWarmUp: false, Backend: NativeBackend.Vulkan})
+            if (run is {IsWarmUp: false, Backend: NativeBackend.Gpu})
             {
                 runStarted.TrySetResult();
                 runGate.Wait(SignalTimeout);
@@ -277,14 +279,14 @@ public sealed class TranscribeCppTranscriberTests : IAsyncDisposable
             TranscriberStatus.Loading, TranscriberStatus.Ready, TranscriberStatus.Loading, TranscriberStatus.Ready,
         ]);
         _engineFactory.Calls.ShouldBe([
-            "IsVulkanAvailable", "Load Vulkan", "WarmUp Vulkan", "Run Vulkan", "Dispose Vulkan", "Load Cpu",
+            "IsGpuAvailable", "Load Gpu", "WarmUp Gpu", "Run Gpu", "Dispose Gpu", "Load Cpu",
             "WarmUp Cpu",
         ]);
         _sut.ActiveBackend.ShouldBe("CPU");
     }
 
     [Fact]
-    public async Task TranscribeAsync_VulkanBackendErrorAndReloadRequestedDuringCpuFallback_IsRejectedAndLoadsNewest()
+    public async Task TranscribeAsync_GpuBackendErrorAndReloadRequestedDuringCpuFallback_IsRejectedAndLoadsNewest()
     {
         // Arrange
         await LoadAsync(BackendPreference.Auto);
@@ -296,7 +298,7 @@ public sealed class TranscribeCppTranscriberTests : IAsyncDisposable
                 loadGate.Wait(SignalTimeout);
             }
         };
-        _engineFactory.OnRun = run => run is {IsWarmUp: false, Backend: NativeBackend.Vulkan}
+        _engineFactory.OnRun = run => run is {IsWarmUp: false, Backend: NativeBackend.Gpu}
             ? throw new NativeEngineException(NativeStatus.ErrBackend)
             : new NativeRunOutput(FakeNativeSpeechEngineFactory.DefaultText, false);
         var failing = _sut.TranscribeAsync(Audio(1, 0.1f), GermanToEnglish, TestContext.Current.CancellationToken);
@@ -316,7 +318,7 @@ public sealed class TranscribeCppTranscriberTests : IAsyncDisposable
         ]);
         _sut.ActiveBackend.ShouldBe("CPU");
         _engineFactory.Calls.ShouldBe([
-            "IsVulkanAvailable", "Load Vulkan", "WarmUp Vulkan", "Run Vulkan", "Dispose Vulkan", "Load Cpu",
+            "IsGpuAvailable", "Load Gpu", "WarmUp Gpu", "Run Gpu", "Dispose Gpu", "Load Cpu",
             "WarmUp Cpu", "Dispose Cpu", "Load Cpu", "WarmUp Cpu",
         ]);
     }
@@ -563,7 +565,7 @@ public sealed class TranscribeCppTranscriberTests : IAsyncDisposable
             transcription.WaitAsync(SignalTimeout, TestContext.Current.CancellationToken));
         await runAborted.Task.WaitAsync(SignalTimeout, TestContext.Current.CancellationToken);
         _sut.Status.ShouldBe(TranscriberStatus.Ready);
-        _sut.ActiveBackend.ShouldBe("Vulkan");
+        _sut.ActiveBackend.ShouldBe(Gpu);
         StatusChanges().ShouldBe([TranscriberStatus.Loading, TranscriberStatus.Ready]);
     }
 
@@ -613,12 +615,12 @@ public sealed class TranscribeCppTranscriberTests : IAsyncDisposable
     }
 
     [Fact]
-    public async Task LoadAsync_AutoAndVulkanLoadFails_IsReadyOnCpu()
+    public async Task LoadAsync_AutoAndGpuLoadFails_IsReadyOnCpu()
     {
         // Arrange
         _engineFactory.OnLoad = backend =>
         {
-            if (backend == NativeBackend.Vulkan)
+            if (backend == NativeBackend.Gpu)
             {
                 throw new NativeEngineException(NativeStatus.ErrBackend);
             }
@@ -630,14 +632,14 @@ public sealed class TranscribeCppTranscriberTests : IAsyncDisposable
         // Assert
         _sut.Status.ShouldBe(TranscriberStatus.Ready);
         _sut.ActiveBackend.ShouldBe("CPU");
-        _engineFactory.Calls.ShouldBe(["IsVulkanAvailable", "Load Vulkan", "Load Cpu", "WarmUp Cpu"]);
+        _engineFactory.Calls.ShouldBe(["IsGpuAvailable", "Load Gpu", "Load Cpu", "WarmUp Cpu"]);
     }
 
     [Fact]
-    public async Task LoadAsync_AutoAndVulkanWarmUpFails_DisposesVulkanAndIsReadyOnCpu()
+    public async Task LoadAsync_AutoAndGpuWarmUpFails_DisposesGpuAndIsReadyOnCpu()
     {
         // Arrange
-        _engineFactory.OnRun = run => run.Backend == NativeBackend.Vulkan
+        _engineFactory.OnRun = run => run.Backend == NativeBackend.Gpu
             ? throw new NativeEngineException(NativeStatus.ErrBackend)
             : new NativeRunOutput(string.Empty, false);
 
@@ -648,42 +650,42 @@ public sealed class TranscribeCppTranscriberTests : IAsyncDisposable
         _sut.Status.ShouldBe(TranscriberStatus.Ready);
         _sut.ActiveBackend.ShouldBe("CPU");
         _engineFactory.Calls.ShouldBe([
-            "IsVulkanAvailable", "Load Vulkan", "WarmUp Vulkan", "Dispose Vulkan", "Load Cpu", "WarmUp Cpu",
+            "IsGpuAvailable", "Load Gpu", "WarmUp Gpu", "Dispose Gpu", "Load Cpu", "WarmUp Cpu",
         ]);
     }
 
     [Fact]
-    public async Task LoadAsync_AutoAndVulkanUnavailable_IsReadyOnCpu()
+    public async Task LoadAsync_AutoAndGpuUnavailable_IsReadyOnCpu()
     {
         // Arrange
-        _engineFactory.VulkanAvailable = false;
+        _engineFactory.GpuAvailable = false;
 
         // Act
         await LoadAsync(BackendPreference.Auto);
 
         // Assert
         _sut.ActiveBackend.ShouldBe("CPU");
-        _engineFactory.Calls.ShouldBe(["IsVulkanAvailable", "Load Cpu", "WarmUp Cpu"]);
+        _engineFactory.Calls.ShouldBe(["IsGpuAvailable", "Load Cpu", "WarmUp Cpu"]);
     }
 
     [Fact]
-    public async Task LoadAsync_ForcedVulkanFails_IsFailedWithoutCpuAttempt()
+    public async Task LoadAsync_ForcedGpuFails_IsFailedWithoutCpuAttempt()
     {
         // Arrange
         _engineFactory.OnLoad = _ => throw new NativeEngineException(NativeStatus.ErrBackend);
 
         // Act
-        await LoadAsync(BackendPreference.Vulkan);
+        await LoadAsync(BackendPreference.Gpu);
 
         // Assert
         _sut.Status.ShouldBe(TranscriberStatus.Failed);
         _sut.ActiveBackend.ShouldBeNull();
         _sut.FailureMessage.ShouldBe(TranscribeCppTranscriber.LoadFailedMessage);
-        _engineFactory.Calls.ShouldBe(["Load Vulkan"]);
+        _engineFactory.Calls.ShouldBe(["Load Gpu"]);
     }
 
     [Fact]
-    public async Task LoadAsync_ForcedCpu_NeverTouchesVulkan()
+    public async Task LoadAsync_ForcedCpu_NeverTouchesGpu()
     {
         // Act
         await LoadAsync(BackendPreference.Cpu);
@@ -694,7 +696,7 @@ public sealed class TranscribeCppTranscriberTests : IAsyncDisposable
     }
 
     [Fact]
-    public async Task LoadAsync_AutoAndInvalidModelOnVulkan_IsFailedWithoutCpuAttempt()
+    public async Task LoadAsync_AutoAndInvalidModelOnGpu_IsFailedWithoutCpuAttempt()
     {
         // Arrange
         _engineFactory.OnLoad = _ => throw new NativeEngineException(NativeStatus.ErrGguf);
@@ -704,11 +706,11 @@ public sealed class TranscribeCppTranscriberTests : IAsyncDisposable
 
         // Assert
         _sut.Status.ShouldBe(TranscriberStatus.Failed);
-        _engineFactory.Calls.ShouldBe(["IsVulkanAvailable", "Load Vulkan"]);
+        _engineFactory.Calls.ShouldBe(["IsGpuAvailable", "Load Gpu"]);
     }
 
     [Fact]
-    public async Task LoadAsync_WarmUpOutputTruncated_IsReadyOnVulkan()
+    public async Task LoadAsync_WarmUpOutputTruncated_IsReadyOnGpu()
     {
         // Arrange
         _engineFactory.OnRun = _ => new NativeRunOutput("partial", true);
@@ -718,26 +720,26 @@ public sealed class TranscribeCppTranscriberTests : IAsyncDisposable
 
         // Assert
         _sut.Status.ShouldBe(TranscriberStatus.Ready);
-        _sut.ActiveBackend.ShouldBe("Vulkan");
-        _engineFactory.Calls.ShouldBe(["IsVulkanAvailable", "Load Vulkan", "WarmUp Vulkan"]);
+        _sut.ActiveBackend.ShouldBe(Gpu);
+        _engineFactory.Calls.ShouldBe(["IsGpuAvailable", "Load Gpu", "WarmUp Gpu"]);
     }
 
     [Fact]
-    public async Task LoadAsync_OnVulkan_WarmsUpOnTenSecondsOfFixedLowLevelNoise()
+    public async Task LoadAsync_OnGpu_WarmsUpOnTenSecondsOfFixedLowLevelNoise()
     {
         // Act
-        await LoadAsync(BackendPreference.Vulkan);
+        await LoadAsync(BackendPreference.Gpu);
 
         // Assert
         var warmUp = _engineFactory.AllRuns.ShouldHaveSingleItem();
-        warmUp.Backend.ShouldBe(NativeBackend.Vulkan);
+        warmUp.Backend.ShouldBe(NativeBackend.Gpu);
         warmUp.Task.ShouldBe(TranscriptionTask.Transcribe);
         warmUp.SourceLanguage.ShouldBe("en");
         warmUp.Samples.Length.ShouldBe(10 * TranscribeCppTranscriber.SampleRate);
         warmUp.Samples.ShouldAllBe(sample => sample >= -0.1f && sample <= 0.1f);
         warmUp.Samples.Max().ShouldBeGreaterThan(0.09f);
         warmUp.Samples.Min().ShouldBeLessThan(-0.09f);
-        warmUp.Samples.ShouldBe(TranscribeCppTranscriber.CreateWarmUpSamples(NativeBackend.Vulkan));
+        warmUp.Samples.ShouldBe(TranscribeCppTranscriber.CreateWarmUpSamples(NativeBackend.Gpu));
     }
 
     [Fact]
@@ -756,11 +758,11 @@ public sealed class TranscribeCppTranscriberTests : IAsyncDisposable
     }
 
     [Fact]
-    public async Task TranscribeAsync_AutoOnVulkanBackendError_ReloadOnCpuWarmsUpOnOneSecondOfSilence()
+    public async Task TranscribeAsync_AutoOnGpuBackendError_ReloadOnCpuWarmsUpOnOneSecondOfSilence()
     {
         // Arrange
         await LoadAsync(BackendPreference.Auto);
-        _engineFactory.OnRun = run => run.Backend == NativeBackend.Vulkan
+        _engineFactory.OnRun = run => run.Backend == NativeBackend.Gpu
             ? throw new NativeEngineException(NativeStatus.ErrBackend)
             : new NativeRunOutput(string.Empty, false);
 
@@ -774,8 +776,8 @@ public sealed class TranscribeCppTranscriberTests : IAsyncDisposable
         _sut.ActiveBackend.ShouldBe("CPU");
         var runs = _engineFactory.AllRuns;
         runs.Select(run => (run.Backend, run.Samples.Length)).ShouldBe([
-            (NativeBackend.Vulkan, 10 * TranscribeCppTranscriber.SampleRate),
-            (NativeBackend.Vulkan, TranscribeCppTranscriber.SampleRate),
+            (NativeBackend.Gpu, 10 * TranscribeCppTranscriber.SampleRate),
+            (NativeBackend.Gpu, TranscribeCppTranscriber.SampleRate),
             (NativeBackend.Cpu, TranscribeCppTranscriber.SampleRate),
             (NativeBackend.Cpu, TranscribeCppTranscriber.SampleRate),
         ]);
@@ -826,7 +828,7 @@ public sealed class TranscribeCppTranscriberTests : IAsyncDisposable
         _engineFactory.OnLoad = _ => throw new NativeEngineException(NativeStatus.ErrBackend);
 
         // Act
-        await _sut.LoadAsync(model, BackendPreference.Vulkan, TestContext.Current.CancellationToken)
+        await _sut.LoadAsync(model, BackendPreference.Gpu, TestContext.Current.CancellationToken)
             .WaitAsync(SignalTimeout, TestContext.Current.CancellationToken);
 
         // Assert
@@ -860,7 +862,7 @@ public sealed class TranscribeCppTranscriberTests : IAsyncDisposable
         await Should.ThrowAsync<OperationCanceledException>(running);
         await Should.ThrowAsync<OperationCanceledException>(queued);
         _engineFactory.Runs.ShouldHaveSingleItem();
-        _engineFactory.Calls[^1].ShouldBe("Dispose Vulkan");
+        _engineFactory.Calls[^1].ShouldBe("Dispose Gpu");
     }
 
     [Fact]
@@ -888,16 +890,16 @@ public sealed class TranscribeCppTranscriberTests : IAsyncDisposable
         var callsWhileBlocked = _engineFactory.Calls;
         runGate.Set();
         await running.WaitAsync(SignalTimeout, TestContext.Current.CancellationToken);
-        await WaitUntilAsync(() => _engineFactory.Calls.Contains("Dispose Vulkan"));
+        await WaitUntilAsync(() => _engineFactory.Calls.Contains("Dispose Gpu"));
 
         elapsed.ShouldBeGreaterThanOrEqualTo(TimeSpan.FromSeconds(2.9));
         elapsed.ShouldBeLessThan(TimeSpan.FromSeconds(3.5));
-        callsWhileBlocked.ShouldNotContain("Dispose Vulkan");
+        callsWhileBlocked.ShouldNotContain("Dispose Gpu");
         _engineFactory.Overlapped.ShouldBeFalse();
     }
 
     [Fact]
-    public async Task TranscribeAsync_AutoOnVulkanBackendError_RetriesOnCpuBeforeQueuedRequest()
+    public async Task TranscribeAsync_AutoOnGpuBackendError_RetriesOnCpuBeforeQueuedRequest()
     {
         // Arrange
         await LoadAsync(BackendPreference.Auto);
@@ -906,7 +908,7 @@ public sealed class TranscribeCppTranscriberTests : IAsyncDisposable
         var firstRunStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         _engineFactory.OnRun = run =>
         {
-            if (run is {IsWarmUp: false, Backend: NativeBackend.Vulkan})
+            if (run is {IsWarmUp: false, Backend: NativeBackend.Gpu})
             {
                 firstRunStarted.TrySetResult();
                 firstRunGate.Wait(SignalTimeout);
@@ -948,23 +950,23 @@ public sealed class TranscribeCppTranscriberTests : IAsyncDisposable
         _sut.ActiveBackend.ShouldBe("CPU");
         var runs = _engineFactory.Runs;
         runs.Select(run => (run.Backend, run.Samples.Length)).ShouldBe([
-            (NativeBackend.Vulkan, 16_000), (NativeBackend.Cpu, 16_000), (NativeBackend.Cpu, 32_000),
+            (NativeBackend.Gpu, 16_000), (NativeBackend.Cpu, 16_000), (NativeBackend.Cpu, 32_000),
         ]);
         runs[1].Samples.ShouldBeSameAs(runs[0].Samples);
         (runs[1].Task, runs[1].SourceLanguage, runs[1].TargetLanguage)
             .ShouldBe((runs[0].Task, runs[0].SourceLanguage, runs[0].TargetLanguage));
         _engineFactory.Calls.ShouldBe([
-            "IsVulkanAvailable", "Load Vulkan", "WarmUp Vulkan", "Run Vulkan", "Dispose Vulkan", "Load Cpu",
+            "IsGpuAvailable", "Load Gpu", "WarmUp Gpu", "Run Gpu", "Dispose Gpu", "Load Cpu",
             "WarmUp Cpu", "Run Cpu", "Run Cpu",
         ]);
     }
 
     [Fact]
-    public async Task TranscribeAsync_AutoOnVulkanBackendErrorOnLongestClip_RetriesOnCpuAndReturnsText()
+    public async Task TranscribeAsync_AutoOnGpuBackendErrorOnLongestClip_RetriesOnCpuAndReturnsText()
     {
         // Arrange
         await LoadAsync(BackendPreference.Auto);
-        _engineFactory.OnRun = run => run is {IsWarmUp: false, Backend: NativeBackend.Vulkan}
+        _engineFactory.OnRun = run => run is {IsWarmUp: false, Backend: NativeBackend.Gpu}
             ? throw new NativeEngineException(NativeStatus.ErrBackend)
             : new NativeRunOutput(FakeNativeSpeechEngineFactory.DefaultText, false);
 
@@ -977,13 +979,13 @@ public sealed class TranscribeCppTranscriberTests : IAsyncDisposable
         result.Text.ShouldBe(FakeNativeSpeechEngineFactory.DefaultText);
         result.AudioDuration.ShouldBe(TimeSpan.FromSeconds(399));
         _engineFactory.Runs.Select(run => (run.Backend, run.Samples.Length)).ShouldBe([
-            (NativeBackend.Vulkan, 399 * TranscribeCppTranscriber.SampleRate),
+            (NativeBackend.Gpu, 399 * TranscribeCppTranscriber.SampleRate),
             (NativeBackend.Cpu, 399 * TranscribeCppTranscriber.SampleRate),
         ]);
     }
 
     [Fact]
-    public async Task TranscribeAsync_AutoOnVulkanBackendErrorAndCpuRetryBackendError_IsFailedWithoutSecondRetry()
+    public async Task TranscribeAsync_AutoOnGpuBackendErrorAndCpuRetryBackendError_IsFailedWithoutSecondRetry()
     {
         // Arrange
         await LoadAsync(BackendPreference.Auto);
@@ -1002,20 +1004,20 @@ public sealed class TranscribeCppTranscriberTests : IAsyncDisposable
         _sut.Status.ShouldBe(TranscriberStatus.Failed);
         _sut.FailureMessage.ShouldBe(TranscribeCppTranscriber.BackendFailedMessage);
         _engineFactory.Calls.ShouldBe([
-            "IsVulkanAvailable", "Load Vulkan", "WarmUp Vulkan", "Run Vulkan", "Dispose Vulkan", "Load Cpu",
+            "IsGpuAvailable", "Load Gpu", "WarmUp Gpu", "Run Gpu", "Dispose Gpu", "Load Cpu",
             "WarmUp Cpu", "Run Cpu", "Dispose Cpu",
         ]);
     }
 
     [Fact]
-    public async Task TranscribeAsync_AutoOnVulkanBackendErrorAndCpuRetryOtherError_IsRejectedAndStaysReadyOnCpu()
+    public async Task TranscribeAsync_AutoOnGpuBackendErrorAndCpuRetryOtherError_IsRejectedAndStaysReadyOnCpu()
     {
         // Arrange
         await LoadAsync(BackendPreference.Auto);
         _engineFactory.OnRun = run => run switch
         {
             {IsWarmUp: true} => new NativeRunOutput(string.Empty, false),
-            {Backend: NativeBackend.Vulkan} => throw new NativeEngineException(NativeStatus.ErrBackend),
+            {Backend: NativeBackend.Gpu} => throw new NativeEngineException(NativeStatus.ErrBackend),
             _ => throw new NativeEngineException(NativeStatus.ErrInvalidArg),
         };
 
@@ -1034,11 +1036,11 @@ public sealed class TranscribeCppTranscriberTests : IAsyncDisposable
     }
 
     [Fact]
-    public async Task TranscribeAsync_AutoOnVulkanBackendErrorAndCpuLoadFails_IsRejectedWithVulkanStatus()
+    public async Task TranscribeAsync_AutoOnGpuBackendErrorAndCpuLoadFails_IsRejectedWithGpuStatus()
     {
         // Arrange
         await LoadAsync(BackendPreference.Auto);
-        _engineFactory.OnRun = run => run is {IsWarmUp: false, Backend: NativeBackend.Vulkan}
+        _engineFactory.OnRun = run => run is {IsWarmUp: false, Backend: NativeBackend.Gpu}
             ? throw new NativeEngineException(NativeStatus.ErrBackend)
             : new NativeRunOutput(FakeNativeSpeechEngineFactory.DefaultText, false);
         _engineFactory.OnLoad = backend =>
@@ -1060,14 +1062,14 @@ public sealed class TranscribeCppTranscriberTests : IAsyncDisposable
         _sut.Status.ShouldBe(TranscriberStatus.Failed);
         _sut.FailureMessage.ShouldBe(TranscribeCppTranscriber.LoadFailedMessage);
         _engineFactory.Calls.ShouldBe([
-            "IsVulkanAvailable", "Load Vulkan", "WarmUp Vulkan", "Run Vulkan", "Dispose Vulkan", "Load Cpu",
+            "IsGpuAvailable", "Load Gpu", "WarmUp Gpu", "Run Gpu", "Dispose Gpu", "Load Cpu",
         ]);
     }
 
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
-    public async Task StopAsync_DuringCpuReloadAfterVulkanBackendError_CancelsRequestWithoutRetry(
+    public async Task StopAsync_DuringCpuReloadAfterGpuBackendError_CancelsRequestWithoutRetry(
         bool warmUpObservesCancellation)
     {
         // Arrange
@@ -1082,7 +1084,7 @@ public sealed class TranscribeCppTranscriberTests : IAsyncDisposable
         };
         _engineFactory.OnRun = run =>
         {
-            if (run is {IsWarmUp: false, Backend: NativeBackend.Vulkan})
+            if (run is {IsWarmUp: false, Backend: NativeBackend.Gpu})
             {
                 throw new NativeEngineException(NativeStatus.ErrBackend);
             }
@@ -1113,7 +1115,7 @@ public sealed class TranscribeCppTranscriberTests : IAsyncDisposable
     }
 
     [Fact]
-    public async Task TranscribeAsync_CallerCancelsDuringCpuReloadAfterVulkanBackendError_EndsCancelledWithoutRetry()
+    public async Task TranscribeAsync_CallerCancelsDuringCpuReloadAfterGpuBackendError_EndsCancelledWithoutRetry()
     {
         // Arrange
         await LoadAsync(BackendPreference.Auto);
@@ -1125,7 +1127,7 @@ public sealed class TranscribeCppTranscriberTests : IAsyncDisposable
                 loadGate.Wait(SignalTimeout);
             }
         };
-        _engineFactory.OnRun = run => run is {IsWarmUp: false, Backend: NativeBackend.Vulkan}
+        _engineFactory.OnRun = run => run is {IsWarmUp: false, Backend: NativeBackend.Gpu}
             ? throw new NativeEngineException(NativeStatus.ErrBackend)
             : new NativeRunOutput(FakeNativeSpeechEngineFactory.DefaultText, false);
         using var callerCancellation = new CancellationTokenSource();
@@ -1153,16 +1155,16 @@ public sealed class TranscribeCppTranscriberTests : IAsyncDisposable
         await _sut.TranscribeAsync(Audio(2, 0.1f), GermanToEnglish, TestContext.Current.CancellationToken)
             .WaitAsync(SignalTimeout, TestContext.Current.CancellationToken);
         _engineFactory.Runs.Select(run => (run.Backend, run.Samples.Length)).ShouldBe([
-            (NativeBackend.Vulkan, 16_000), (NativeBackend.Cpu, 32_000),
+            (NativeBackend.Gpu, 16_000), (NativeBackend.Cpu, 32_000),
         ]);
     }
 
     [Fact]
-    public async Task TranscribeAsync_AutoOnVulkanBackendErrorAndDisposeFails_ReloadsOnCpuAndRunsNextRequest()
+    public async Task TranscribeAsync_AutoOnGpuBackendErrorAndDisposeFails_ReloadsOnCpuAndRunsNextRequest()
     {
         // Arrange
         await LoadAsync(BackendPreference.Auto);
-        _engineFactory.OnRun = run => run is {IsWarmUp: false, Backend: NativeBackend.Vulkan}
+        _engineFactory.OnRun = run => run is {IsWarmUp: false, Backend: NativeBackend.Gpu}
             ? throw new NativeEngineException(NativeStatus.ErrBackend)
             : new NativeRunOutput(FakeNativeSpeechEngineFactory.DefaultText, false);
         _engineFactory.OnDispose = _ => throw new InvalidOperationException("Releasing the model failed.");
@@ -1178,16 +1180,16 @@ public sealed class TranscribeCppTranscriberTests : IAsyncDisposable
                 .WaitAsync(SignalTimeout, TestContext.Current.CancellationToken)).Text
             .ShouldBe(FakeNativeSpeechEngineFactory.DefaultText);
         _engineFactory.Calls.ShouldBe([
-            "IsVulkanAvailable", "Load Vulkan", "WarmUp Vulkan", "Run Vulkan", "Dispose Vulkan", "Load Cpu",
+            "IsGpuAvailable", "Load Gpu", "WarmUp Gpu", "Run Gpu", "Dispose Gpu", "Load Cpu",
             "WarmUp Cpu", "Run Cpu", "Run Cpu",
         ]);
     }
 
     [Fact]
-    public async Task TranscribeAsync_ForcedVulkanBackendError_IsFailedAndDisposesModel()
+    public async Task TranscribeAsync_ForcedGpuBackendError_IsFailedAndDisposesModel()
     {
         // Arrange
-        await LoadAsync(BackendPreference.Vulkan);
+        await LoadAsync(BackendPreference.Gpu);
         _engineFactory.OnRun = _ => throw new NativeEngineException(NativeStatus.ErrBackend);
 
         // Act
@@ -1198,14 +1200,14 @@ public sealed class TranscribeCppTranscriberTests : IAsyncDisposable
         await Should.ThrowAsync<TranscriptionFailedException>(transcription);
         await WaitUntilAsync(() => _sut.Status == TranscriberStatus.Failed);
         _sut.FailureMessage.ShouldBe(TranscribeCppTranscriber.BackendFailedMessage);
-        _engineFactory.Calls.ShouldBe(["Load Vulkan", "WarmUp Vulkan", "Run Vulkan", "Dispose Vulkan"]);
+        _engineFactory.Calls.ShouldBe(["Load Gpu", "WarmUp Gpu", "Run Gpu", "Dispose Gpu"]);
     }
 
     [Fact]
     public async Task TranscribeAsync_BackendErrorOnCpu_IsFailedAndDisposesModel()
     {
         // Arrange
-        _engineFactory.VulkanAvailable = false;
+        _engineFactory.GpuAvailable = false;
         await LoadAsync(BackendPreference.Auto);
         _engineFactory.OnRun = _ => throw new NativeEngineException(NativeStatus.ErrOom);
 
@@ -1217,7 +1219,7 @@ public sealed class TranscribeCppTranscriberTests : IAsyncDisposable
         var exception = await Should.ThrowAsync<TranscriptionFailedException>(transcription);
         exception.StatusCode.ShouldBe(NativeStatus.ErrOom);
         await WaitUntilAsync(() => _sut.Status == TranscriberStatus.Failed);
-        _engineFactory.Calls.ShouldBe(["IsVulkanAvailable", "Load Cpu", "WarmUp Cpu", "Run Cpu", "Dispose Cpu"]);
+        _engineFactory.Calls.ShouldBe(["IsGpuAvailable", "Load Cpu", "WarmUp Cpu", "Run Cpu", "Dispose Cpu"]);
     }
 
     [Fact]
@@ -1259,15 +1261,15 @@ public sealed class TranscribeCppTranscriberTests : IAsyncDisposable
     }
 
     [Fact]
-    public async Task TranscribeAsync_AutoOnVulkanOutOfMemoryOnLongClip_RetriesOnCpuThenReturnsToVulkan()
+    public async Task TranscribeAsync_AutoOnGpuOutOfMemoryOnLongClip_RetriesOnCpuThenReturnsToGpu()
     {
         // Arrange
         await LoadAsync(BackendPreference.Auto);
-        _engineFactory.OnRun = FailOnVulkan(NativeStatus.ErrOom, 300);
+        _engineFactory.OnRun = FailOnGpu(NativeStatus.ErrOom, 300);
 
         // Act
         var result = await TranscribeAsync(300);
-        await WaitUntilAsync(() => _sut.ActiveBackend == "Vulkan");
+        await WaitUntilAsync(() => _sut.ActiveBackend == Gpu);
         await TranscribeAsync(10);
 
         // Assert
@@ -1276,18 +1278,18 @@ public sealed class TranscribeCppTranscriberTests : IAsyncDisposable
             TranscriberStatus.Loading, TranscriberStatus.Ready, TranscriberStatus.Loading, TranscriberStatus.Ready,
             TranscriberStatus.Ready,
         ]);
-        ReadyBackends().ShouldBe(["Vulkan", "CPU", "Vulkan"]);
+        ReadyBackends().ShouldBe([Gpu, "CPU", Gpu]);
         _engineFactory.Calls.ShouldBe([
-            "IsVulkanAvailable", "Load Vulkan", "WarmUp Vulkan", "Run Vulkan", "Dispose Vulkan", "Load Cpu",
-            "WarmUp Cpu", "Run Cpu", "Dispose Cpu", "IsVulkanAvailable", "Load Vulkan", "WarmUp Vulkan", "Run Vulkan",
+            "IsGpuAvailable", "Load Gpu", "WarmUp Gpu", "Run Gpu", "Dispose Gpu", "Load Cpu",
+            "WarmUp Cpu", "Run Cpu", "Dispose Cpu", "IsGpuAvailable", "Load Gpu", "WarmUp Gpu", "Run Gpu",
         ]);
         _engineFactory.Runs.Select(run => (run.Backend, Seconds(run))).ShouldBe([
-            (NativeBackend.Vulkan, 300), (NativeBackend.Cpu, 300), (NativeBackend.Vulkan, 10),
+            (NativeBackend.Gpu, 300), (NativeBackend.Cpu, 300), (NativeBackend.Gpu, 10),
         ]);
     }
 
     [Fact]
-    public async Task TranscribeAsync_AutoOnVulkanOutOfMemory_QueuedRequestRunsOnCpuBeforeReturn()
+    public async Task TranscribeAsync_AutoOnGpuOutOfMemory_QueuedRequestRunsOnCpuBeforeReturn()
     {
         // Arrange
         await LoadAsync(BackendPreference.Auto);
@@ -1295,7 +1297,7 @@ public sealed class TranscribeCppTranscriberTests : IAsyncDisposable
         var failingRunStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         _engineFactory.OnRun = run =>
         {
-            if (run is {IsWarmUp: false, Backend: NativeBackend.Vulkan} && Seconds(run) == 300)
+            if (run is {IsWarmUp: false, Backend: NativeBackend.Gpu} && Seconds(run) == 300)
             {
                 failingRunStarted.TrySetResult();
                 failingRunGate.Wait(SignalTimeout);
@@ -1314,18 +1316,18 @@ public sealed class TranscribeCppTranscriberTests : IAsyncDisposable
         // Assert
         await failing;
         (await queued).Text.ShouldBe(FakeNativeSpeechEngineFactory.DefaultText);
-        await WaitUntilAsync(() => _sut.ActiveBackend == "Vulkan");
+        await WaitUntilAsync(() => _sut.ActiveBackend == Gpu);
         _engineFactory.Runs.Select(run => (run.Backend, Seconds(run))).ShouldBe([
-            (NativeBackend.Vulkan, 300), (NativeBackend.Cpu, 300), (NativeBackend.Cpu, 20),
+            (NativeBackend.Gpu, 300), (NativeBackend.Cpu, 300), (NativeBackend.Cpu, 20),
         ]);
         _engineFactory.Calls.ShouldBe([
-            "IsVulkanAvailable", "Load Vulkan", "WarmUp Vulkan", "Run Vulkan", "Dispose Vulkan", "Load Cpu",
-            "WarmUp Cpu", "Run Cpu", "Run Cpu", "Dispose Cpu", "IsVulkanAvailable", "Load Vulkan", "WarmUp Vulkan",
+            "IsGpuAvailable", "Load Gpu", "WarmUp Gpu", "Run Gpu", "Dispose Gpu", "Load Cpu",
+            "WarmUp Cpu", "Run Cpu", "Run Cpu", "Dispose Cpu", "IsGpuAvailable", "Load Gpu", "WarmUp Gpu",
         ]);
     }
 
     [Fact]
-    public async Task TranscribeAsync_DuringReturnToVulkan_IsAcceptedAndRunsOnVulkan()
+    public async Task TranscribeAsync_DuringReturnToGpu_IsAcceptedAndRunsOnGpu()
     {
         // Arrange
         await LoadAsync(BackendPreference.Auto);
@@ -1333,13 +1335,13 @@ public sealed class TranscribeCppTranscriberTests : IAsyncDisposable
         var returnStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         _engineFactory.OnLoad = backend =>
         {
-            if (backend == NativeBackend.Vulkan)
+            if (backend == NativeBackend.Gpu)
             {
                 returnStarted.TrySetResult();
                 returnGate.Wait(SignalTimeout);
             }
         };
-        _engineFactory.OnRun = FailOnVulkan(NativeStatus.ErrOom, 300);
+        _engineFactory.OnRun = FailOnGpu(NativeStatus.ErrOom, 300);
         await TranscribeAsync(300);
         await returnStarted.Task.WaitAsync(SignalTimeout, TestContext.Current.CancellationToken);
         Task<TranscriptionResult> waiting;
@@ -1360,8 +1362,8 @@ public sealed class TranscribeCppTranscriberTests : IAsyncDisposable
         }
 
         (await waiting).Text.ShouldBe(FakeNativeSpeechEngineFactory.DefaultText);
-        _engineFactory.Runs[^1].Backend.ShouldBe(NativeBackend.Vulkan);
-        _sut.ActiveBackend.ShouldBe("Vulkan");
+        _engineFactory.Runs[^1].Backend.ShouldBe(NativeBackend.Gpu);
+        _sut.ActiveBackend.ShouldBe(Gpu);
         StatusChanges().ShouldBe([
             TranscriberStatus.Loading, TranscriberStatus.Ready, TranscriberStatus.Loading, TranscriberStatus.Ready,
             TranscriberStatus.Ready,
@@ -1369,7 +1371,7 @@ public sealed class TranscribeCppTranscriberTests : IAsyncDisposable
     }
 
     [Fact]
-    public async Task TranscribeAsync_VulkanFailsDuringReturn_WaitingRequestRunsOnCpu()
+    public async Task TranscribeAsync_GpuFailsDuringReturn_WaitingRequestRunsOnCpu()
     {
         // Arrange
         await LoadAsync(BackendPreference.Auto);
@@ -1377,7 +1379,7 @@ public sealed class TranscribeCppTranscriberTests : IAsyncDisposable
         var returnStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         _engineFactory.OnLoad = backend =>
         {
-            if (backend == NativeBackend.Vulkan)
+            if (backend == NativeBackend.Gpu)
             {
                 returnStarted.TrySetResult();
                 returnGate.Wait(SignalTimeout);
@@ -1385,8 +1387,8 @@ public sealed class TranscribeCppTranscriberTests : IAsyncDisposable
         };
         _engineFactory.OnRun = run => run switch
         {
-            {IsWarmUp: true, Backend: NativeBackend.Vulkan} => throw new NativeEngineException(NativeStatus.ErrBackend),
-            {Backend: NativeBackend.Vulkan} when Seconds(run) == 300 =>
+            {IsWarmUp: true, Backend: NativeBackend.Gpu} => throw new NativeEngineException(NativeStatus.ErrBackend),
+            {Backend: NativeBackend.Gpu} when Seconds(run) == 300 =>
                 throw new NativeEngineException(NativeStatus.ErrOom),
             _ => new NativeRunOutput(FakeNativeSpeechEngineFactory.DefaultText, false),
         };
@@ -1401,11 +1403,11 @@ public sealed class TranscribeCppTranscriberTests : IAsyncDisposable
         (await waiting).Text.ShouldBe(FakeNativeSpeechEngineFactory.DefaultText);
         _engineFactory.Runs[^1].Backend.ShouldBe(NativeBackend.Cpu);
         _sut.Status.ShouldBe(TranscriberStatus.Ready);
-        ReadyBackends().ShouldBe(["Vulkan", "CPU", "CPU"]);
+        ReadyBackends().ShouldBe([Gpu, "CPU", "CPU"]);
         _engineFactory.Calls.ShouldBe([
-            "IsVulkanAvailable", "Load Vulkan", "WarmUp Vulkan", "Run Vulkan", "Dispose Vulkan", "Load Cpu",
-            "WarmUp Cpu", "Run Cpu", "Dispose Cpu", "IsVulkanAvailable", "Load Vulkan", "WarmUp Vulkan",
-            "Dispose Vulkan", "Load Cpu", "WarmUp Cpu", "Run Cpu",
+            "IsGpuAvailable", "Load Gpu", "WarmUp Gpu", "Run Gpu", "Dispose Gpu", "Load Cpu",
+            "WarmUp Cpu", "Run Cpu", "Dispose Cpu", "IsGpuAvailable", "Load Gpu", "WarmUp Gpu",
+            "Dispose Gpu", "Load Cpu", "WarmUp Cpu", "Run Cpu",
         ]);
     }
 
@@ -1419,7 +1421,7 @@ public sealed class TranscribeCppTranscriberTests : IAsyncDisposable
         var cpuLoads = 0;
         _engineFactory.OnLoad = backend =>
         {
-            if (backend == NativeBackend.Vulkan)
+            if (backend == NativeBackend.Gpu)
             {
                 returnStarted.TrySetResult();
                 returnGate.Wait(SignalTimeout);
@@ -1432,7 +1434,7 @@ public sealed class TranscribeCppTranscriberTests : IAsyncDisposable
                 throw new NativeEngineException(NativeStatus.ErrBackend);
             }
         };
-        _engineFactory.OnRun = FailOnVulkan(NativeStatus.ErrOom, 300);
+        _engineFactory.OnRun = FailOnGpu(NativeStatus.ErrOom, 300);
         await TranscribeAsync(300);
         await returnStarted.Task.WaitAsync(SignalTimeout, TestContext.Current.CancellationToken);
         var waiting = TranscribeAsync(20);
@@ -1445,7 +1447,7 @@ public sealed class TranscribeCppTranscriberTests : IAsyncDisposable
         exception.Status.ShouldBe(TranscriberStatus.Failed);
         _sut.Status.ShouldBe(TranscriberStatus.Failed);
         _sut.FailureMessage.ShouldBe(TranscribeCppTranscriber.LoadFailedMessage);
-        _engineFactory.Runs.Select(run => run.Backend).ShouldBe([NativeBackend.Vulkan, NativeBackend.Cpu]);
+        _engineFactory.Runs.Select(run => run.Backend).ShouldBe([NativeBackend.Gpu, NativeBackend.Cpu]);
     }
 
     [Fact]
@@ -1457,13 +1459,13 @@ public sealed class TranscribeCppTranscriberTests : IAsyncDisposable
         var returnStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         _engineFactory.OnLoad = backend =>
         {
-            if (backend == NativeBackend.Vulkan)
+            if (backend == NativeBackend.Gpu)
             {
                 returnStarted.TrySetResult();
                 returnGate.Wait(SignalTimeout);
             }
         };
-        _engineFactory.OnRun = FailOnVulkan(NativeStatus.ErrOom, 300);
+        _engineFactory.OnRun = FailOnGpu(NativeStatus.ErrOom, 300);
         await TranscribeAsync(300);
         await returnStarted.Task.WaitAsync(SignalTimeout, TestContext.Current.CancellationToken);
         var waiting = TranscribeAsync(20);
@@ -1491,11 +1493,11 @@ public sealed class TranscribeCppTranscriberTests : IAsyncDisposable
             TranscriberStatus.Loading, TranscriberStatus.Ready, TranscriberStatus.Loading, TranscriberStatus.Ready,
             TranscriberStatus.Loading, TranscriberStatus.Ready,
         ]);
-        ReadyBackends().ShouldBe(["Vulkan", "CPU", "CPU"]);
+        ReadyBackends().ShouldBe([Gpu, "CPU", "CPU"]);
         _engineFactory.Calls.ShouldBe([
-            "IsVulkanAvailable", "Load Vulkan", "WarmUp Vulkan", "Run Vulkan", "Dispose Vulkan", "Load Cpu",
-            "WarmUp Cpu", "Run Cpu", "Dispose Cpu", "IsVulkanAvailable", "Load Vulkan", "WarmUp Vulkan",
-            "Dispose Vulkan", "Load Cpu", "WarmUp Cpu",
+            "IsGpuAvailable", "Load Gpu", "WarmUp Gpu", "Run Gpu", "Dispose Gpu", "Load Cpu",
+            "WarmUp Cpu", "Run Cpu", "Dispose Cpu", "IsGpuAvailable", "Load Gpu", "WarmUp Gpu",
+            "Dispose Gpu", "Load Cpu", "WarmUp Cpu",
         ]);
     }
 
@@ -1510,7 +1512,7 @@ public sealed class TranscribeCppTranscriberTests : IAsyncDisposable
         var queuedRunStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         _engineFactory.OnRun = run =>
         {
-            if (run is {IsWarmUp: false, Backend: NativeBackend.Vulkan} && Seconds(run) == 300)
+            if (run is {IsWarmUp: false, Backend: NativeBackend.Gpu} && Seconds(run) == 300)
             {
                 failingRunStarted.TrySetResult();
                 failingRunGate.Wait(SignalTimeout);
@@ -1541,21 +1543,21 @@ public sealed class TranscribeCppTranscriberTests : IAsyncDisposable
         (await queued).Text.ShouldBe(FakeNativeSpeechEngineFactory.DefaultText);
         await reload.WaitAsync(SignalTimeout, TestContext.Current.CancellationToken);
         _engineFactory.Runs.Select(run => (run.Backend, Seconds(run))).ShouldBe([
-            (NativeBackend.Vulkan, 300), (NativeBackend.Cpu, 300), (NativeBackend.Cpu, 20),
+            (NativeBackend.Gpu, 300), (NativeBackend.Cpu, 300), (NativeBackend.Cpu, 20),
         ]);
         _engineFactory.Calls.ShouldBe([
-            "IsVulkanAvailable", "Load Vulkan", "WarmUp Vulkan", "Run Vulkan", "Dispose Vulkan", "Load Cpu",
+            "IsGpuAvailable", "Load Gpu", "WarmUp Gpu", "Run Gpu", "Dispose Gpu", "Load Cpu",
             "WarmUp Cpu", "Run Cpu", "Run Cpu", "Dispose Cpu", "Load Cpu", "WarmUp Cpu",
         ]);
-        ReadyBackends().ShouldBe(["Vulkan", "CPU", "CPU"]);
+        ReadyBackends().ShouldBe([Gpu, "CPU", "CPU"]);
     }
 
     [Fact]
-    public async Task TranscribeAsync_AutoOnVulkanBackendErrorOnLongClip_StaysOnCpu()
+    public async Task TranscribeAsync_AutoOnGpuBackendErrorOnLongClip_StaysOnCpu()
     {
         // Arrange
         await LoadAsync(BackendPreference.Auto);
-        _engineFactory.OnRun = FailOnVulkan(NativeStatus.ErrBackend, 300);
+        _engineFactory.OnRun = FailOnGpu(NativeStatus.ErrBackend, 300);
 
         // Act
         var result = await TranscribeAsync(300);
@@ -1563,19 +1565,19 @@ public sealed class TranscribeCppTranscriberTests : IAsyncDisposable
 
         // Assert
         result.Text.ShouldBe(FakeNativeSpeechEngineFactory.DefaultText);
-        VulkanLoads().ShouldBe(1);
+        GpuLoads().ShouldBe(1);
         _sut.ActiveBackend.ShouldBe("CPU");
         _engineFactory.Runs.Select(run => run.Backend).ShouldBe([
-            NativeBackend.Vulkan, NativeBackend.Cpu, NativeBackend.Cpu, NativeBackend.Cpu,
+            NativeBackend.Gpu, NativeBackend.Cpu, NativeBackend.Cpu, NativeBackend.Cpu,
         ]);
     }
 
     [Fact]
-    public async Task TranscribeAsync_ForcedVulkanOutOfMemory_IsFailedWithoutReturn()
+    public async Task TranscribeAsync_ForcedGpuOutOfMemory_IsFailedWithoutReturn()
     {
         // Arrange
-        await LoadAsync(BackendPreference.Vulkan);
-        _engineFactory.OnRun = FailOnVulkan(NativeStatus.ErrOom, 300);
+        await LoadAsync(BackendPreference.Gpu);
+        _engineFactory.OnRun = FailOnGpu(NativeStatus.ErrOom, 300);
 
         // Act
         var transcription = TranscribeAsync(300);
@@ -1585,18 +1587,18 @@ public sealed class TranscribeCppTranscriberTests : IAsyncDisposable
         exception.StatusCode.ShouldBe(NativeStatus.ErrOom);
         await _sut.StopAsync(TestContext.Current.CancellationToken);
         _sut.Status.ShouldBe(TranscriberStatus.Failed);
-        _engineFactory.Calls.ShouldBe(["Load Vulkan", "WarmUp Vulkan", "Run Vulkan", "Dispose Vulkan"]);
+        _engineFactory.Calls.ShouldBe(["Load Gpu", "WarmUp Gpu", "Run Gpu", "Dispose Gpu"]);
     }
 
     [Fact]
-    public async Task TranscribeAsync_AutoOnVulkanOutOfMemoryAndCpuRetryBackendError_IsFailedWithoutReturn()
+    public async Task TranscribeAsync_AutoOnGpuOutOfMemoryAndCpuRetryBackendError_IsFailedWithoutReturn()
     {
         // Arrange
         await LoadAsync(BackendPreference.Auto);
         _engineFactory.OnRun = run => run switch
         {
             {IsWarmUp: true} => new NativeRunOutput(string.Empty, false),
-            {Backend: NativeBackend.Vulkan} => throw new NativeEngineException(NativeStatus.ErrOom),
+            {Backend: NativeBackend.Gpu} => throw new NativeEngineException(NativeStatus.ErrOom),
             _ => throw new NativeEngineException(NativeStatus.ErrBackend),
         };
 
@@ -1609,7 +1611,7 @@ public sealed class TranscribeCppTranscriberTests : IAsyncDisposable
         await _sut.StopAsync(TestContext.Current.CancellationToken);
         _sut.Status.ShouldBe(TranscriberStatus.Failed);
         _engineFactory.Calls.ShouldBe([
-            "IsVulkanAvailable", "Load Vulkan", "WarmUp Vulkan", "Run Vulkan", "Dispose Vulkan", "Load Cpu",
+            "IsGpuAvailable", "Load Gpu", "WarmUp Gpu", "Run Gpu", "Dispose Gpu", "Load Cpu",
             "WarmUp Cpu", "Run Cpu", "Dispose Cpu",
         ]);
     }
@@ -1623,7 +1625,7 @@ public sealed class TranscribeCppTranscriberTests : IAsyncDisposable
         var failingRunStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         _engineFactory.OnRun = run =>
         {
-            if (run is {IsWarmUp: false, Backend: NativeBackend.Vulkan} && Seconds(run) == 300)
+            if (run is {IsWarmUp: false, Backend: NativeBackend.Gpu} && Seconds(run) == 300)
             {
                 failingRunStarted.TrySetResult();
                 failingRunGate.Wait(SignalTimeout);
@@ -1647,7 +1649,7 @@ public sealed class TranscribeCppTranscriberTests : IAsyncDisposable
         await _sut.StopAsync(TestContext.Current.CancellationToken);
         _sut.Status.ShouldBe(TranscriberStatus.Failed);
         _sut.FailureMessage.ShouldBe(TranscribeCppTranscriber.BackendFailedMessage);
-        VulkanLoads().ShouldBe(1);
+        GpuLoads().ShouldBe(1);
     }
 
     [Fact]
@@ -1655,7 +1657,7 @@ public sealed class TranscribeCppTranscriberTests : IAsyncDisposable
     {
         // Arrange
         await LoadAsync(BackendPreference.Auto);
-        _engineFactory.OnRun = FailOnVulkan(NativeStatus.ErrOom, 90);
+        _engineFactory.OnRun = FailOnGpu(NativeStatus.ErrOom, 90);
         await TranscribeAsync(120);
 
         // Act
@@ -1664,10 +1666,10 @@ public sealed class TranscribeCppTranscriberTests : IAsyncDisposable
 
         // Assert
         result.Text.ShouldBe(FakeNativeSpeechEngineFactory.DefaultText);
-        VulkanLoads().ShouldBe(1);
+        GpuLoads().ShouldBe(1);
         _sut.ActiveBackend.ShouldBe("CPU");
         _engineFactory.Runs.Select(run => (run.Backend, Seconds(run))).ShouldBe([
-            (NativeBackend.Vulkan, 120), (NativeBackend.Vulkan, 90), (NativeBackend.Cpu, 90), (NativeBackend.Cpu, 10),
+            (NativeBackend.Gpu, 120), (NativeBackend.Gpu, 90), (NativeBackend.Cpu, 90), (NativeBackend.Cpu, 10),
             (NativeBackend.Cpu, 10),
         ]);
     }
@@ -1677,8 +1679,8 @@ public sealed class TranscribeCppTranscriberTests : IAsyncDisposable
     {
         // Arrange
         await LoadAsync(BackendPreference.Auto);
-        var failOnVulkan = FailOnVulkan(NativeStatus.ErrOom, 90);
-        _engineFactory.OnRun = run => Seconds(run) == 120 ? new NativeRunOutput("partial", true) : failOnVulkan(run);
+        var failOnGpu = FailOnGpu(NativeStatus.ErrOom, 90);
+        _engineFactory.OnRun = run => Seconds(run) == 120 ? new NativeRunOutput("partial", true) : failOnGpu(run);
         (await TranscribeAsync(120)).Text.ShouldBe("partial");
 
         // Act
@@ -1687,7 +1689,7 @@ public sealed class TranscribeCppTranscriberTests : IAsyncDisposable
 
         // Assert
         result.Text.ShouldBe(FakeNativeSpeechEngineFactory.DefaultText);
-        VulkanLoads().ShouldBe(1);
+        GpuLoads().ShouldBe(1);
         _sut.ActiveBackend.ShouldBe("CPU");
     }
 
@@ -1696,7 +1698,7 @@ public sealed class TranscribeCppTranscriberTests : IAsyncDisposable
     {
         // Arrange
         await LoadAsync(BackendPreference.Auto);
-        _engineFactory.OnRun = FailOnVulkan(NativeStatus.ErrOom, 8);
+        _engineFactory.OnRun = FailOnGpu(NativeStatus.ErrOom, 8);
 
         // Act
         var result = await TranscribeAsync(8);
@@ -1704,10 +1706,10 @@ public sealed class TranscribeCppTranscriberTests : IAsyncDisposable
 
         // Assert
         result.Text.ShouldBe(FakeNativeSpeechEngineFactory.DefaultText);
-        VulkanLoads().ShouldBe(1);
+        GpuLoads().ShouldBe(1);
         _sut.ActiveBackend.ShouldBe("CPU");
         _engineFactory.Runs.Select(run => (run.Backend, Seconds(run))).ShouldBe([
-            (NativeBackend.Vulkan, 8), (NativeBackend.Cpu, 8), (NativeBackend.Cpu, 10), (NativeBackend.Cpu, 10),
+            (NativeBackend.Gpu, 8), (NativeBackend.Cpu, 8), (NativeBackend.Cpu, 10), (NativeBackend.Cpu, 10),
         ]);
     }
 
@@ -1716,9 +1718,9 @@ public sealed class TranscribeCppTranscriberTests : IAsyncDisposable
     {
         // Arrange
         await LoadAsync(BackendPreference.Auto);
-        _engineFactory.OnRun = FailOnVulkan(NativeStatus.ErrOom, 300, 200);
+        _engineFactory.OnRun = FailOnGpu(NativeStatus.ErrOom, 300, 200);
         await TranscribeAsync(300);
-        await WaitUntilAsync(() => _sut.ActiveBackend == "Vulkan");
+        await WaitUntilAsync(() => _sut.ActiveBackend == Gpu);
 
         // Act
         var result = await TranscribeAsync(200);
@@ -1726,35 +1728,35 @@ public sealed class TranscribeCppTranscriberTests : IAsyncDisposable
 
         // Assert
         result.Text.ShouldBe(FakeNativeSpeechEngineFactory.DefaultText);
-        VulkanLoads().ShouldBe(2);
+        GpuLoads().ShouldBe(2);
         _sut.ActiveBackend.ShouldBe("CPU");
-        _engineFactory.AllRuns.Count(run => run is {IsWarmUp: true, Backend: NativeBackend.Vulkan}).ShouldBe(2);
+        _engineFactory.AllRuns.Count(run => run is {IsWarmUp: true, Backend: NativeBackend.Gpu}).ShouldBe(2);
         _engineFactory.Runs.Select(run => (run.Backend, Seconds(run))).ShouldBe([
-            (NativeBackend.Vulkan, 300), (NativeBackend.Cpu, 300), (NativeBackend.Vulkan, 200),
+            (NativeBackend.Gpu, 300), (NativeBackend.Cpu, 300), (NativeBackend.Gpu, 200),
             (NativeBackend.Cpu, 200), (NativeBackend.Cpu, 10), (NativeBackend.Cpu, 10),
         ]);
     }
 
     [Fact]
-    public async Task TranscribeAsync_OutOfMemoryAgainAfterRunCompletedOnVulkan_ReturnsAgain()
+    public async Task TranscribeAsync_OutOfMemoryAgainAfterRunCompletedOnGpu_ReturnsAgain()
     {
         // Arrange
         await LoadAsync(BackendPreference.Auto);
-        _engineFactory.OnRun = FailOnVulkan(NativeStatus.ErrOom, 300);
+        _engineFactory.OnRun = FailOnGpu(NativeStatus.ErrOom, 300);
         await TranscribeAsync(300);
-        await WaitUntilAsync(() => _sut.ActiveBackend == "Vulkan");
+        await WaitUntilAsync(() => _sut.ActiveBackend == Gpu);
         await TranscribeAsync(10);
 
         // Act
         var result = await TranscribeAsync(300);
-        await WaitUntilAsync(() => VulkanLoads() == 3 && _sut.ActiveBackend == "Vulkan");
+        await WaitUntilAsync(() => GpuLoads() == 3 && _sut.ActiveBackend == Gpu);
 
         // Assert
         result.Text.ShouldBe(FakeNativeSpeechEngineFactory.DefaultText);
-        ReadyBackends().ShouldBe(["Vulkan", "CPU", "Vulkan", "CPU", "Vulkan"]);
+        ReadyBackends().ShouldBe([Gpu, "CPU", Gpu, "CPU", Gpu]);
         _engineFactory.Runs.Select(run => (run.Backend, Seconds(run))).ShouldBe([
-            (NativeBackend.Vulkan, 300), (NativeBackend.Cpu, 300), (NativeBackend.Vulkan, 10),
-            (NativeBackend.Vulkan, 300), (NativeBackend.Cpu, 300),
+            (NativeBackend.Gpu, 300), (NativeBackend.Cpu, 300), (NativeBackend.Gpu, 10),
+            (NativeBackend.Gpu, 300), (NativeBackend.Cpu, 300),
         ]);
     }
 
@@ -1763,7 +1765,7 @@ public sealed class TranscribeCppTranscriberTests : IAsyncDisposable
     {
         // Arrange
         await LoadAsync(BackendPreference.Auto);
-        _engineFactory.OnRun = FailOnVulkan(NativeStatus.ErrOom, 90);
+        _engineFactory.OnRun = FailOnGpu(NativeStatus.ErrOom, 90);
         await TranscribeAsync(120);
         var otherModel = ModelCatalog.Models.First(model => model.Id != _model.Id);
         await _sut.LoadAsync(otherModel, BackendPreference.Auto, TestContext.Current.CancellationToken)
@@ -1771,18 +1773,18 @@ public sealed class TranscribeCppTranscriberTests : IAsyncDisposable
 
         // Act
         var result = await TranscribeAsync(90);
-        await WaitUntilAsync(() => VulkanLoads() == 3 && _sut.ActiveBackend == "Vulkan");
+        await WaitUntilAsync(() => GpuLoads() == 3 && _sut.ActiveBackend == Gpu);
 
         // Assert
         result.Text.ShouldBe(FakeNativeSpeechEngineFactory.DefaultText);
-        ReadyBackends().ShouldBe(["Vulkan", "Vulkan", "CPU", "Vulkan"]);
+        ReadyBackends().ShouldBe([Gpu, Gpu, "CPU", Gpu]);
         _engineFactory.Runs.Select(run => (run.Backend, Seconds(run))).ShouldBe([
-            (NativeBackend.Vulkan, 120), (NativeBackend.Vulkan, 90), (NativeBackend.Cpu, 90),
+            (NativeBackend.Gpu, 120), (NativeBackend.Gpu, 90), (NativeBackend.Cpu, 90),
         ]);
     }
 
     [Fact]
-    public async Task TranscribeAsync_CallerCancelsDuringCpuReloadAfterOutOfMemory_EndsCancelledAndReturnsToVulkan()
+    public async Task TranscribeAsync_CallerCancelsDuringCpuReloadAfterOutOfMemory_EndsCancelledAndReturnsToGpu()
     {
         // Arrange
         await LoadAsync(BackendPreference.Auto);
@@ -1794,7 +1796,7 @@ public sealed class TranscribeCppTranscriberTests : IAsyncDisposable
                 loadGate.Wait(SignalTimeout);
             }
         };
-        _engineFactory.OnRun = FailOnVulkan(NativeStatus.ErrOom, 300);
+        _engineFactory.OnRun = FailOnGpu(NativeStatus.ErrOom, 300);
         using var callerCancellation = new CancellationTokenSource();
         var transcription = _sut.TranscribeAsync(Audio(300, 0.1f), GermanToEnglish, callerCancellation.Token);
         await WaitUntilAsync(() => _engineFactory.Calls.Contains("Load Cpu"));
@@ -1814,21 +1816,21 @@ public sealed class TranscribeCppTranscriberTests : IAsyncDisposable
             loadGate.Set();
         }
 
-        await WaitUntilAsync(() => _sut.ActiveBackend == "Vulkan");
-        ReadyBackends().ShouldBe(["Vulkan", "CPU", "Vulkan"]);
+        await WaitUntilAsync(() => _sut.ActiveBackend == Gpu);
+        ReadyBackends().ShouldBe([Gpu, "CPU", Gpu]);
         _engineFactory.Calls.ShouldBe([
-            "IsVulkanAvailable", "Load Vulkan", "WarmUp Vulkan", "Run Vulkan", "Dispose Vulkan", "Load Cpu",
-            "WarmUp Cpu", "Dispose Cpu", "IsVulkanAvailable", "Load Vulkan", "WarmUp Vulkan",
+            "IsGpuAvailable", "Load Gpu", "WarmUp Gpu", "Run Gpu", "Dispose Gpu", "Load Cpu",
+            "WarmUp Cpu", "Dispose Cpu", "IsGpuAvailable", "Load Gpu", "WarmUp Gpu",
         ]);
     }
 
     [Fact]
-    public async Task TranscribeAsync_CallerCancelsCpuRetryAfterOutOfMemory_ReturnsToVulkanAfterRunReturned()
+    public async Task TranscribeAsync_CallerCancelsCpuRetryAfterOutOfMemory_ReturnsToGpuAfterRunReturned()
     {
         // Arrange
         await LoadAsync(BackendPreference.Auto);
         var cpuRunStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var failOnVulkan = FailOnVulkan(NativeStatus.ErrOom, 300);
+        var failOnGpu = FailOnGpu(NativeStatus.ErrOom, 300);
         _engineFactory.OnRun = run =>
         {
             if (run is {IsWarmUp: false, Backend: NativeBackend.Cpu})
@@ -1838,7 +1840,7 @@ public sealed class TranscribeCppTranscriberTests : IAsyncDisposable
                 throw new OperationCanceledException(run.CancellationToken);
             }
 
-            return failOnVulkan(run);
+            return failOnGpu(run);
         };
         using var callerCancellation = new CancellationTokenSource();
         var transcription = _sut.TranscribeAsync(Audio(300, 0.1f), GermanToEnglish, callerCancellation.Token);
@@ -1850,14 +1852,14 @@ public sealed class TranscribeCppTranscriberTests : IAsyncDisposable
         // Assert
         await Should.ThrowAsync<OperationCanceledException>(
             transcription.WaitAsync(SignalTimeout, TestContext.Current.CancellationToken));
-        await WaitUntilAsync(() => _sut.ActiveBackend == "Vulkan");
+        await WaitUntilAsync(() => _sut.ActiveBackend == Gpu);
         StatusChanges().ShouldBe([
             TranscriberStatus.Loading, TranscriberStatus.Ready, TranscriberStatus.Loading, TranscriberStatus.Ready,
             TranscriberStatus.Ready,
         ]);
         _engineFactory.Calls.ShouldBe([
-            "IsVulkanAvailable", "Load Vulkan", "WarmUp Vulkan", "Run Vulkan", "Dispose Vulkan", "Load Cpu",
-            "WarmUp Cpu", "Run Cpu", "Dispose Cpu", "IsVulkanAvailable", "Load Vulkan", "WarmUp Vulkan",
+            "IsGpuAvailable", "Load Gpu", "WarmUp Gpu", "Run Gpu", "Dispose Gpu", "Load Cpu",
+            "WarmUp Cpu", "Run Cpu", "Dispose Cpu", "IsGpuAvailable", "Load Gpu", "WarmUp Gpu",
         ]);
         _engineFactory.Overlapped.ShouldBeFalse();
     }
@@ -1869,7 +1871,7 @@ public sealed class TranscribeCppTranscriberTests : IAsyncDisposable
         await LoadAsync(BackendPreference.Auto);
         using var cpuRunGate = new ManualResetEventSlim();
         var cpuRunStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var failOnVulkan = FailOnVulkan(NativeStatus.ErrOom, 300);
+        var failOnGpu = FailOnGpu(NativeStatus.ErrOom, 300);
         _engineFactory.OnRun = run =>
         {
             if (run is {IsWarmUp: false, Backend: NativeBackend.Cpu} && Seconds(run) == 300)
@@ -1879,7 +1881,7 @@ public sealed class TranscribeCppTranscriberTests : IAsyncDisposable
                 cpuRunGate.Wait(SignalTimeout);
             }
 
-            return failOnVulkan(run);
+            return failOnGpu(run);
         };
         using var callerCancellation = new CancellationTokenSource();
         var cancelled = _sut.TranscribeAsync(Audio(300, 0.1f), GermanToEnglish, callerCancellation.Token);
@@ -1904,13 +1906,13 @@ public sealed class TranscribeCppTranscriberTests : IAsyncDisposable
         }
 
         (await next).Text.ShouldBe(FakeNativeSpeechEngineFactory.DefaultText);
-        await WaitUntilAsync(() => _sut.ActiveBackend == "Vulkan");
+        await WaitUntilAsync(() => _sut.ActiveBackend == Gpu);
         _engineFactory.Runs.Select(run => (run.Backend, Seconds(run))).ShouldBe([
-            (NativeBackend.Vulkan, 300), (NativeBackend.Cpu, 300), (NativeBackend.Cpu, 20),
+            (NativeBackend.Gpu, 300), (NativeBackend.Cpu, 300), (NativeBackend.Cpu, 20),
         ]);
         _engineFactory.Calls.ShouldBe([
-            "IsVulkanAvailable", "Load Vulkan", "WarmUp Vulkan", "Run Vulkan", "Dispose Vulkan", "Load Cpu",
-            "WarmUp Cpu", "Run Cpu", "Run Cpu", "Dispose Cpu", "IsVulkanAvailable", "Load Vulkan", "WarmUp Vulkan",
+            "IsGpuAvailable", "Load Gpu", "WarmUp Gpu", "Run Gpu", "Dispose Gpu", "Load Cpu",
+            "WarmUp Cpu", "Run Cpu", "Run Cpu", "Dispose Cpu", "IsGpuAvailable", "Load Gpu", "WarmUp Gpu",
         ]);
     }
 
@@ -1927,7 +1929,7 @@ public sealed class TranscribeCppTranscriberTests : IAsyncDisposable
                 loadGate.Wait(SignalTimeout);
             }
         };
-        _engineFactory.OnRun = FailOnVulkan(NativeStatus.ErrOom, 300);
+        _engineFactory.OnRun = FailOnGpu(NativeStatus.ErrOom, 300);
         var transcription = TranscribeAsync(300);
         await WaitUntilAsync(() => _engineFactory.Calls.Contains("Load Cpu"));
 
@@ -1938,7 +1940,7 @@ public sealed class TranscribeCppTranscriberTests : IAsyncDisposable
 
         // Assert
         await Should.ThrowAsync<OperationCanceledException>(transcription);
-        VulkanLoads().ShouldBe(1);
+        GpuLoads().ShouldBe(1);
         _engineFactory.Calls.ShouldNotContain("Run Cpu");
         _engineFactory.Overlapped.ShouldBeFalse();
     }
@@ -1956,11 +1958,11 @@ public sealed class TranscribeCppTranscriberTests : IAsyncDisposable
     }
 
     /// <summary>
-    /// Fails the Vulkan runs of requests with one of the given lengths in seconds, and completes every other run.
+    /// Fails the GPU runs of requests with one of the given lengths in seconds, and completes every other run.
     /// </summary>
-    private static Func<FakeRun, NativeRunOutput> FailOnVulkan(NativeStatus status, params int[] seconds)
+    private static Func<FakeRun, NativeRunOutput> FailOnGpu(NativeStatus status, params int[] seconds)
     {
-        return run => run is {IsWarmUp: false, Backend: NativeBackend.Vulkan} && seconds.Contains(Seconds(run))
+        return run => run is {IsWarmUp: false, Backend: NativeBackend.Gpu} && seconds.Contains(Seconds(run))
             ? throw new NativeEngineException(status)
             : new NativeRunOutput(FakeNativeSpeechEngineFactory.DefaultText, false);
     }
@@ -1989,7 +1991,7 @@ public sealed class TranscribeCppTranscriberTests : IAsyncDisposable
 
     /// <summary>
     /// Runs two 10 s requests one after the other. The first runs after the worker has finished the requests before it,
-    /// so the second is queued after anything the worker queued meanwhile, such as a return to Vulkan.
+    /// so the second is queued after anything the worker queued meanwhile, such as a return to the GPU.
     /// </summary>
     private async Task RunTwoRequestsAsync()
     {
@@ -1997,9 +1999,9 @@ public sealed class TranscribeCppTranscriberTests : IAsyncDisposable
         await TranscribeAsync(10);
     }
 
-    private int VulkanLoads()
+    private int GpuLoads()
     {
-        return _engineFactory.Calls.Count(call => call == "Load Vulkan");
+        return _engineFactory.Calls.Count(call => call == "Load Gpu");
     }
 
     private List<TranscriberStatus> StatusChanges()

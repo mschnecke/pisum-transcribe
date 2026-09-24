@@ -201,6 +201,30 @@ public sealed class SettingsDialogTests : IDisposable
         });
     }
 
+    [Fact]
+    public Task Constructor_SavedGpuBackend_ShowsPlatformGpuOptionChecked()
+    {
+        return HeadlessUi.RunAsync(() =>
+        {
+            // Arrange
+            var viewModel = CreateViewModel(new AppSettings
+            {
+                Transcription = new TranscriptionSettings(BackendPreference.Gpu),
+            });
+            var expected = OperatingSystem.IsWindows() ? "_Vulkan (GPU) only" : "_Metal (GPU) only";
+
+            // Act
+            var sut = new SettingsDialog(viewModel);
+            sut.Show();
+            var radioButton = sut.GetLogicalDescendants().OfType<RadioButton>()
+                .Single(candidate => Equals(candidate.Content, expected));
+
+            // Assert
+            radioButton.IsChecked.ShouldBe(true);
+            sut.Close();
+        });
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
