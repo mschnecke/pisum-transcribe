@@ -22,7 +22,7 @@ internal static class PisumMac
 
     /// <summary>
     /// The one callback for every asynchronous helper function. Its context is a handle from <see cref="CreateContext"/>,
-    /// and the callback frees it after it has called the handle's action.
+    /// and the callback frees it and then calls the handle's action.
     /// </summary>
     public static readonly StatusCallback Callback = OnCallback;
 

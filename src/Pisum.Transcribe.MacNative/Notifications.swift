@@ -1,7 +1,8 @@
 // Notifications through UNUserNotificationCenter (design D8 of add-macos-shell). It needs an app bundle with a bundle
 // identifier and crashes without one, so every function checks for it first and returns a status instead.
 //
-// Call the functions on the main thread, because pisum_notifications_start sets the center's delegate.
+// Call the functions on the main thread, like every function of the helper except pisum_pasteboard_probe.
+// pisum_notifications_start needs it most, because it sets the center's delegate.
 
 import Foundation
 import UserNotifications
