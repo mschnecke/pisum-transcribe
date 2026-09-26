@@ -1,6 +1,6 @@
 # packaging
 
-Everything that turns a build into a release. Nothing here is compiled into the app or read at run time, and `dotnet build` and `dotnet test` never look in this folder.
+Everything that turns a build into a release. Nothing here is compiled into the app or read at run time, and `dotnet build` and `dotnet test` never look in this folder. Only a macOS publish reads `third-party/`, whose notices the project's bundle target copies into the release bundle.
 
 | Path | What it is |
 |---|---|
@@ -9,6 +9,10 @@ Everything that turns a build into a release. Nothing here is compiled into the 
 | `windows/Pisum.Transcribe.wxs` | The MSI's WiX source |
 | `windows/assert-native-dependencies.ps1` | The guard: fails when a library in a folder imports a Visual C++ runtime file that the folder doesn't contain, or when a native library of the Avalonia shell is missing |
 | `windows/.gitignore` | Keeps `windows/publish/`, where `build-msi.ps1` assembles the app folder, untracked |
+| `macos/build-pkg.sh` | Publishes the app bundle, runs the guard on it, and builds `artifacts/Pisum.Transcribe_<version>_osx-arm64.pkg` |
+| `macos/assert-bundle.sh` | The guard of the Mac release: fails when the bundle isn't signed with the project's certificate, has a Mach-O file that isn't arm64 only or needs a macOS newer than 14.0, contains a native Windows or Linux file, or carries another version |
+| `macos/Distribution.xml` | The package's distribution, a template with `@VERSION@`: Apple silicon, macOS 14, `/Applications`, and no older version over a newer one |
+| `macos/preinstall`, `macos/postinstall` | The package's scripts: quit a running app before the installation, remove the quarantine and start the app after it |
 | `third-party/onnxruntime-ThirdPartyNotices.txt` | ONNX Runtime's notices for the components it bundles, installed as `ThirdPartyNotices-OnnxRuntime.txt` |
 | `third-party/dotnet-runtime-THIRD-PARTY-NOTICES.txt` | The .NET runtime's notices for the components it bundles, installed as `ThirdPartyNotices-DotNet.txt` |
 | `third-party/avalonia-NOTICE.txt` | Avalonia's notices for the code it contains from other projects, installed as `ThirdPartyNotices-Avalonia.txt` |
@@ -24,7 +28,11 @@ Each script takes one argument. A person runs the same command as the workflows,
 ./packaging/bump-version.sh patch                                    # Git Bash: 0.1.0 -> 0.1.1, prints 0.1.1
 ./packaging/windows/build-msi.ps1 -Version 0.1.0-dev.1               # PowerShell 7: the MSI, in artifacts\
 ./packaging/windows/assert-native-dependencies.ps1 -Path <folder>    # PowerShell 7: the guard on any folder
+./packaging/macos/build-pkg.sh 1.4.0-dev.1                           # macOS: the package, in artifacts/
+./packaging/macos/assert-bundle.sh <bundle.app> <version>            # macOS: the guard on any bundle
 ```
+
+The macOS scripts take options for a test package that isn't signed with the project's certificate (see [The macOS package](#the-macos-package)).
 
 `build-msi.ps1` does this, and stops at the first error:
 
@@ -37,6 +45,52 @@ Each script takes one argument. A person runs the same command as the workflows,
 7. It restores WiX, builds `windows/Pisum.Transcribe.wxs` from the folder into the MSI, and validates the MSI (see [The MSI](#the-msi)).
 
 The MSI is about 67 MB. It installs about 227 MB in 288 files, most of it `ggml-vulkan.dll`, `onnxruntime.dll`, the .NET runtime and the Avalonia shell with Skia. `Pisum.Transcribe.pdb` is installed too, so a logged stack trace has line numbers. Building the MSI takes about a minute after publishing, and validating it a few seconds.
+
+## The macOS package
+
+`build-pkg.sh <version> [--identity <name>] [--leaf <sha1> | --adhoc]` does this, and stops at the first error:
+
+1. It publishes `src/Pisum.Transcribe` for `osx-arm64` into `macos/publish/`, self-contained and ReadyToRun, with the same flags as `build-msi.ps1` and the signing identity as `-p:PisumCodesignIdentity` (design D1 of `add-macos-packaging`). After the publish, the project's bundle target assembles `macos/publish/Pisum Transcribe.app` from the publish output, the same target that assembles the dev bundle after a build. For the release bundle, it also removes the flattened `LICENSE` from `Contents/MacOS/`, puts the project's `LICENSE`, `THIRD-PARTY-NOTICES.md` and the notices of ONNX Runtime, .NET, Avalonia and SkiaSharp into `Contents/Resources/` under the MSI's names, and thins the universal libraries of SkiaSharp, HarfBuzzSharp and Avalonia.Native to their `arm64` slice. Then it signs the bundle inside-out.
+2. It runs the guard, `assert-bundle.sh`, on the bundle.
+3. It builds the component package with `pkgbuild`: the bundle into `/Applications`, with `preinstall` and `postinstall` and nothing else from this folder. The component plist from `pkgbuild --analyze` gets `BundleIsRelocatable = false`, so Installer never updates another copy of the app with the same bundle identifier, such as the dev bundle in `bin/`, and `BundleIsVersionChecked = false`, so `Distribution.xml` alone decides about versions.
+4. It builds the product archive with `productbuild` from a copy of `Distribution.xml` with the version filled in. Neither package is signed.
+
+The bundle is about 160 MB in about 260 files, and the package about 56 MB.
+
+**Options.** The default identity is the project's certificate, **Pisum Transcribe**, which only the release job has. A developer builds a test package with their own identity and tells the guard its fingerprint, or signs ad hoc:
+
+```sh
+./packaging/macos/build-pkg.sh 1.4.0-dev.1 --identity "Pisum Transcribe Development" --leaf <sha1>
+./packaging/macos/build-pkg.sh 1.4.0-dev.1 --adhoc
+```
+
+`security find-identity -p codesigning` lists the identities with their SHA-1 fingerprints. An ad hoc package loses its permissions with every update.
+
+### The guard
+
+`assert-bundle.sh <bundle.app> <version> [--leaf <sha1> | --adhoc]` checks every file of the bundle and names each failure:
+
+- **The signature:** `codesign --verify --strict` passes, and the designated requirement names the project's certificate, `certificate leaf = H"a2eca9bd0a5157e33a43160ed01c502c6d86980b"`, or the one given with `--leaf`. A release signed with another certificate would cost every user their permissions.
+- **Mach-O files:** `arm64` only (`lipo -archs`), and a minimum macOS (`minos` from `vtool -show-build`) of 14.0 or older. An ONNX Runtime update that raises its minimum fails here.
+- **No native file of another platform:** no PE file without a CLI header, as `file` reports it, and no ELF file. .NET assemblies are PE files too and pass.
+- **The version:** the bundle's `CFBundleShortVersionString` is the version given.
+
+### Installing, upgrading and removing
+
+- **Checks before the installation:** `Distribution.xml` allows only Apple silicon (`hostArchitectures="arm64"`) and macOS 14 or later, and installs only into `/Applications`, for all users. Its `installation-check` reads the version of an installed `/Applications/Pisum Transcribe.app` and refuses the package when that version, without its pre-release suffix, is higher than the package's: **A newer version of Pisum Transcribe is already installed.** Equal versions pass, so a release installs over its release candidates and the other way round, like the MSI.
+- **`preinstall`** ends every running instance of `/Applications/Pisum Transcribe.app`, of every logged-in user, with `SIGTERM`, which the app handles like **Quit Pisum Transcribe**. It waits up to 6 seconds and then sends `SIGKILL`. It matches the executable's path, so a dev build elsewhere keeps running. It never fails the installation.
+- **`postinstall`** removes the quarantine from the app, and opens it for the user at the screen, unless the installation ran from the command line (`installer` and Homebrew set `COMMAND_LINE_INSTALL`). Instances of other users that `preinstall` ended stay ended until those users open the app again.
+- **Removing:** moving the app to the Trash, as the README describes. There is no uninstaller. The receipt `io.github.mschnecke.pisum-transcribe` stays until `sudo pkgutil --forget io.github.mschnecke.pisum-transcribe`.
+
+`installer -pkg <package> -target / -verbose` in a terminal, or **Window** > **Installer Log** in Installer, shows what the scripts and the checks did.
+
+### The signing certificate
+
+The app in every release is signed with the project's own self-signed certificate **Pisum Transcribe**, an RSA 3072-bit code-signing certificate valid for 20 years, with the SHA-1 fingerprint `A2:EC:A9:BD:0A:51:57:E3:3A:43:16:0E:D0:1C:50:2C:6D:86:98:0B`. macOS ties the Accessibility and microphone permissions to the designated requirement, which names that certificate, so they survive updates. There is no Developer ID and no notarization (design D5 of `add-macos-packaging`).
+
+- **Where it lives:** as the repository secrets `MACOS_CERTIFICATE_P12`, the `.p12` in base64, and `MACOS_CERTIFICATE_PASSWORD`, and in a backup outside GitHub that the maintainer keeps. It isn't in any keychain in daily use. The release job imports it into a temporary keychain and deletes that keychain at the end, also after a failure.
+- **Losing it** means every user grants Accessibility and the microphone once more after the next update, signed with a new certificate. Restore it from the backup instead.
+- **Replacing it** (a new certificate): change the fingerprint in `macos/assert-bundle.sh`, the secrets and this section, and say in the release notes that users grant the permissions again.
 
 ## Versions
 
@@ -97,9 +151,9 @@ The app, not the MSI, owns "Start with Windows": the value `Pisum Transcribe` un
 
 ## Releasing
 
-There are two ways to start a release, and both end the same way. The **Release** workflow (`.github/workflows/release.yml`) runs the tests from the tagged commit, builds the MSI, and publishes it on GitHub Releases with generated release notes. If a test or the build fails, nothing is published. A version with a suffix, such as `0.2.0-rc.1`, is published as a pre-release.
+There are two ways to start a release, and both end the same way. The **Release** workflow (`.github/workflows/release.yml`) builds both installers in parallel from the tagged commit: `build-windows` runs the tests on Windows and builds the MSI, and `build-macos` runs the tests on macOS and builds the package, signed in a temporary keychain from the secrets. Only when both succeed does `release` publish them together on GitHub Releases with generated release notes, so a release never carries only one of them. If a test or a build fails on either platform, nothing is published. A version with a suffix, such as `0.2.0-rc.1`, is published as a pre-release.
 
-Next to the MSI, every release carries the source of the two copyleft components in it, downloaded from GitHub by the release job: `libuiohook-<commit>.tar.gz` (LGPL, inside `uiohook.dll`) and `wix-<commit>.tar.gz` (MS-RL, the custom action DLL embedded in the MSI). Their licenses ask for the source to come with the binaries, and a copy on the same release doesn't depend on the upstream repositories staying online. The commits are the ones `THIRD-PARTY-NOTICES.md` names; a new SharpHook or WiX version changes both places.
+Next to the installers, every release carries the source of the two copyleft components in them, downloaded from GitHub by the release job: `libuiohook-<commit>.tar.gz` (LGPL, inside `uiohook.dll` and `libuiohook.dylib`) and `wix-<commit>.tar.gz` (MS-RL, the custom action DLL embedded in the MSI). Their licenses ask for the source to come with the binaries, and a copy on the same release doesn't depend on the upstream repositories staying online. The commits are the ones `THIRD-PARTY-NOTICES.md` names; a new SharpHook or WiX version changes both places.
 
 - **By hand:** start **Release** in the Actions tab, or with `gh`:
 
@@ -125,6 +179,8 @@ Next to the MSI, every release carries the source of the two copyleft components
 ## Unsigned, by decision
 
 The MSI and the exe aren't code-signed (design D6 of `add-packaging-ci`). When the MSI is opened, SmartScreen shows **Windows protected your PC**, and the user chooses **More info**, then **Run anyway**. Signing is a separate change.
+
+The macOS package isn't signed either, and the app inside is signed only with the project's own certificate, which Gatekeeper doesn't trust. A downloaded package therefore needs **Open Anyway** in **System Settings** > **Privacy & Security** once, as the README describes. `postinstall` removes the app's quarantine, so the installed app then opens without a further prompt.
 
 ## The Visual C++ runtime
 

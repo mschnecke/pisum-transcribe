@@ -195,6 +195,27 @@ internal static class PisumMac
     public static extern int OverlayConfigure(nint window);
 
     /// <summary>
+    /// The status of the running app bundle as a login item (design D7 of add-macos-packaging).
+    /// </summary>
+    /// <returns>0 not registered, 1 enabled, 2 requires approval in Login Items, 3 not found, such as outside an app bundle.</returns>
+    [DllImport(Library, EntryPoint = "pisum_login_item_status")]
+    public static extern int LoginItemStatus();
+
+    /// <summary>
+    /// Registers the running app bundle as a login item.
+    /// </summary>
+    /// <returns>0, or the error code of ServiceManagement.</returns>
+    [DllImport(Library, EntryPoint = "pisum_login_item_register")]
+    public static extern int LoginItemRegister();
+
+    /// <summary>
+    /// Unregisters the running app bundle as a login item.
+    /// </summary>
+    /// <returns>0, or the error code of ServiceManagement.</returns>
+    [DllImport(Library, EntryPoint = "pisum_login_item_unregister")]
+    public static extern int LoginItemUnregister();
+
+    /// <summary>
     /// Begins a user-initiated activity, which keeps App Nap away while it runs. Safe on any thread.
     /// </summary>
     /// <param name="reason">The reason, which <c>pmset -g assertions</c> lists.</param>

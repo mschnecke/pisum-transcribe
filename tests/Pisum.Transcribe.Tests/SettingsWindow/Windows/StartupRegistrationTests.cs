@@ -32,6 +32,19 @@ public sealed class StartupRegistrationTests
     }
 
     [Fact]
+    public void RequiresApproval_Always_ReturnsFalse()
+    {
+        // Arrange
+        _registry.Put(StartupRegistration.StartupApprovedKey, StartupRegistration.ValueName, DisabledInTaskManager);
+
+        // Act
+        var requiresApproval = _sut.RequiresApproval();
+
+        // Assert
+        requiresApproval.ShouldBeFalse();
+    }
+
+    [Fact]
     public void SetEnabled_True_WritesQuotedProcessPath()
     {
         // Act

@@ -64,6 +64,12 @@ internal sealed class StartupRegistration : IStartupRegistration, IHostedService
     }
 
     /// <inheritdoc />
+    public bool RequiresApproval()
+    {
+        return false;
+    }
+
+    /// <inheritdoc />
     public void SetEnabled(bool enabled)
     {
         if (enabled)

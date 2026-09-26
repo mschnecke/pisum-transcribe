@@ -89,6 +89,17 @@
     <EmbeddedResource Include="Tray\MacOS\*@2x.png"/>
   </ItemGroup>
 
+  <!-- ONNX Runtime's props copy its Windows ARM64 DLLs whenever PlatformTarget is ARM64, whatever the operating system,
+       so every osx-arm64 build would carry 16 MB of Windows code. Matched by the path, not the package version (design
+       D2 of add-macos-packaging). -->
+  <Target Name="PisumRemoveWindowsArm64Libraries" BeforeTargets="AssignTargetPaths"
+          Condition="'$(TargetFramework)' == '$(PisumMacTargetFramework)'">
+    <ItemGroup>
+      <None Remove="@(None)"
+            Condition="$([System.String]::Copy('%(FullPath)').Replace('\', '/').Contains('/runtimes/win-arm64/native/'))"/>
+    </ItemGroup>
+  </Target>
+
   <!-- The Swift helper libPisumMac.dylib, built with the Command Line Tools for the macOS framework on a macOS host only
        (design D3 of add-macos-shell). -->
   <PropertyGroup>
@@ -130,21 +141,50 @@
     <PisumCodesignIdentity Condition="'$(PisumCodesignIdentity)' == ''">-</PisumCodesignIdentity>
   </PropertyGroup>
 
+  <!-- A publish assembles the release bundle <publish dir>/Pisum Transcribe.app from the publish output instead, with
+       the license and notices in Contents/Resources, and leaves the dev bundle alone (design D1 of
+       add-macos-packaging). -->
   <Target Name="PisumSetAppBundlePaths">
     <PropertyGroup>
-      <PisumAppBundle>$(TargetDir)Pisum Transcribe.app</PisumAppBundle>
-      <PisumAppBundleStamp>$(ProjectDir)$(IntermediateOutputPath)PisumAppBundle.stamp</PisumAppBundleStamp>
+      <_PisumAppBundleSource Condition="'$(_IsPublishing)' != 'true'">$(TargetDir)</_PisumAppBundleSource>
+      <_PisumAppBundleSource Condition="'$(_IsPublishing)' == 'true'">$([MSBuild]::NormalizeDirectory('$(MSBuildProjectDirectory)', '$(PublishDir)'))</_PisumAppBundleSource>
+      <PisumAppBundle>$(_PisumAppBundleSource)Pisum Transcribe.app</PisumAppBundle>
+      <PisumAppBundleStamp Condition="'$(_IsPublishing)' != 'true'">$(ProjectDir)$(IntermediateOutputPath)PisumAppBundle.stamp</PisumAppBundleStamp>
+      <PisumAppBundleStamp Condition="'$(_IsPublishing)' == 'true'">$(ProjectDir)$(IntermediateOutputPath)PisumReleaseBundle.stamp</PisumAppBundleStamp>
     </PropertyGroup>
     <ItemGroup>
-      <PisumAppBundleInput Include="$(TargetDir)**" Exclude="$(PisumAppBundle)/**"/>
+      <PisumAppBundleInput Include="$(_PisumAppBundleSource)**" Exclude="$(PisumAppBundle)/**"/>
       <PisumAppBundleInput Include="MacOS\Info.plist;Tray\MacOS\AppIcon.icns"/>
+    </ItemGroup>
+    <!-- The same file names as in the MSI. -->
+    <ItemGroup Condition="'$(_IsPublishing)' == 'true'">
+      <PisumAppBundleNotice Include="..\..\LICENSE" DestinationName="LICENSE"/>
+      <PisumAppBundleNotice Include="..\..\THIRD-PARTY-NOTICES.md" DestinationName="THIRD-PARTY-NOTICES.md"/>
+      <PisumAppBundleNotice Include="..\..\packaging\third-party\onnxruntime-ThirdPartyNotices.txt"
+                            DestinationName="ThirdPartyNotices-OnnxRuntime.txt"/>
+      <PisumAppBundleNotice Include="..\..\packaging\third-party\dotnet-runtime-THIRD-PARTY-NOTICES.txt"
+                            DestinationName="ThirdPartyNotices-DotNet.txt"/>
+      <PisumAppBundleNotice Include="..\..\packaging\third-party\avalonia-NOTICE.txt"
+                            DestinationName="ThirdPartyNotices-Avalonia.txt"/>
+      <PisumAppBundleNotice Include="..\..\packaging\third-party\skiasharp-THIRD-PARTY-NOTICES.txt"
+                            DestinationName="ThirdPartyNotices-SkiaSharp.txt"/>
+      <PisumAppBundleInput Include="@(PisumAppBundleNotice)"/>
     </ItemGroup>
   </Target>
 
-  <Target Name="PisumAssembleAppBundle" AfterTargets="Build" Condition="'$(PisumBuildsMacNative)' == 'true'"
-          DependsOnTargets="PisumSetAppBundlePaths" Inputs="@(PisumAppBundleInput)" Outputs="$(PisumAppBundleStamp)">
+  <Target Name="PisumAssembleDevBundle" AfterTargets="Build"
+          Condition="'$(PisumBuildsMacNative)' == 'true' and '$(_IsPublishing)' != 'true'"
+          DependsOnTargets="PisumAssembleAppBundle"/>
+
+  <Target Name="PisumAssembleReleaseBundle" AfterTargets="Publish" Condition="'$(PisumBuildsMacNative)' == 'true'"
+          DependsOnTargets="PisumAssembleAppBundle"/>
+
+  <!-- The bundle's Info.plist is an output too, so a deleted bundle is assembled again although its inputs are older
+       than the stamp, as they are after a publish into a fresh folder. -->
+  <Target Name="PisumAssembleAppBundle" DependsOnTargets="PisumSetAppBundlePaths" Inputs="@(PisumAppBundleInput)"
+          Outputs="$(PisumAppBundleStamp);$(PisumAppBundle)/Contents/Info.plist">
     <ItemGroup>
-      <_PisumBundleFile Include="$(TargetDir)**" Exclude="$(PisumAppBundle)/**"/>
+      <_PisumBundleFile Include="$(_PisumAppBundleSource)**" Exclude="$(PisumAppBundle)/**"/>
     </ItemGroup>
     <PropertyGroup>
       <_PisumInfoPlist>$([System.IO.File]::ReadAllText('$(ProjectDir)MacOS/Info.plist').Replace('@VERSION@', '$(Version)').Replace('@MINIMUM_SYSTEM_VERSION@', '$(PisumMacMinimumVersion)'))</_PisumInfoPlist>
@@ -156,6 +196,14 @@
           DestinationFiles="@(_PisumBundleFile->'$(PisumAppBundle)/Contents/MacOS/%(RecursiveDir)%(Filename)%(Extension)')"/>
     <Copy SourceFiles="Tray\MacOS\AppIcon.icns" DestinationFolder="$(PisumAppBundle)/Contents/Resources"/>
     <WriteLinesToFile File="$(PisumAppBundle)/Contents/Info.plist" Lines="$(_PisumInfoPlist)" Overwrite="true"/>
+    <!-- The native package's three LICENSE files, flattened onto one path, are in THIRD-PARTY-NOTICES.md. -->
+    <Delete Files="$(PisumAppBundle)/Contents/MacOS/LICENSE" Condition="'$(_IsPublishing)' == 'true'"/>
+    <Copy SourceFiles="@(PisumAppBundleNotice)"
+          DestinationFiles="@(PisumAppBundleNotice->'$(PisumAppBundle)/Contents/Resources/%(DestinationName)')"/>
+    <!-- Some native packages ship universal libraries; the release carries only their Apple silicon slice, which the
+         guard checks. -->
+    <Exec Condition="'$(_IsPublishing)' == 'true'"
+          Command="find &quot;$(PisumAppBundle)/Contents/MacOS&quot; -type f -exec sh -c 'for f; do if lipo &quot;$f&quot; -verify_arch x86_64 2&gt;/dev/null; then echo &quot;Thinning $f to arm64&quot;; lipo -thin arm64 &quot;$f&quot; -output &quot;$f&quot; || exit 1; fi; done' sh {} +"/>
 
     <!-- Inside-out: every nested file first, then the bundle, which signs the executable and seals the resources.
          codesign counts every file in Contents/MacOS as code, and keeps the signature of a file that isn't Mach-O, such

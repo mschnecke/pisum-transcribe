@@ -88,7 +88,7 @@ graph TD
     G16 --> G17["GitHub #17 add-macos-recording"]
     G15 --> G18["GitHub #18 add-metal-backend"]
     G18 --> G32["GitHub #32 harden-settings-enums"]
-    G15 --> G21["GitHub #21 add-macos-login-item"]
+    G15 --> G21["GitHub #21 Open at login, folded into #22"]
     G17 --> G19["GitHub #19 add-macos-text-insertion"]
     G16 --> G20["GitHub #20 add-macos-dictation"]
     G18 --> G20
@@ -112,11 +112,11 @@ graph TD
 | 23 | [GitHub #18](https://github.com/mschnecke/pisum-transcribe/issues/18) | `add-metal-backend` | GitHub #15 | Metal with CPU fallback, the GPU setting renamed with a migration, the M4 benchmark |
 | 24 | [GitHub #19](https://github.com/mschnecke/pisum-transcribe/issues/19) | `add-macos-text-insertion` | GitHub #17 | Paste with restore, typing when the pasteboard can't be read, the secure-input hint |
 | 25 | [GitHub #20](https://github.com/mschnecke/pisum-transcribe/issues/20) | `add-macos-dictation` | GitHub #16, #18, #19 | **Mac MVP:** hold, speak, release, text appears |
-| 26 | [GitHub #21](https://github.com/mschnecke/pisum-transcribe/issues/21) | `add-macos-login-item` | GitHub #15 | Open at login |
-| 27 | [GitHub #22](https://github.com/mschnecke/pisum-transcribe/issues/22) | `add-macos-packaging` | GitHub #20, #21 | An unsigned `.pkg` with the project's own certificate, upgrades like the MSI's, a Homebrew tap, lockstep releases |
+| 26 | [GitHub #21](https://github.com/mschnecke/pisum-transcribe/issues/21) | – (folded into `add-macos-packaging`) | GitHub #15 | Open at login, delivered by GitHub #22 |
+| 27 | [GitHub #22](https://github.com/mschnecke/pisum-transcribe/issues/22) | `add-macos-packaging` | GitHub #20 | An unsigned `.pkg` with the project's own certificate, upgrades like the MSI's, Open at login, lockstep releases |
 | 28 | [GitHub #32](https://github.com/mschnecke/pisum-transcribe/issues/32) | `harden-settings-enums` | GitHub #18 | An unknown setting value falls back to its default, instead of resetting every setting, for example after a downgrade |
 
-**Planning state on 2026-09-24:**
+**Planning state on 2026-09-26:**
 - **Done:** GitHub #10–#13, merged in pull requests #24–#27. GitHub #13's registration was checked on Windows 11 only. The check on Windows 10 22H2 was skipped, so the shortcut fallback in its design D2 still applies if toasts don't show there.
 - **The spike** is done: the macOS half on 2026-09-22 and the Windows half on 2026-09-23, both go.
 - **GitHub #14** is merged in pull request #28 and released as 1.3.0. CI passed on Windows. Its archived tasks leave the regression pass by hand on Windows 11 and Windows 10 22H2 (8.2, 8.3), the `Hardware` tests (8.1) and the light and dark screenshots (3.6) unchecked.
@@ -126,8 +126,10 @@ graph TD
 - **GitHub #18** is merged in pull request #33: Metal is the GPU backend on macOS, and the setting stores `gpu` on both platforms, with settings format 2 migrating `vulkan`. The checks by hand on the Mac and the migration check on Windows are still open.
 - **The checkpoint after #18** ran on 2026-09-24 and changed no default: Metal and Canary 1B v2 Q8_0 stay the Mac defaults. The numbers are in the design of `add-macos-dictation`.
 - **GitHub #19** is merged in pull request #34 and archived: paste with restore on macOS, typing when the pasteboard can't be read without asking, the nspasteboard.org markers and Universal Clipboard exclusion, and the secure-input outcome. Its checks by hand (4.3) moved to #20.
-- **GitHub #20** is implemented on its branch as `add-macos-dictation`: dictation on the Mac, with the overlay, the menu bar states and the hotkey's reasons for *unavailable*, App Nap activities, the relaunch waiting for a dictation, and the fallback when keystrokes aren't allowed. Its checks by hand, and #19's, are still open.
-- **GitHub #21, #22 and #32** have no OpenSpec change yet.
+- **GitHub #20** is merged in pull request #35 and archived: dictation on the Mac, with the overlay, the menu bar states and the hotkey's reasons for *unavailable*, App Nap activities, the relaunch waiting for a dictation, and the fallback when keystrokes aren't allowed.
+- **GitHub #21** is folded into #22, which brings "Open at login" with the first Mac release.
+- **GitHub #22** is being implemented as `add-macos-packaging`: the `.pkg`, the project's signing certificate "Pisum Transcribe", the release guard, lockstep releases, "Open at login" and the update notice's wording on macOS. 1.4.0-rc.1 comes first, then 1.4.0. The Homebrew tap is a later change.
+- **GitHub #32** has no OpenSpec change yet.
 
 ### Releases
 
@@ -157,9 +159,9 @@ These are no-regret changes on the WPF shell. They're needed whichever shell mac
 #### Phase 7: The Avalonia shell (GitHub #14)
 The swap from WPF to Avalonia, checked against the existing specs. It ships as 1.3.0.
 
-#### Phase 8: The macOS track (GitHub #15–#21)
+#### Phase 8: The macOS track (GitHub #15–#20)
 - After #15, #16 setup comes first, followed by #17 recording and #19 text insertion. #17 builds on #16's permission checks, its microphone status and its relaunch after the Accessibility grant. #18 Metal runs in parallel with them.
-- #21 depends only on #15.
+- #21, "Open at login", was folded into #22.
 - #32 depends only on #18, whose settings format version and migration it builds on. It hardens the settings on both platforms and doesn't block the Mac MVP.
 - #20 joins the tracks into the Mac MVP.
 
@@ -174,7 +176,7 @@ The swap from WPF to Avalonia, checked against the existing specs. It ships as 1
   - Q4_K_M matched Q8_0 on a short, quiet clip, too little to switch the default, so Q8_0 stays (user decision).
 
 #### Phase 9: The first lockstep release (GitHub #22)
-The `.pkg`, its signing and its upgrade behavior. It ships as 1.4.0, with the MSI.
+The `.pkg`, its signing and its upgrade behavior, and "Open at login" (#21). It ships as 1.4.0-rc.1 and then 1.4.0, with the MSI.
 
 ## Deferred (not planned yet)
 
@@ -183,7 +185,7 @@ The `.pkg`, its signing and its upgrade behavior. It ships as 1.4.0, with the MS
   - SignPath Foundation signs open-source projects for free, with "SignPath Foundation" as the publisher shown.
 - macOS without an Apple Developer Program membership:
   - Developer ID signing and notarization aren't possible, so the `.pkg` ships unsigned (GitHub #22).
-  - The official Homebrew cask repository has been closed to apps that aren't notarized since 2026-09-01. A tap of the project's own is proposed in GitHub #22.
+  - The official Homebrew cask repository has been closed to apps that aren't notarized since 2026-09-01. A tap of the project's own is a later change, once a `.pkg` release exists; GitHub #22 leaves it out.
 - macOS on Intel Macs, a universal build, and macOS 13 or earlier.
 - For the sister project pisum-whisper:
   - the `.pkg` upgrade rules and the self-signed certificate from GitHub #22
