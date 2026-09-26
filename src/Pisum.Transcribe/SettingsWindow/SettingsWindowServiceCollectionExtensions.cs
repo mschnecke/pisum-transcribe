@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
-#if WINDOWS
 using Microsoft.Extensions.DependencyInjection.Extensions;
+#if !WINDOWS
+using Pisum.Transcribe.Hosting;
 #endif
 
 namespace Pisum.Transcribe.SettingsWindow;
@@ -11,10 +12,10 @@ namespace Pisum.Transcribe.SettingsWindow;
 internal static class SettingsWindowServiceCollectionExtensions
 {
     /// <summary>
-    /// Adds <see cref="IStartupRegistration"/> on Windows, which also updates an existing startup entry at startup, the
-    /// <see cref="SettingsApplier"/>, which applies saved settings while the application runs, and the
-    /// <see cref="SettingsWindowService"/>, which opens the settings window from the tray. Register it after the
-    /// features whose settings it changes.
+    /// Adds <see cref="IStartupRegistration"/>, the startup entry on Windows, which is also updated at startup, and the
+    /// login item on macOS, the <see cref="SettingsApplier"/>, which applies saved settings while the application runs,
+    /// and the <see cref="SettingsWindowService"/>, which opens the settings window from the tray. Register it after
+    /// the features whose settings it changes.
     /// </summary>
     /// <param name="services">The service collection.</param>
     /// <returns>The same service collection, for chaining.</returns>
@@ -26,6 +27,9 @@ internal static class SettingsWindowServiceCollectionExtensions
         services.AddSingleton<StartupRegistration>();
         services.AddSingleton<IStartupRegistration>(provider => provider.GetRequiredService<StartupRegistration>());
         services.AddHostedService(provider => provider.GetRequiredService<StartupRegistration>());
+#else
+        services.TryAddSingleton<MacNativeLibrary>();
+        services.AddSingleton<IStartupRegistration, MacLoginItem>();
 #endif
         services.AddHostedService<SettingsApplier>();
         services.AddHostedService<SettingsWindowService>();

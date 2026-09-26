@@ -1,28 +1,30 @@
 # Pisum Transcribe
 
-Pisum Transcribe is a push-to-talk dictation app for Windows. It runs in the system tray. Hold the hotkey, speak, and release it: the app transcribes your speech and inserts the text at the cursor in the active window. By default it translates German speech into English text.
+Pisum Transcribe is a push-to-talk dictation app for Windows and for Macs with Apple silicon. It runs in the system tray on Windows and in the menu bar on the Mac. Hold the hotkey, speak, and release it: the app transcribes your speech and inserts the text at the cursor in the active window. By default it translates German speech into English text.
 
-A version for macOS on Apple silicon is coming. It isn't released yet, so this README covers Windows only.
+The Mac app is released since 1.4.0. It works like the Windows app; where it differs, this README says so.
 
 Speech recognition runs on your computer with an NVIDIA Canary model and the [transcribe.cpp](https://github.com/handy-computer/transcribe.cpp) engine. Audio and text never leave the machine. The app goes online to download a speech model and, unless you turn it off in the settings, once a day to ask GitHub whether a new version exists.
 
 ## Features
 
-- **Hold to talk:** a global hotkey (Right Ctrl by default) records while you hold it, in any application.
+- **Hold to talk:** a global hotkey (Right Ctrl by default, right Command on the Mac) records while you hold it, in any application.
 - **Translate or transcribe:** translate into another language (German to English by default), or transcribe in the spoken language. The Canary 1B v2 models support 25 European languages.
 - **Text at the cursor:** the text is pasted through the clipboard, and the previous clipboard contents are put back. Typing the text as keyboard input is an option.
-- **Local and fast:** the model stays loaded between dictations. It runs on the GPU through Vulkan and falls back to the CPU when the GPU fails.
+- **Local and fast:** the model stays loaded between dictations. It runs on the GPU through Vulkan, or Metal on the Mac, and falls back to the CPU when the GPU fails.
 - **Silence trimming:** [Silero VAD](https://github.com/snakers4/silero-vad) cuts the silence before and after your speech, and recordings without speech are not transcribed.
 - **Feedback:** an overlay shows the recording time and the transcription progress, and the tray icon, a monochrome microphone, shows the app state. When the app is ready, the icon is black on a light taskbar and white on a dark one, and it follows a change of the Windows mode at once. It is dimmed while no model is available, red while recording and amber while transcribing.
 
 ## Requirements
 
-- Windows 10 version 2004 or later, or Windows 11, x64
+- Windows 10 version 2004 or later, or Windows 11, x64. A GPU with a Vulkan driver is optional; without one, the model runs on the CPU.
+- Or a Mac with Apple silicon and macOS 14 or later. Intel Macs aren't supported.
 - A microphone
-- A GPU with a Vulkan driver is optional. Without one, the model runs on the CPU.
-- 0.2 to 1.1 GB of disk space for a speech model, and about 230 MB for the app
+- 0.2 to 1.1 GB of disk space for a speech model, and about 230 MB for the app on Windows or 160 MB on the Mac
 
 ## Getting started
+
+### On Windows
 
 1. Download `Pisum.Transcribe_<version>_win-x64.msi` from the [latest release](https://github.com/mschnecke/pisum-transcribe/releases). It is about 77 MB.
 2. Open it. The installer isn't code-signed, so Windows SmartScreen may show **Windows protected your PC**. Choose **More info**, then **Run anyway**.
@@ -33,15 +35,45 @@ The app starts when the installation finishes. On the first start, it opens the 
 
 Only one instance runs at a time. A second start waits up to 6 seconds for the first instance to exit and then exits itself.
 
-### Upgrading
+### Upgrading on Windows
 
 Open the MSI of a newer release. If the app is running, Windows Installer says **The following applications should be closed before continuing the install** and lists `Pisum.Transcribe`. Choose **OK**, and it closes the app. The new version starts when the upgrade finishes. Your settings, speech models, logs and **Start with Windows** stay as they are.
 
 A final release installs over its release candidates, such as `0.1.0` over `0.1.0-rc.2`. An older release doesn't install over a newer one: the installer says **A newer version of Pisum Transcribe is already installed**. To go back, uninstall first.
 
-### Uninstalling
+### Uninstalling on Windows
 
 Uninstall **Pisum Transcribe** in Windows Settings under **Apps** > **Installed apps**. This removes the program, its Start Menu entry and its **Start with Windows** entry. It keeps `%LOCALAPPDATA%\Pisum Transcribe\` with your settings, speech models and logs, so a new installation picks them up again. Delete that folder to remove them too.
+
+### On a Mac
+
+1. Download `Pisum.Transcribe_<version>_osx-arm64.pkg` from the [latest release](https://github.com/mschnecke/pisum-transcribe/releases). It is about 56 MB.
+2. Open it. The package isn't signed by an Apple developer, so macOS says it can't verify it and doesn't open it. Choose **Done**, open **System Settings** > **Privacy & Security**, and choose **Open Anyway** next to the message about the package. Confirm with your password or Touch ID, and choose **Open Anyway** once more. macOS asks this once for each downloaded package.
+3. Follow the installer and enter an administrator's password. It installs `Pisum Transcribe.app` into `/Applications`.
+
+The installer refuses Intel Macs and macOS 13 or older. The app contains .NET, so nothing else needs to be installed.
+
+The app starts when the installation finishes and shows its icon in the menu bar. On the first start, it opens the setup window with the model download and four permissions:
+
+- **Accessibility**, for the push-to-talk key and to insert the text. **Allow…** shows macOS's prompt, which leads to **System Settings** > **Privacy & Security** > **Accessibility**. Turn on Pisum Transcribe there, and the app restarts itself to use the permission.
+- **Microphone**, to record while you hold the push-to-talk key. **Allow…** shows macOS's prompt.
+- **Notifications** and **Paste from other apps** are optional.
+
+Every release is signed with the project's own certificate, so macOS keeps these permissions when you install a newer release.
+
+### Upgrading on a Mac
+
+Open the package of a newer release, as for the first installation. The installer quits a running Pisum Transcribe as **Quit Pisum Transcribe** does, and starts the new version when it finishes. Your settings, speech models, logs, permissions and **Open at login** stay as they are. A final release installs over its release candidates. An older release doesn't install over a newer one: the installer says **A newer version of Pisum Transcribe is already installed.**
+
+### Uninstalling on a Mac
+
+Quit Pisum Transcribe from its menu, and move `/Applications/Pisum Transcribe.app` to the Trash. macOS removes its **Open at login** item with it. Your settings and speech models in `~/Library/Application Support/Pisum Transcribe/` and the logs in `~/Library/Logs/Pisum Transcribe/` stay, so a new installation picks them up again. To remove them too, and the installer's receipt and the permissions:
+
+```sh
+rm -rf ~/Library/Application\ Support/Pisum\ Transcribe ~/Library/Logs/Pisum\ Transcribe
+sudo pkgutil --forget io.github.mschnecke.pisum-transcribe
+tccutil reset All io.github.mschnecke.pisum-transcribe
+```
 
 ### Coming from the zip
 
@@ -54,8 +86,11 @@ You need the [.NET SDK 10.0.400](https://dotnet.microsoft.com/download) or a lat
 ```sh
 git clone https://github.com/mschnecke/pisum-transcribe.git
 cd pisum-transcribe
-dotnet run --project src/Pisum.Transcribe -f net10.0-windows10.0.19041.0
+dotnet run --project src/Pisum.Transcribe -f net10.0-windows10.0.19041.0   # Windows
+dotnet run --project src/Pisum.Transcribe -f net10.0                        # Mac
 ```
+
+On a Mac, the build also needs the Xcode Command Line Tools (`xcode-select --install`). [CLAUDE.md](CLAUDE.md) describes how the Mac build signs the app, and how to keep its permissions across builds.
 
 ## Usage
 
@@ -93,7 +128,7 @@ The settings window applies changes when you save them, without a restart. It ha
 - **Model:** download, delete and select speech models.
 - **Engine:** choose the compute backend: Auto (the GPU when it works, otherwise the CPU), Vulkan only, or CPU only. It also shows the engine status.
 - **Text insertion:** paste through the clipboard (with or without restoring the clipboard), or type the text. Typing leaves the clipboard alone but is slower for long text.
-- **General:** start with Windows, which adds an entry to the current user's `Run` registry key, and check for updates automatically, which asks GitHub once a day whether a new version exists. The update check is on by default.
+- **General:** start with Windows, which adds an entry to the current user's `Run` registry key, or **Open at login** on the Mac, which adds the app to **System Settings** > **General** > **Login Items**, and check for updates automatically, which asks GitHub once a day whether a new version exists. The update check is on by default.
 
 The settings are saved in `settings.json`. A file with the defaults looks like this:
 
@@ -130,6 +165,8 @@ All data is stored per user in `%LOCALAPPDATA%\Pisum Transcribe\`, and nothing r
 | `settings.json` | The settings |
 | `models\` | Downloaded speech models |
 | `logs\` | A daily log file. The last 7 files are kept. |
+
+On the Mac, the settings and models are in `~/Library/Application Support/Pisum Transcribe/`, and the logs in `~/Library/Logs/Pisum Transcribe/`.
 
 The log contains durations, lengths and status codes. It never contains audio or transcript text.
 
@@ -174,8 +211,8 @@ The app is an Avalonia app on the .NET Generic Host, with no main window. Each f
 
 ## Project status
 
-The v1 feature set on the roadmap is implemented. GitHub Actions builds, tests and packages every pull request and every push to `main`, and releases are published as an MSI installer on [GitHub Releases](https://github.com/mschnecke/pisum-transcribe/releases). Automatic updates and code signing are not done yet.
+The v1 feature set on the roadmap is implemented. GitHub Actions builds, tests and packages every pull request and every push to `main`, and each release is published with an MSI installer for Windows and a package for the Mac on [GitHub Releases](https://github.com/mschnecke/pisum-transcribe/releases). Automatic updates, code signing of the MSI and notarization of the Mac package are not done yet.
 
 ## Third-party notices
 
-[THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) lists the third-party components the app ships and their licenses. Every release also carries the source of libuiohook (LGPL) and WiX (MS-RL), the two copyleft components in the MSI.
+[THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) lists the third-party components the app ships and their licenses. Every release also carries the source of libuiohook (LGPL), which both installers contain, and WiX (MS-RL), which the MSI contains.

@@ -238,11 +238,15 @@
                        IsVisible="{Binding #Navigation.SelectedIndex, Converter={x:Static local:SectionIndexConverter.Instance}, ConverterParameter=4}">
                     <StackPanel x:DataType="local:GeneralSectionViewModel">
                         <TextBlock Classes="sectionTitle" Text="General" />
-                        <StackPanel x:Name="StartWithWindowsRow" Margin="0,0,0,16"
-                                    IsVisible="{Binding IsStartWithWindowsAvailable}">
-                            <CheckBox Content="Start with _Windows" IsChecked="{Binding StartWithWindows}" />
-                            <TextBlock Classes="hint"
-                                       Text="Starts Pisum Transcribe when you sign in to Windows. Applies to your user account only." />
+                        <StackPanel x:Name="StartAtSignInRow" Margin="0,0,0,16"
+                                    IsVisible="{Binding IsStartAtSignInAvailable}">
+                            <CheckBox x:Name="StartAtSignInCheckBox"
+                                      Content="{x:Static local:GeneralSectionViewModel.StartAtSignInLabel}"
+                                      IsChecked="{Binding StartAtSignIn}" />
+                            <TextBlock Classes="hint" Text="{x:Static local:GeneralSectionViewModel.StartAtSignInHint}" />
+                            <TextBlock x:Name="ApprovalHint" Classes="hint"
+                                       Text="{x:Static local:GeneralSectionViewModel.ApprovalHint}"
+                                       IsVisible="{Binding RequiresApproval}" />
                         </StackPanel>
 
                         <CheckBox Content="Check for _updates automatically"

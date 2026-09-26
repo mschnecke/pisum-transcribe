@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The product archive's distribution (design D4 of add-macos-packaging). A template: build-pkg.sh fills @VERSION@. -->
+<installer-gui-script minSpecVersion="2">
+    <title>Pisum Transcribe</title>
+    <!-- Apple silicon only, into /Applications only, no choices. -->
+    <options hostArchitectures="arm64" customize="never" require-scripts="false"/>
+    <domains enable_localSystem="true"/>
+    <volume-check>
+        <allowed-os-versions>
+            <os-version min="14.0"/>
+        </allowed-os-versions>
+    </volume-check>
+    <installation-check script="checkInstallation()"/>
+    <script><![CDATA[
+var packageVersion = '@VERSION@';
+
+// major.minor.patch without the pre-release suffix, so a release installs over its release candidates and the
+// other way round, like the MSI's same-version rule.
+function coreVersion(version) {
+    var parts = String(version).split('-')[0].split('.');
+    var core = [];
+    for (var i = 0; i < 3; i++) {
+        core.push(parseInt(parts[i], 10) || 0);
+    }
+    return core;
+}
+
+function compareCoreVersions(a, b) {
+    var x = coreVersion(a), y = coreVersion(b);
+    for (var i = 0; i < 3; i++) {
+        if (x[i] !== y[i]) {
+            return x[i] < y[i] ? -1 : 1;
+        }
+    }
+    return 0;
+}
+
+function refuse(message) {
+    my.result.type = 'Fatal';
+    my.result.title = 'Pisum Transcribe can\'t be installed';
+    my.result.message = message;
+    return false;
+}
+
+function checkInstallation() {
+    if (system.compareVersions(system.version.ProductVersion, '14.0') < 0) {
+        return refuse('Pisum Transcribe needs macOS 14 or later.');
+    }
+    var bundle = system.files.bundleAtPath('/Applications/Pisum Transcribe.app');
+    if (bundle && bundle.CFBundleShortVersionString) {
+        system.log('Pisum Transcribe ' + bundle.CFBundleShortVersionString + ' is installed; this package is ' + packageVersion);
+        if (compareCoreVersions(bundle.CFBundleShortVersionString, packageVersion) > 0) {
+            return refuse('A newer version of Pisum Transcribe is already installed.');
+        }
+    }
+    return true;
+}
+    ]]></script>
+    <choices-outline>
+        <line choice="default">
+            <line choice="io.github.mschnecke.pisum-transcribe"/>
+        </line>
+    </choices-outline>
+    <choice id="default"/>
+    <choice id="io.github.mschnecke.pisum-transcribe" visible="false">
+        <pkg-ref id="io.github.mschnecke.pisum-transcribe"/>
+    </choice>
+    <pkg-ref id="io.github.mschnecke.pisum-transcribe" version="@VERSION@" onConclusion="none">PisumTranscribe.pkg</pkg-ref>
+</installer-gui-script>

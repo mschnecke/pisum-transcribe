@@ -17,7 +17,7 @@ public sealed class MacNativeLibraryIntegrationTests
         var version = PisumMac.AbiVersion();
 
         // Assert
-        version.ShouldBe(4);
+        version.ShouldBe(5);
         version.ShouldBe(MacNativeLibrary.ExpectedAbiVersion);
     }
 
@@ -90,6 +90,16 @@ public sealed class MacNativeLibraryIntegrationTests
         token.ShouldNotBe(0);
         whileRunning.ShouldContain(reason);
         afterEnd.ShouldNotContain(reason);
+    }
+
+    [Fact]
+    public void LoginItemStatus_RealHelper_ReturnsAStatusFrom0To3()
+    {
+        // Act: nothing is registered, which would make macOS open the test host at login.
+        var status = PisumMac.LoginItemStatus();
+
+        // Assert
+        status.ShouldBeInRange(0, 3);
     }
 
     [Fact]

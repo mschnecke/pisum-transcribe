@@ -20,7 +20,11 @@ namespace Pisum.Transcribe.Tests.Updates;
 public sealed class UpdateCheckServiceTests : IAsyncDisposable
 {
     private const string RunningVersion = "1.1.1+b917e0ee";
+#if WINDOWS
     private const string NoticeMessage = "Choose it in the tray menu to open the release page.";
+#else
+    private const string NoticeMessage = "Choose it in the menu bar to open the release page.";
+#endif
 
     private static readonly TimeSpan SignalTimeout = TimeSpan.FromSeconds(10);
     private static readonly TimeSpan FirstDelay = TimeSpan.FromMinutes(5);

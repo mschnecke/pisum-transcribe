@@ -42,7 +42,7 @@ public sealed class SettingsViewModelTests
         sut.Dictation.HotkeyName.ShouldBe(HotkeyText.Format(HotkeyParser.DefaultHotkey));
         sut.Model.SelectedModelId.ShouldBe(ModelCatalog.DefaultModelId);
         sut.TextInsertion.Method.ShouldBe(InsertionMethod.ClipboardPaste);
-        sut.General.StartWithWindows.ShouldBeFalse();
+        sut.General.StartAtSignIn.ShouldBeFalse();
         sut.HasChanges.ShouldBeFalse();
         sut.SaveCommand.CanExecute(null).ShouldBeFalse();
     }
@@ -290,14 +290,14 @@ public sealed class SettingsViewModelTests
     }
 
     [Fact]
-    public async Task SaveCommand_StartWithWindowsChanged_SetsItWithoutSavingSettings()
+    public async Task SaveCommand_StartAtSignInChanged_SetsItWithoutSavingSettings()
     {
         // Arrange
         A.CallTo(() => _startupRegistration.IsEnabled()).Returns(false).Once().Then.Returns(true);
         var sut = CreateSut();
 
         // Act
-        sut.General.StartWithWindows = true;
+        sut.General.StartAtSignIn = true;
         await sut.SaveCommand.ExecuteAsync(null);
 
         // Assert
@@ -307,13 +307,13 @@ public sealed class SettingsViewModelTests
     }
 
     [Fact]
-    public async Task SaveCommand_StartWithWindowsFails_ShowsErrorAndStillSavesSettings()
+    public async Task SaveCommand_StartAtSignInFails_ShowsErrorAndStillSavesSettings()
     {
         // Arrange
         A.CallTo(() => _startupRegistration.SetEnabled(A<bool>._)).Throws(new UnauthorizedAccessException());
         var sut = CreateSut();
         sut.Dictation.Task = TranscriptionTask.Transcribe;
-        sut.General.StartWithWindows = true;
+        sut.General.StartAtSignIn = true;
 
         // Act
         await sut.SaveCommand.ExecuteAsync(null);
@@ -321,7 +321,69 @@ public sealed class SettingsViewModelTests
         // Assert
         sut.SaveError.ShouldBe(SettingsViewModel.StartupFailedMessage);
         _settingsStore.Current.Transcription.Task.ShouldBe(TranscriptionTask.Transcribe);
-        sut.General.StartWithWindows.ShouldBeFalse();
+        sut.General.StartAtSignIn.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void Constructor_StartsAtSignIn_ShowsTheOptionOn()
+    {
+        // Arrange
+        A.CallTo(() => _startupRegistration.IsEnabled()).Returns(true);
+
+        // Act
+        var sut = CreateSut();
+
+        // Assert
+        sut.General.StartAtSignIn.ShouldBeTrue();
+        sut.General.RequiresApproval.ShouldBeFalse();
+        sut.HasChanges.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void Constructor_RequiresApproval_ShowsTheOptionOffWithTheHint()
+    {
+        // Arrange
+        A.CallTo(() => _startupRegistration.RequiresApproval()).Returns(true);
+
+        // Act
+        var sut = CreateSut();
+
+        // Assert
+        sut.General.StartAtSignIn.ShouldBeFalse();
+        sut.General.RequiresApproval.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task SaveCommand_StartAtSignInChanged_ReadsTheApprovalAgain()
+    {
+        // Arrange
+        A.CallTo(() => _startupRegistration.RequiresApproval()).Returns(true).Once().Then.Returns(false);
+        A.CallTo(() => _startupRegistration.IsEnabled()).Returns(false).Once().Then.Returns(true);
+        var sut = CreateSut();
+
+        // Act
+        sut.General.StartAtSignIn = true;
+        await sut.SaveCommand.ExecuteAsync(null);
+
+        // Assert
+        sut.General.StartAtSignIn.ShouldBeTrue();
+        sut.General.RequiresApproval.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void StartAtSignInLabel_Platform_NamesThePlatformsOption()
+    {
+        // Act
+        var label = GeneralSectionViewModel.StartAtSignInLabel;
+
+        // Assert
+#if WINDOWS
+        label.ShouldBe("Start with _Windows");
+        SettingsViewModel.StartupFailedMessage.ShouldStartWith("Start with Windows");
+#else
+        label.ShouldBe("Open at _login");
+        SettingsViewModel.StartupFailedMessage.ShouldStartWith("Open at login");
+#endif
     }
 
     [Fact]
@@ -331,7 +393,7 @@ public sealed class SettingsViewModelTests
         _settingsStore.SaveException = new IOException("Disk full.");
         var sut = CreateSut();
         sut.Dictation.Task = TranscriptionTask.Transcribe;
-        sut.General.StartWithWindows = true;
+        sut.General.StartAtSignIn = true;
 
         // Act
         await sut.SaveCommand.ExecuteAsync(null);

@@ -1,0 +1,29 @@
+#!/bin/bash
+# Run as root by Installer before the payload is in place (design D4 of add-macos-packaging). Ends every running
+# instance of the installed app, of every user, with SIGTERM, which the app handles like Quit Pisum Transcribe. An
+# instance that hasn't ended after 6 seconds is killed. Matched by the executable's path in /Applications, so a
+# development build elsewhere keeps running. Never fails the installation.
+EXECUTABLE='/Applications/Pisum Transcribe.app/Contents/MacOS/Pisum.Transcribe'
+PATTERN="^${EXECUTABLE//./\\.}( |\$)"
+
+pids=$(pgrep -f "$PATTERN")
+if [ -z "$pids" ]; then
+    exit 0
+fi
+
+echo "Ending Pisum Transcribe: $pids"
+# shellcheck disable=SC2086 # one argument per process ID
+kill -TERM $pids 2>/dev/null
+
+for _ in $(seq 1 60); do
+    pgrep -f "$PATTERN" >/dev/null || exit 0
+    sleep 0.1
+done
+
+pids=$(pgrep -f "$PATTERN")
+if [ -n "$pids" ]; then
+    echo "Pisum Transcribe didn't end within 6 seconds, killing: $pids"
+    # shellcheck disable=SC2086
+    kill -KILL $pids 2>/dev/null
+fi
+exit 0

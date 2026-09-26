@@ -32,6 +32,16 @@ internal sealed class UpdateCheckService : BackgroundService
     public const string HttpClientName = nameof(UpdateCheckService);
 
     /// <summary>
+    /// The text of the notification, which names where the platform shows the menu item (design D8 of
+    /// add-macos-packaging).
+    /// </summary>
+#if WINDOWS
+    public const string NoticeMessage = "Choose it in the tray menu to open the release page.";
+#else
+    public const string NoticeMessage = "Choose it in the menu bar to open the release page.";
+#endif
+
+    /// <summary>
     /// The latest release of the repository in GitHub's API, which is never a draft or a pre-release.
     /// </summary>
     public static readonly Uri LatestReleaseUri =
@@ -280,8 +290,7 @@ internal sealed class UpdateCheckService : BackgroundService
             }
         }
 
-        _notifier.Show($"Pisum Transcribe {latest} is available",
-            "Choose it in the tray menu to open the release page.");
+        _notifier.Show($"Pisum Transcribe {latest} is available", NoticeMessage);
     }
 
     private void OnSettingsChanged(object? sender, SettingsChangedEventArgs e)

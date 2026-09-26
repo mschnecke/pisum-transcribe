@@ -81,7 +81,7 @@ public sealed class SettingsDialogTests : IDisposable
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
-    public Task Constructor_StartupRegistration_ShowsStartWithWindowsOnlyWithIt(bool hasRegistration)
+    public Task Constructor_StartupRegistration_ShowsTheStartAtSignInOptionOnlyWithIt(bool hasRegistration)
     {
         return HeadlessUi.RunAsync(() =>
         {
@@ -96,7 +96,33 @@ public sealed class SettingsDialogTests : IDisposable
             sut.UpdateLayout();
 
             // Assert
-            sut.StartWithWindowsRow.IsVisible.ShouldBe(hasRegistration);
+            sut.StartAtSignInRow.IsVisible.ShouldBe(hasRegistration);
+            sut.Close();
+        });
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public Task Constructor_RequiresApproval_ShowsTheApprovalHintOnlyThen(bool requiresApproval)
+    {
+        return HeadlessUi.RunAsync(() =>
+        {
+            // Arrange
+            var registration = A.Fake<IStartupRegistration>();
+            A.CallTo(() => registration.RequiresApproval()).Returns(requiresApproval);
+            var viewModel = CreateViewModel(new FakeSettingsStore(new AppSettings()), registration, CreateModelStore());
+
+            // Act
+            var sut = new SettingsDialog(viewModel);
+            sut.Show();
+            sut.Navigation.SelectedIndex = GeneralSection;
+            sut.UpdateLayout();
+
+            // Assert
+            sut.StartAtSignInCheckBox.Content.ShouldBe(GeneralSectionViewModel.StartAtSignInLabel);
+            sut.StartAtSignInCheckBox.IsChecked.ShouldBe(false);
+            sut.ApprovalHint.IsVisible.ShouldBe(requiresApproval);
             sut.Close();
         });
     }

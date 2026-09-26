@@ -1,6 +1,7 @@
 name: Release
 
-# Two ways in and one path out. Pushing a version tag publishes a release carrying the MSI; running
+# Two ways in and one path out. Pushing a version tag publishes a release carrying the MSI and the
+# macOS package; running
 # the workflow by hand bumps the version first, commits it, pushes the tag, and then does exactly
 # the same thing (design D1).
 #
@@ -109,8 +110,8 @@ jobs:
           fi
           echo "Releasing $VERSION"
 
-  build:
-    name: Build
+  build-windows:
+    name: Build the MSI
     needs: version
     # Explicit, like `version`'s: a skipped job skips everything downstream of it, not only the jobs
     # that name it, so on a tag push the skipped `bump` would skip this job and the release too.
@@ -145,12 +146,78 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+  build-macos:
+    name: Build the macOS package
+    needs: version
+    # The same condition as build-windows'.
+    if: ${{ !cancelled() && needs.version.result == 'success' }}
+    runs-on: macos-latest
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.version.outputs.tag }}
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      # The Mac's default test run, which leaves out the Windows tests; a test that fails only on
+      # macOS stops the release too.
+      - name: Test
+        run: dotnet test Pisum.Transcribe.slnx -c Release
+
+      # The project's certificate "Pisum Transcribe", in a keychain of its own that lives only for
+      # this job (design D5 of add-macos-packaging). Every release is signed with it, so macOS keeps
+      # the users' Accessibility and microphone grants across updates.
+      - name: Import the signing certificate
+        env:
+          CERTIFICATE_P12: ${{ secrets.MACOS_CERTIFICATE_P12 }}
+          CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+        run: |
+          KEYCHAIN="$RUNNER_TEMP/pisum-signing.keychain-db"
+          KEYCHAIN_PASSWORD="$(openssl rand -base64 32)"
+          echo "::add-mask::$KEYCHAIN_PASSWORD"
+          CERTIFICATE="$RUNNER_TEMP/certificate.p12"
+          echo "$CERTIFICATE_P12" | base64 --decode > "$CERTIFICATE"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          # No timeout and no lock on sleep, so the keychain stays unlocked for the whole build.
+          security set-keychain-settings "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security import "$CERTIFICATE" -k "$KEYCHAIN" -P "$CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          rm -f "$CERTIFICATE"
+          # Lets codesign use the key without a prompt, which nobody could answer here.
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN" > /dev/null
+          # First in the search list, so codesign finds the identity by its name.
+          # shellcheck disable=SC2046 # one argument per keychain already in the list
+          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
+          security find-identity -p codesigning "$KEYCHAIN"
+
+      # The guard inside the script checks the signature against the project's certificate.
+      - name: Build the package
+        run: ./packaging/macos/build-pkg.sh "$VERSION"
+
+      - name: Delete the signing keychain
+        if: always()
+        run: |
+          security delete-keychain "$RUNNER_TEMP/pisum-signing.keychain-db" 2> /dev/null || true
+          rm -f "$RUNNER_TEMP/certificate.p12"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: pkg
+          path: artifacts/*.pkg
+          if-no-files-found: error
+          retention-days: 7
+
   release:
     name: Publish the release
-    # Only after the build: if it fails, this job never runs and nothing is published. The condition
-    # is explicit for the same reason as `build`'s.
-    needs: [version, build]
-    if: ${{ !cancelled() && needs.build.result == 'success' }}
+    # Only after both builds: if either fails, this job never runs and nothing is published, so a
+    # release never carries only one of the installers (design D6 of add-macos-packaging). The
+    # condition is explicit for the same reason as the builds'.
+    needs: [version, build-windows, build-macos]
+    if: ${{ !cancelled() && needs.build-windows.result == 'success' && needs.build-macos.result == 'success' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v8
@@ -158,9 +225,9 @@ jobs:
           path: artifacts
           merge-multiple: true
 
-      # The MSI contains libuiohook (LGPL) and the WiX custom actions (MS-RL), whose licenses ask
-      # for their source to come with the binaries. So their source, at the commits
-      # THIRD-PARTY-NOTICES.md names, goes onto the same release as the MSI. A failed download
+      # Both installers contain libuiohook (LGPL), and the MSI the WiX custom actions (MS-RL), whose
+      # licenses ask for their source to come with the binaries. So their source, at the commits
+      # THIRD-PARTY-NOTICES.md names, goes onto the same release as the installers. A failed download
       # fails the job before anything is published.
       - name: Download the source of libuiohook and WiX
         env:
@@ -184,5 +251,6 @@ jobs:
           fail_on_unmatched_files: true
           files: |
             artifacts/Pisum.Transcribe_${{ needs.version.outputs.version }}_win-x64.msi
+            artifacts/Pisum.Transcribe_${{ needs.version.outputs.version }}_osx-arm64.pkg
             artifacts/libuiohook-*.tar.gz
             artifacts/wix-*.tar.gz

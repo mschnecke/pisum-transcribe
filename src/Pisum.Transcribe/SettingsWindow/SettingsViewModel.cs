@@ -19,8 +19,8 @@ namespace Pisum.Transcribe.SettingsWindow;
 /// <remarks>
 /// Settings saved elsewhere while the window is open, such as the model chosen in the setup window, replace the values
 /// the user has not edited. Save therefore writes exactly what the window shows and never an old value of a setting
-/// that the user did not touch. "Start with Windows" is not a setting; it is read from and written to Windows, and it
-/// is hidden where there is no <see cref="IStartupRegistration"/>.
+/// that the user did not touch. Starting at sign-in, "Start with Windows" or "Open at login", is not a setting; it is
+/// read from and written to the platform, and it is hidden where there is no <see cref="IStartupRegistration"/>.
 /// </remarks>
 internal sealed partial class SettingsViewModel : ObservableObject
 {
@@ -30,9 +30,13 @@ internal sealed partial class SettingsViewModel : ObservableObject
     public const string SaveFailedMessage = "The settings could not be saved. Details are in the log.";
 
     /// <summary>
-    /// The message when "Start with Windows" could not be changed.
+    /// The message when starting at sign-in could not be changed.
     /// </summary>
+#if WINDOWS
     public const string StartupFailedMessage = "Start with Windows could not be changed. Details are in the log.";
+#else
+    public const string StartupFailedMessage = "Open at login could not be changed. Details are in the log.";
+#endif
 
     private readonly ISettingsStore _settingsStore;
     private readonly IStartupRegistration? _startupRegistration;
@@ -41,7 +45,7 @@ internal sealed partial class SettingsViewModel : ObservableObject
 
     // The saved state the draft is based on.
     private AppSettings _baseline;
-    private bool _startsWithWindows;
+    private bool _startsAtSignIn;
     private bool _isSaving;
 
     /// <summary>
@@ -73,13 +77,14 @@ internal sealed partial class SettingsViewModel : ObservableObject
         _logger = logger;
         _uiDispatcher = uiDispatcher;
         _baseline = settingsStore.Current;
-        _startsWithWindows = startupRegistration?.IsEnabled() ?? false;
+        _startsAtSignIn = startupRegistration?.IsEnabled() ?? false;
 
         Model = new ModelSectionViewModel(_baseline, modelStore, transcriber, lifetime.ApplicationStopping,
             confirmDelete, uiDispatcher);
         Dictation = new DictationSectionViewModel(_baseline, Model.SelectedModel, hotkey, uiDispatcher);
         TextInsertion = new TextInsertionSectionViewModel(_baseline.TextInsertion);
-        General = new GeneralSectionViewModel(startupRegistration is not null, _startsWithWindows, _baseline.Updates);
+        General = new GeneralSectionViewModel(startupRegistration is not null, _startsAtSignIn,
+            startupRegistration?.RequiresApproval() ?? false, _baseline.Updates);
 
         Model.PropertyChanged += OnSectionChanged;
         Dictation.PropertyChanged += OnSectionChanged;
@@ -111,7 +116,7 @@ internal sealed partial class SettingsViewModel : ObservableObject
     /// <summary>
     /// Whether the window shows edits that are not saved.
     /// </summary>
-    public bool HasChanges => BuildSettings() != _baseline || General.StartWithWindows != _startsWithWindows;
+    public bool HasChanges => BuildSettings() != _baseline || General.StartAtSignIn != _startsAtSignIn;
 
     /// <summary>
     /// Why the last save failed, or <see langword="null"/>.
@@ -165,21 +170,22 @@ internal sealed partial class SettingsViewModel : ObservableObject
                 ApplyBaseline(settings);
             }
 
-            if (_startupRegistration is not null && General.StartWithWindows != _startsWithWindows)
+            if (_startupRegistration is not null && General.StartAtSignIn != _startsAtSignIn)
             {
                 try
                 {
-                    _startupRegistration.SetEnabled(General.StartWithWindows);
+                    _startupRegistration.SetEnabled(General.StartAtSignIn);
                 }
                 catch (Exception exception) when (exception is IOException or UnauthorizedAccessException
                                                       or SecurityException)
                 {
-                    _logger.LogError(exception, "Changing Start with Windows failed");
+                    _logger.LogError(exception, "Changing the start at sign-in failed");
                     SaveError = StartupFailedMessage;
                 }
 
-                _startsWithWindows = _startupRegistration.IsEnabled();
-                General.StartWithWindows = _startsWithWindows;
+                _startsAtSignIn = _startupRegistration.IsEnabled();
+                General.StartAtSignIn = _startsAtSignIn;
+                General.RequiresApproval = _startupRegistration.RequiresApproval();
             }
         }
         finally

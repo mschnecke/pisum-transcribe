@@ -1,0 +1,17 @@
+#!/bin/bash
+# Run as root by Installer once the payload is in place (design D4 of add-macos-packaging).
+APP='/Applications/Pisum Transcribe.app'
+
+# The app isn't notarized. Without its quarantine it opens without a further Gatekeeper prompt once the user allowed
+# the package with Open Anyway.
+xattr -dr com.apple.quarantine "$APP" 2>/dev/null
+
+# An interactive installation starts the app for the user at the screen, as the MSI does. installer and Homebrew set
+# COMMAND_LINE_INSTALL, and nothing starts then.
+if [ -z "${COMMAND_LINE_INSTALL:-}" ]; then
+    user=$(stat -f%Su /dev/console)
+    if [ -n "$user" ] && [ "$user" != root ] && [ "$user" != loginwindow ]; then
+        launchctl asuser "$(id -u "$user")" sudo -u "$user" open "$APP"
+    fi
+fi
+exit 0
