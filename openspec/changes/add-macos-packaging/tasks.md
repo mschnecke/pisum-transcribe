@@ -32,7 +32,7 @@ The order follows the dependencies: the bundle first, then the package and its g
   - `packaging/README.md`: `build-pkg.sh`, the guard, the certificate with its fingerprint, the secrets and where the backup lives, and how the `.pkg` installs, upgrades and is removed
   - `CLAUDE.md`: the layout (`packaging/macos/`, `SettingsWindow/MacOS/`), ABI 5, the publish variant of the bundle target, and the login item's development trap
   - `docs/roadmap.md`: #21 folded into #22, the Homebrew tap as a later change, and this change's status
-- [ ] 6.2 Run `openspec validate add-macos-packaging --strict`, `dotnet build Pisum.Transcribe.slnx` and `dotnet test Pisum.Transcribe.slnx` on the Mac, the test project compiled for Windows from a copy with `EnableWindowsTargeting`, and CI on Windows and macOS. Verify: all pass.
+- [x] 6.2 Run `openspec validate add-macos-packaging --strict`, `dotnet build Pisum.Transcribe.slnx` and `dotnet test Pisum.Transcribe.slnx` on the Mac, the test project compiled for Windows from a copy with `EnableWindowsTargeting`, and CI on Windows and macOS. Verify: all pass.
 
 ## 7. The releases, checked by hand
 
