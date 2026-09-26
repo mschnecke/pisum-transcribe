@@ -2,6 +2,7 @@ using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Time.Testing;
 using Pisum.Transcribe.Dictation;
+using Pisum.Transcribe.Tests.Hosting;
 using Pisum.Transcribe.Recording;
 using Pisum.Transcribe.Settings;
 using Pisum.Transcribe.TextInsertion;
@@ -48,6 +49,8 @@ public sealed class DictationControllerTests : IAsyncLifetime
     private readonly ITextInserter _inserter = A.Fake<ITextInserter>();
     private readonly ISettingsStore _settingsStore = A.Fake<ISettingsStore>();
     private readonly FakeDictationFeedback _feedback = new();
+    private readonly DictationState _dictationState = new();
+    private readonly RecordingProcessActivity _processActivity = new();
     private readonly FakeTimeProvider _time = new();
     private readonly CapturingLogger<DictationController> _logger = new();
     private readonly DictationController _sut;
@@ -65,7 +68,7 @@ public sealed class DictationControllerTests : IAsyncLifetime
                 A<CancellationToken>._))
             .Returns(InsertionOutcome.Inserted);
         _sut = new DictationController(_hotkey, _recorder, _transcriber, _detector, _tracker, _inserter, _settingsStore,
-            _feedback, _time, _logger);
+            _feedback, _dictationState, _processActivity, _time, _logger);
     }
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
@@ -453,6 +456,8 @@ public sealed class DictationControllerTests : IAsyncLifetime
     [InlineData(nameof(InsertionOutcome.TargetWindowChanged), "the active window changed")]
     [InlineData(nameof(InsertionOutcome.TargetWindowElevated), "the target window runs as administrator")]
     [InlineData(nameof(InsertionOutcome.ModifierKeysHeld), "modifier keys were held")]
+    [InlineData(nameof(InsertionOutcome.SecureInputOn), "secure input is on, for example in a password field")]
+    [InlineData(nameof(InsertionOutcome.KeystrokesNotAllowed), "Accessibility access isn't in effect")]
     public async Task Released_InsertionFallsBack_NotifiesTextCopiedWithReason(string outcome, string reason)
     {
         // Arrange
@@ -465,6 +470,7 @@ public sealed class DictationControllerTests : IAsyncLifetime
         var notification = _feedback.Notifications.ShouldHaveSingleItem();
         notification.Title.ShouldBe("Text copied to the clipboard");
         notification.Message.ShouldContain(reason);
+        notification.Message.ShouldEndWith(OperatingSystem.IsMacOS() ? "Paste it with Command+V." : "Paste it with Ctrl+V.");
         _feedback.Calls[^1].ShouldBe(FakeDictationFeedback.Idle);
     }
 
@@ -562,7 +568,7 @@ public sealed class DictationControllerTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Pressed_NoModel_NotifiesToDownloadModel()
+    public async Task Pressed_NoModel_NotifiesThePlatformsSetupMenuItem()
     {
         // Arrange
         A.CallTo(() => _transcriber.Status).Returns(TranscriberStatus.NotLoaded);
@@ -572,7 +578,9 @@ public sealed class DictationControllerTests : IAsyncLifetime
         await WaitUntilAsync(() => _feedback.Notifications.Count == 1);
 
         // Assert
-        _feedback.Notifications[0].Message.ShouldContain("Download model…");
+        _feedback.Notifications[0].Message.ShouldContain(OperatingSystem.IsMacOS()
+            ? "Choose Set up Pisum Transcribe… in the menu bar"
+            : "Choose Download model… in the tray menu");
         A.CallTo(() => _recorder.StartAsync(A<TimeSpan>._, A<CancellationToken>._)).MustNotHaveHappened();
     }
 
@@ -921,6 +929,169 @@ public sealed class DictationControllerTests : IAsyncLifetime
         _logger.Entries.ShouldAllBe(entry => !entry.Message.Contains("Köln"));
     }
 
+    [Fact]
+    public async Task Pressed_EngineReady_IsActiveWithOneActivityWhileRecording()
+    {
+        // Act
+        await RecordAsync();
+
+        // Assert
+        _dictationState.IsActive.ShouldBeTrue();
+        _processActivity.Begun.ShouldBe([DictationController.ActivityReason]);
+        _processActivity.Running.ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task Released_AfterOneSecond_EndsActivityAndIsInactiveOnceIdle()
+    {
+        // Arrange
+        var changes = RecordActiveChanges();
+
+        // Act
+        await DictateAsync(HoldDuration);
+
+        // Assert
+        changes.ShouldBe([true, false]);
+        _processActivity.Begun.ShouldBe([DictationController.ActivityReason]);
+        _processActivity.Running.ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task Released_DuringTranscription_StaysActiveUntilInserted()
+    {
+        // Arrange
+        var transcription = HoldTranscription();
+        await RecordAsync();
+        _time.Advance(HoldDuration);
+
+        // Act
+        Release();
+        await WaitForAsync(FakeDictationFeedback.Transcribing);
+        var activeWhileTranscribing = _dictationState.IsActive;
+        transcription.SetResult(Result(Transcript));
+        await WaitForAsync(FakeDictationFeedback.Idle);
+
+        // Assert
+        activeWhileTranscribing.ShouldBeTrue();
+        _dictationState.IsActive.ShouldBeFalse();
+        _processActivity.Running.ShouldBe(0);
+    }
+
+    [Theory]
+    [InlineData("released within 200 ms")]
+    [InlineData("cancelled")]
+    [InlineData("recording failed")]
+    public async Task Recording_EndsWithoutTranscription_EndsActivityAndIsInactive(string ending)
+    {
+        // Arrange
+        await RecordAsync();
+
+        // Act
+        switch (ending)
+        {
+            case "released within 200 ms":
+                _time.Advance(TimeSpan.FromMilliseconds(200));
+                Release();
+                break;
+            case "cancelled":
+                _hotkey.Cancelled += Raise.WithEmpty();
+                break;
+            default:
+                _recorder.Failed += Raise.With<RecordingFailedException>(_recorder, new MicrophoneDisconnectedException());
+                break;
+        }
+
+        await WaitForAsync(FakeDictationFeedback.Idle);
+
+        // Assert
+        _dictationState.IsActive.ShouldBeFalse();
+        _processActivity.Running.ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task Pressed_StartThrowsRecordingFailed_EndsActivityAndIsInactive()
+    {
+        // Arrange
+        A.CallTo(() => _recorder.StartAsync(A<TimeSpan>._, A<CancellationToken>._))
+            .ThrowsAsync(new MicrophoneAccessDeniedException());
+        var changes = RecordActiveChanges();
+
+        // Act
+        Press();
+        await WaitForAsync(FakeDictationFeedback.Idle);
+
+        // Assert
+        changes.ShouldBe([true, false]);
+        _processActivity.Begun.ShouldBe([DictationController.ActivityReason]);
+        _processActivity.Running.ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task Pressed_EngineNotReady_NeverActiveWithoutActivity()
+    {
+        // Arrange
+        A.CallTo(() => _transcriber.Status).Returns(TranscriberStatus.Loading);
+        var changes = RecordActiveChanges();
+
+        // Act
+        Press();
+        await WaitUntilAsync(() => LoadingNotifications() == 1);
+
+        // Assert
+        changes.ShouldBeEmpty();
+        _processActivity.Begun.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task StopAsync_WhileRecording_EndsActivityAndIsInactive()
+    {
+        // Arrange
+        await RecordAsync();
+        _time.Advance(HoldDuration);
+
+        // Act
+        await _sut.StopAsync(Ct).WaitAsync(SignalTimeout, Ct);
+
+        // Assert
+        _dictationState.IsActive.ShouldBeFalse();
+        _processActivity.Running.ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task StopAsync_DuringTranscription_EndsActivityAndIsInactive()
+    {
+        // Arrange
+        var transcription = HoldTranscriptionUntilCancelled();
+        await RecordAsync();
+        _time.Advance(HoldDuration);
+        Release();
+        await transcription.WaitAsync(SignalTimeout, Ct);
+
+        // Act
+        await _sut.StopAsync(Ct).WaitAsync(SignalTimeout, Ct);
+
+        // Assert
+        _dictationState.IsActive.ShouldBeFalse();
+        _processActivity.Running.ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task StopAsync_WhileStartPending_EndsActivityAndIsInactive()
+    {
+        // Arrange
+        A.CallTo(() => _recorder.StartAsync(A<TimeSpan>._, A<CancellationToken>._))
+            .ReturnsLazily((TimeSpan _, CancellationToken token) => Task.Delay(Timeout.Infinite, token));
+        Press();
+        await WaitUntilAsync(() => StartCalls() == 1);
+
+        // Act
+        await _sut.StopAsync(Ct).WaitAsync(SignalTimeout, Ct);
+
+        // Assert
+        _dictationState.IsActive.ShouldBeFalse();
+        _processActivity.Running.ShouldBe(0);
+    }
+
     private static TranscriptionResult Result(string text)
     {
         return new TranscriptionResult(text, TimeSpan.FromSeconds(1), TimeSpan.FromMilliseconds(200));
@@ -1003,6 +1174,22 @@ public sealed class DictationControllerTests : IAsyncLifetime
         A.CallTo(() => _inserter.InsertAsync(A<string>._, A<InsertionTarget>._, A<TextInsertionSettings>._,
                 A<CancellationToken>._))
             .Returns(outcome);
+    }
+
+    /// <summary>
+    /// Records every value that <see cref="DictationState.ActiveChanged"/> reports, in order.
+    /// </summary>
+    private List<bool> RecordActiveChanges()
+    {
+        var changes = new List<bool>();
+        _dictationState.ActiveChanged += (_, _) =>
+        {
+            lock (changes)
+            {
+                changes.Add(_dictationState.IsActive);
+            }
+        };
+        return changes;
     }
 
     private int StartCalls()

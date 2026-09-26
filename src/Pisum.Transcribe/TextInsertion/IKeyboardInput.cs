@@ -23,4 +23,12 @@ internal interface IKeyboardInput
     /// <param name="includePasteModifier">Whether a held Ctrl on Windows, or a held Command on macOS, counts.</param>
     /// <returns><see langword="true"/> if one of these keys is down.</returns>
     bool AreModifiersDown(bool includePasteModifier);
+
+    /// <summary>
+    /// Checks whether this process may send keystrokes now. Always <see langword="true"/> on Windows. On macOS, false
+    /// while the Accessibility grant isn't in effect, including after a grant made while the process runs (design D10
+    /// of add-macos-dictation). A dropped keystroke gives no error, so this is the only way to know beforehand.
+    /// </summary>
+    /// <returns><see langword="true"/> if keystrokes reach the target.</returns>
+    bool CanPostEvents();
 }

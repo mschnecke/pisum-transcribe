@@ -24,6 +24,7 @@ The order follows the dependencies. First the platform-neutral seams, then the h
 - [x] 4.1 Register the macOS implementations in `AddTextInsertion()`, and call it on both platforms in `AppHost.Create` (D6). Verify: the macOS host-building test resolves `ITextInserter` and every hosted service, and `TextInsertionServiceCollectionExtensionsTests` still pass on Windows.
 - [x] 4.2 Add the macOS `Hardware` tests with TextEdit, in `DesktopCollection`, skipped without the Accessibility grant (D7): Command+V of "Grüße aus Köln – 5 €"; typing 500 characters with emoji and line breaks; the tracker's capture and a changed document; `TextInserter` with restore against the general pasteboard when its access behavior is -1 or 2; the hook reporting our Command+V as simulated; Dvorak when that source is enabled. Verify: they pass with `--explicit on` from a terminal with the Accessibility grant.
 - [ ] 4.3 Run the checks by hand of D7 on the dev Mac: the *ask* state, a clipboard manager, Spotlight's clipboard history, Universal Clipboard, a launcher panel, 1Password, and typing "Grüße aus Köln – 5 € 👋" over two lines into Terminal, iTerm2, VS Code, a JetBrains IDE and, if one is available, a UTM or Parallels guest. Verify: each result noted in the PR; every app except the guest gets the exact text. Spotlight, the launcher panel and the guest are only recorded.
+  - Moved to `add-macos-dictation` (#20) when this change was archived on 2026-09-24, because a real dictation drives the inserter there.
 
 ## 5. Docs and validation
 

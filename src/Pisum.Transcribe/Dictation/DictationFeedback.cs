@@ -11,9 +11,10 @@ namespace Pisum.Transcribe.Dictation;
 /// Shows the dictation on the UI thread: the recording overlay, the tray icon with its tooltip, and notifications.
 /// </summary>
 /// <remarks>
-/// This is the only writer of the tray icon and tooltip. One <see cref="Render"/> combines two inputs: the dictation
-/// phase, set by the <c>Show*</c> calls, and the engine status. While a dictation runs, the tray shows its phase;
-/// otherwise it shows the engine status, including a status that changed during the dictation. Stopping hides the
+/// This is the only writer of the tray icon and tooltip. One <see cref="Render"/> combines three inputs: the dictation
+/// phase, set by the <c>Show*</c> calls, the engine status, and the hotkey's availability. While a dictation runs, the
+/// tray shows its phase; otherwise it shows the engine status, including a status that changed during the dictation,
+/// and with a ready engine, why the hotkey can't work, if it can't. Stopping hides the
 /// overlay in any phase and leaves the tray alone: at <b>Exit</b> the shutdown has already removed the tray icon,
 /// and after an error the icon shows the error notification until the shutdown removes it.
 /// <para>
@@ -32,6 +33,8 @@ internal sealed class DictationFeedback : IDictationFeedback, IHostedService
     private readonly INotifier _notifier;
     private readonly IUiDispatcher _uiDispatcher;
     private readonly ITranscriber _transcriber;
+    private readonly IHotkeyAvailability _hotkeyAvailability;
+    private readonly IOverlayPlatform _overlayPlatform;
     private readonly TimeProvider _timeProvider;
     private readonly Func<IRecordingOverlay> _createOverlay;
 
@@ -51,6 +54,8 @@ internal sealed class DictationFeedback : IDictationFeedback, IHostedService
     /// <param name="notifier">Shows the notifications.</param>
     /// <param name="uiDispatcher">Reaches the UI thread.</param>
     /// <param name="transcriber">The transcription engine, whose status the tray shows between dictations.</param>
+    /// <param name="hotkeyAvailability">Why the hotkey can't work, which the tray shows between dictations.</param>
+    /// <param name="overlayPlatform">The overlay's placement and native window settings.</param>
     /// <param name="timeProvider">The time provider for short overlay messages.</param>
     /// <param name="createOverlay">
     /// Creates the overlay on the UI thread, for tests. <see langword="null"/> creates a
@@ -60,6 +65,8 @@ internal sealed class DictationFeedback : IDictationFeedback, IHostedService
                              INotifier notifier,
                              IUiDispatcher uiDispatcher,
                              ITranscriber transcriber,
+                             IHotkeyAvailability hotkeyAvailability,
+                             IOverlayPlatform overlayPlatform,
                              TimeProvider timeProvider,
                              Func<IRecordingOverlay>? createOverlay = null)
     {
@@ -67,8 +74,10 @@ internal sealed class DictationFeedback : IDictationFeedback, IHostedService
         _notifier = notifier;
         _uiDispatcher = uiDispatcher;
         _transcriber = transcriber;
+        _hotkeyAvailability = hotkeyAvailability;
+        _overlayPlatform = overlayPlatform;
         _timeProvider = timeProvider;
-        _createOverlay = createOverlay ?? (() => new RecordingOverlayWindow());
+        _createOverlay = createOverlay ?? (() => new RecordingOverlayWindow(_overlayPlatform));
     }
 
     private enum Phase
@@ -89,6 +98,8 @@ internal sealed class DictationFeedback : IDictationFeedback, IHostedService
         _transcriber.StatusChanged += OnStatusChanged;
         _ = _uiDispatcher.InvokeAsync(() =>
         {
+            _hotkeyAvailability.Changed += OnHotkeyAvailabilityChanged;
+
             // Created now, so the first press shows the overlay without delay.
             _ = Overlay;
 
@@ -109,6 +120,8 @@ internal sealed class DictationFeedback : IDictationFeedback, IHostedService
         _transcriber.StatusChanged -= OnStatusChanged;
         _ = _uiDispatcher.InvokeAsync(() =>
         {
+            _hotkeyAvailability.Changed -= OnHotkeyAvailabilityChanged;
+
             // Runs after the Show* calls that the controller queued before it stopped.
             EndMessage();
             _overlay?.Hide();
@@ -193,6 +206,12 @@ internal sealed class DictationFeedback : IDictationFeedback, IHostedService
         });
     }
 
+    private void OnHotkeyAvailabilityChanged(object? sender, EventArgs e)
+    {
+        // Raised on the UI thread.
+        Render();
+    }
+
     private void SetPhase(Phase phase)
     {
         _phase = phase;
@@ -207,7 +226,15 @@ internal sealed class DictationFeedback : IDictationFeedback, IHostedService
             Phase.Transcribing => (TrayStatus.Transcribing, DictationMessages.TranscribingState),
             _ => _status switch
             {
-                TranscriberStatus.Ready => (TrayStatus.Ready, DictationMessages.ReadyState(_backend)),
+                // The engine's reasons come first: the hotkey can't help while no model is ready.
+                TranscriberStatus.Ready => _hotkeyAvailability.Reason switch
+                {
+                    HotkeyUnavailableReason.AccessibilityNotInEffect =>
+                        (TrayStatus.Unavailable, DictationMessages.AccessibilityNotInEffectState),
+                    HotkeyUnavailableReason.SecureInputOn =>
+                        (TrayStatus.Unavailable, DictationMessages.SecureInputOnState),
+                    _ => (TrayStatus.Ready, DictationMessages.ReadyState(_backend)),
+                },
                 TranscriberStatus.Loading => (TrayStatus.Unavailable, DictationMessages.LoadingState),
                 TranscriberStatus.Failed => (TrayStatus.Unavailable, DictationMessages.FailedState),
                 _ => (TrayStatus.Unavailable, DictationMessages.NoModelState),

@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using Pisum.Transcribe.SpeechModels;
+using Pisum.Transcribe.Tests.Hosting;
 using Pisum.Transcribe.Transcription;
 
 namespace Pisum.Transcribe.Tests.Transcription;
@@ -21,7 +22,7 @@ public sealed class TranscribeCppTranscriberLoggingTests : IAsyncDisposable
     {
         var modelStore = A.Fake<IModelStore>();
         A.CallTo(() => modelStore.GetModelPath(A<SpeechModel>._)).Returns(@"C:\models\model.gguf");
-        _sut = new TranscribeCppTranscriber(_engineFactory, modelStore, _logger);
+        _sut = new TranscribeCppTranscriber(_engineFactory, modelStore, new RecordingProcessActivity(), _logger);
     }
 
     public async ValueTask DisposeAsync()

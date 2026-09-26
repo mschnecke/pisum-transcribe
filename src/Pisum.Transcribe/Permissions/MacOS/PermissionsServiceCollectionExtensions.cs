@@ -2,6 +2,7 @@ using System.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
+using Pisum.Transcribe.Dictation;
 using Pisum.Transcribe.Hosting;
 using Pisum.Transcribe.SpeechModels;
 
@@ -37,6 +38,7 @@ internal static class PermissionsServiceCollectionExtensions
             provider.GetRequiredService<IPermissions>(),
             provider.GetService<PermissionsViewModel>(),
             provider.GetRequiredService<IModelStore>(),
+            provider.GetRequiredService<IDictationState>(),
             provider.GetRequiredService<ISetupWindow>(),
             provider.GetRequiredService<IUiDispatcher>(),
             provider.GetRequiredService<TimeProvider>(),

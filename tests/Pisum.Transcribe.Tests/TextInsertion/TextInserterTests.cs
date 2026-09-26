@@ -32,6 +32,7 @@ public sealed class TextInserterTests
     {
         _start = _time.GetTimestamp();
         A.CallTo(() => _tracker.IsForeground(Target)).Returns(true);
+        A.CallTo(() => _keyboard.CanPostEvents()).Returns(true);
         A.CallTo(() => _clipboard.SequenceNumber).ReturnsLazily(() => _sequenceNumber);
         A.CallTo(() => _clipboard.TrySnapshotAsync()).Returns(_snapshot);
         A.CallTo(() => _clipboard.TrySetTextAsync(A<string>._, A<bool>._)).ReturnsLazily(() =>
@@ -163,6 +164,53 @@ public sealed class TextInserterTests
         outcome.ShouldBe(InsertionOutcome.Inserted);
         A.CallTo(() => _secureInput.IsEnabled).MustHaveHappenedOnceExactly();
         A.CallTo(() => _keyboard.SendPaste()).MustHaveHappenedOnceExactly();
+    }
+
+    [Fact]
+    public async Task InsertAsync_KeystrokesNotAllowed_ReturnsKeystrokesNotAllowedAndLeavesTranscriptOnClipboard()
+    {
+        // Arrange
+        A.CallTo(() => _keyboard.CanPostEvents()).Returns(false);
+
+        // Act
+        var outcome = await InsertAsync(Paste);
+
+        // Assert
+        outcome.ShouldBe(InsertionOutcome.KeystrokesNotAllowed);
+        A.CallTo(() => _clipboard.TrySetTextAsync(Transcript, true)).MustHaveHappenedOnceExactly()
+            .Then(A.CallTo(() => _clipboard.TrySetTextAsync(Transcript, false)).MustHaveHappenedOnceExactly());
+        A.CallTo(() => _clipboard.TryRestoreAsync(A<ClipboardSnapshot>._)).MustNotHaveHappened();
+        ShouldNotHaveSentKeystrokes();
+    }
+
+    [Fact]
+    public async Task InsertAsync_KeystrokesNotAllowedBeforeTyping_ReturnsKeystrokesNotAllowed()
+    {
+        // Arrange
+        A.CallTo(() => _keyboard.CanPostEvents()).Returns(false);
+
+        // Act
+        var outcome = await InsertAsync(Type);
+
+        // Assert
+        outcome.ShouldBe(InsertionOutcome.KeystrokesNotAllowed);
+        A.CallTo(() => _clipboard.TrySetTextAsync(Transcript, false)).MustHaveHappenedOnceExactly();
+        ShouldNotHaveSentKeystrokes();
+    }
+
+    [Fact]
+    public async Task InsertAsync_SecureInputOnAndKeystrokesNotAllowed_ReturnsSecureInputOn()
+    {
+        // Arrange
+        A.CallTo(() => _secureInput.IsEnabled).Returns(true);
+        A.CallTo(() => _keyboard.CanPostEvents()).Returns(false);
+
+        // Act
+        var outcome = await InsertAsync(Paste);
+
+        // Assert
+        outcome.ShouldBe(InsertionOutcome.SecureInputOn);
+        ShouldNotHaveSentKeystrokes();
     }
 
     [Fact]

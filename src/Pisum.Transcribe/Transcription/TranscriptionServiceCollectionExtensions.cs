@@ -9,7 +9,7 @@ internal static class TranscriptionServiceCollectionExtensions
 {
     /// <summary>
     /// Adds <see cref="ITranscriber"/>, which releases the model on shutdown, and the background loading of the selected
-    /// model with its failure notification.
+    /// model with its failure notification. The transcriber needs the host's <see cref="Hosting.IProcessActivity"/>.
     /// </summary>
     /// <param name="services">The service collection.</param>
     /// <returns>The same service collection, for chaining.</returns>

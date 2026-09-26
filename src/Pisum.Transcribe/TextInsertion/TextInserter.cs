@@ -132,6 +132,14 @@ internal sealed class TextInserter : ITextInserter, IHostedService
                 return await FallBackAsync(text, InsertionOutcome.SecureInputOn, paste).ConfigureAwait(false);
             }
 
+            // After secure input, so a notification names the more specific cause when both apply.
+            if (!_keyboard.CanPostEvents())
+            {
+                _logger.LogInformation("Keystrokes are not allowed, the text is not sent to process {ProcessId}",
+                    target.ProcessId);
+                return await FallBackAsync(text, InsertionOutcome.KeystrokesNotAllowed, paste).ConfigureAwait(false);
+            }
+
             if (paste is null || _clipboard.SequenceNumber == paste.SequenceNumber)
             {
                 break;

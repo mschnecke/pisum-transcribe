@@ -2,6 +2,7 @@ using System.Diagnostics;
 using Microsoft.Extensions.Logging.Abstractions;
 using Pisum.Transcribe.Recording;
 using Pisum.Transcribe.SpeechModels;
+using Pisum.Transcribe.Tests.Hosting;
 using Pisum.Transcribe.Transcription;
 
 namespace Pisum.Transcribe.Tests.Transcription;
@@ -17,7 +18,7 @@ public sealed class TranscribeCppTranscriberHardwareTests : IAsyncDisposable
     private static readonly TimeSpan LoadTimeout = TimeSpan.FromMinutes(2);
 
     private readonly TranscribeCppTranscriber _sut = new(new TranscribeCppEngineFactory(),
-        HardwareTestAssets.ModelStore, NullLogger<TranscribeCppTranscriber>.Instance);
+        HardwareTestAssets.ModelStore, new RecordingProcessActivity(), NullLogger<TranscribeCppTranscriber>.Instance);
 
     public async ValueTask DisposeAsync()
     {

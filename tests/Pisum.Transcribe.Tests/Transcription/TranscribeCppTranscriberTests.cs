@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Security.Cryptography;
 using Microsoft.Extensions.Logging.Abstractions;
 using Pisum.Transcribe.SpeechModels;
+using Pisum.Transcribe.Tests.Hosting;
 using Pisum.Transcribe.Transcription;
 
 namespace Pisum.Transcribe.Tests.Transcription;
@@ -18,6 +19,7 @@ public sealed class TranscribeCppTranscriberTests : IAsyncDisposable
     private readonly FakeNativeSpeechEngineFactory _engineFactory = new();
     private readonly IModelStore _modelStore = A.Fake<IModelStore>();
     private readonly SpeechModel _model = ModelCatalog.Resolve(null);
+    private readonly RecordingProcessActivity _processActivity = new();
     private readonly List<TranscriberStatus> _statusChanges = [];
     private readonly List<string?> _readyBackends = [];
     private readonly TranscribeCppTranscriber _sut;
@@ -26,7 +28,8 @@ public sealed class TranscribeCppTranscriberTests : IAsyncDisposable
     {
         A.CallTo(() => _modelStore.GetModelPath(A<SpeechModel>._))
             .ReturnsLazily((SpeechModel model) => Path.Combine(_root.Path, model.FileName));
-        _sut = new TranscribeCppTranscriber(_engineFactory, _modelStore, NullLogger<TranscribeCppTranscriber>.Instance);
+        _sut = new TranscribeCppTranscriber(_engineFactory, _modelStore, _processActivity,
+            NullLogger<TranscribeCppTranscriber>.Instance);
         _sut.StatusChanged += (_, status) =>
         {
             lock (_statusChanges)
@@ -361,6 +364,27 @@ public sealed class TranscribeCppTranscriberTests : IAsyncDisposable
         // Assert
         var exception = await Should.ThrowAsync<TranscriberNotReadyException>(transcription);
         exception.Status.ShouldBe(TranscriberStatus.NotLoaded);
+    }
+
+    [Fact]
+    public async Task LoadAsync_ThenTranscribeAsync_RunsEachWorkItemInItsOwnActivity()
+    {
+        // Arrange
+        var beforeLoad = _processActivity.Begun;
+
+        // Act
+        await LoadAsync(BackendPreference.Auto);
+        await WaitUntilAsync(() => _processActivity.Running == 0);
+        var afterLoad = _processActivity.Begun;
+        await TranscribeAsync(2);
+        await WaitUntilAsync(() => _processActivity.Running == 0);
+
+        // Assert
+        beforeLoad.ShouldBeEmpty();
+        afterLoad.ShouldBe([TranscribeCppTranscriber.LoadActivityReason]);
+        _processActivity.Begun.ShouldBe([
+            TranscribeCppTranscriber.LoadActivityReason, TranscribeCppTranscriber.RunActivityReason,
+        ]);
     }
 
     [Fact]

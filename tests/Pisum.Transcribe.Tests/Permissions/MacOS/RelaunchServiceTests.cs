@@ -3,6 +3,7 @@ using Avalonia.VisualTree;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
+using Pisum.Transcribe.Dictation;
 using Pisum.Transcribe.Permissions;
 using Pisum.Transcribe.Settings;
 using Pisum.Transcribe.SpeechModels;
@@ -18,6 +19,7 @@ public sealed class RelaunchServiceTests
     private readonly IModelStore _modelStore = A.Fake<IModelStore>();
     private readonly ISetupWindow _setupWindow = A.Fake<ISetupWindow>();
     private readonly FakeTimeProvider _timeProvider = new();
+    private readonly DictationState _dictationState = new();
     private readonly PermissionsViewModel _viewModel;
     private PermissionState _accessibility = PermissionState.NotDetermined;
     private bool _accessibilityInEffect;
@@ -229,8 +231,8 @@ public sealed class RelaunchServiceTests
     public async Task Grant_WithoutPermissionRows_NeverRelaunches()
     {
         // Arrange: outside an app bundle the view model is null.
-        var sut = new RelaunchService(_permissions, null, _modelStore, _setupWindow, new InlineUiDispatcher(),
-            _timeProvider, NullLogger<RelaunchService>.Instance, BundlePath);
+        var sut = new RelaunchService(_permissions, null, _modelStore, _dictationState, _setupWindow,
+            new InlineUiDispatcher(), _timeProvider, NullLogger<RelaunchService>.Instance, BundlePath);
         sut.RelaunchRequested += (_, _) => _relaunchRequests++;
         await sut.StartAsync(TestContext.Current.CancellationToken);
 
@@ -270,9 +272,95 @@ public sealed class RelaunchServiceTests
         });
     }
 
+    [Fact]
+    public async Task Grant_DuringDictationWindowClosed_RelaunchesOnceTheDictationHasEnded()
+    {
+        // Arrange
+        var sut = CreateSut();
+        await sut.StartAsync(TestContext.Current.CancellationToken);
+        _dictationState.SetActive(true);
+
+        // Act
+        _accessibility = PermissionState.Granted;
+        _timeProvider.Advance(TimeSpan.FromMinutes(1));
+        var requestsDuringDictation = _relaunchRequests;
+        _dictationState.SetActive(false);
+
+        // Assert
+        requestsDuringDictation.ShouldBe(0);
+        _relaunchRequests.ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task Grant_DuringDictationWindowOpen_WaitsPastTheNoticeUntilTheDictationHasEnded()
+    {
+        // Arrange
+        A.CallTo(() => _setupWindow.IsOpen).Returns(true);
+        var sut = CreateSut();
+        await sut.StartAsync(TestContext.Current.CancellationToken);
+        _dictationState.SetActive(true);
+
+        // Act
+        _accessibility = PermissionState.Granted;
+        _timeProvider.Advance(RelaunchService.CheckInterval);
+        _timeProvider.Advance(RelaunchService.NoticeDuration + TimeSpan.FromSeconds(10));
+        var requestsDuringDictation = _relaunchRequests;
+        var noteDuringDictation = _viewModel.Accessibility.Note;
+        _dictationState.SetActive(false);
+
+        // Assert
+        requestsDuringDictation.ShouldBe(0);
+        noteDuringDictation.ShouldBe(RelaunchService.RestartingText);
+        _relaunchRequests.ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task Grant_DictationEndsDuringNotice_RelaunchesWhenTheNoticeEnds()
+    {
+        // Arrange
+        A.CallTo(() => _setupWindow.IsOpen).Returns(true);
+        var sut = CreateSut();
+        await sut.StartAsync(TestContext.Current.CancellationToken);
+        _dictationState.SetActive(true);
+
+        // Act
+        _accessibility = PermissionState.Granted;
+        _timeProvider.Advance(RelaunchService.CheckInterval);
+        _dictationState.SetActive(false);
+        var requestsAfterDictation = _relaunchRequests;
+        _timeProvider.Advance(RelaunchService.NoticeDuration);
+
+        // Assert
+        requestsAfterDictation.ShouldBe(0);
+        _relaunchRequests.ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task Grant_DownloadStartsDuringDictation_WaitsForTheDownloadAfterTheDictation()
+    {
+        // Arrange
+        var sut = CreateSut();
+        await sut.StartAsync(TestContext.Current.CancellationToken);
+        _dictationState.SetActive(true);
+        _accessibility = PermissionState.Granted;
+        _timeProvider.Advance(RelaunchService.CheckInterval);
+
+        // Act
+        _isDownloading = true;
+        _dictationState.SetActive(false);
+        var requestsDuringDownload = _relaunchRequests;
+        _isDownloading = false;
+        _modelStore.DownloadStateChanged += Raise.WithEmpty();
+
+        // Assert
+        requestsDuringDownload.ShouldBe(0);
+        _relaunchRequests.ShouldBe(1);
+    }
+
     private RelaunchService CreateSut(string? bundlePath = BundlePath)
     {
-        var sut = new RelaunchService(_permissions, _viewModel, _modelStore, _setupWindow, new InlineUiDispatcher(),
+        var sut = new RelaunchService(_permissions, _viewModel, _modelStore, _dictationState, _setupWindow,
+            new InlineUiDispatcher(),
             _timeProvider, NullLogger<RelaunchService>.Instance, bundlePath);
         sut.RelaunchRequested += (_, _) => _relaunchRequests++;
         return sut;

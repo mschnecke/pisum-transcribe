@@ -61,17 +61,44 @@ internal static class DictationMessages
     public const string FailedState = "Model failed to load";
 
     /// <summary>
+    /// The tray state on macOS while the Accessibility grant isn't in effect, so the hotkey doesn't work.
+    /// </summary>
+    public const string AccessibilityNotInEffectState = "Accessibility access needed for the hotkey";
+
+    /// <summary>
+    /// The tray state on macOS while Secure Event Input is on, so the hotkey sees no keys.
+    /// </summary>
+    public const string SecureInputOnState = "Paused while secure input is on";
+
+    /// <summary>
+    /// The platform's paste shortcut, as the fallback notification names it.
+    /// </summary>
+#if WINDOWS
+    public const string PasteShortcut = "Ctrl+V";
+#else
+    public const string PasteShortcut = "Command+V";
+#endif
+
+    /// <summary>
     /// The notification title when the hotkey is pressed while the engine is not ready.
     /// </summary>
     public const string NotReadyTitle = "Dictation not available";
 
     /// <summary>
     /// The reason when the hotkey is pressed while no model is loaded. Downloads run only while the setup window is open,
-    /// which <b>Download model…</b> brings to the front, so this also covers a download in progress.
+    /// which <b>Download model…</b> brings to the front, so this also covers a download in progress. On macOS the item
+    /// is <b>Set up Pisum Transcribe…</b> in the menu bar, as in the app bundle; a run without a bundle shows
+    /// <b>Download model…</b> instead.
     /// </summary>
+#if WINDOWS
     public const string NoModelMessage =
         "No speech model is installed yet. Choose Download model… in the tray menu to download one or see the " +
         "download progress.";
+#else
+    public const string NoModelMessage =
+        "No speech model is installed yet. Choose Set up Pisum Transcribe… in the menu bar to download one or see " +
+        "the download progress.";
+#endif
 
     /// <summary>
     /// The reason when the hotkey is pressed while the model loads.
@@ -97,6 +124,16 @@ internal static class DictationMessages
     /// The reason when the target window belongs to an elevated process.
     /// </summary>
     public const string TargetWindowElevatedReason = "the target window runs as administrator";
+
+    /// <summary>
+    /// The reason on macOS when Secure Event Input was on, for example because a password field has focus.
+    /// </summary>
+    public const string SecureInputReason = "secure input is on, for example in a password field";
+
+    /// <summary>
+    /// The reason on macOS when the Accessibility grant isn't in effect, so keystrokes would not arrive.
+    /// </summary>
+    public const string KeystrokesNotAllowedReason = "Accessibility access isn't in effect";
 
     /// <summary>
     /// The reason when modifier keys were still held.
@@ -167,6 +204,6 @@ internal static class DictationMessages
     /// <returns>The notification text.</returns>
     public static string CopiedMessage(string reason)
     {
-        return $"The text was not inserted, because {reason}. Paste it with Ctrl+V.";
+        return $"The text was not inserted, because {reason}. Paste it with {PasteShortcut}.";
     }
 }

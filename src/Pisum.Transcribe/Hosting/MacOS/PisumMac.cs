@@ -7,7 +7,8 @@ namespace Pisum.Transcribe.Hosting;
 /// and the libc functions that go with them. Call the helper's functions only while
 /// <see cref="MacNativeLibrary.IsAvailable"/> is <see langword="true"/>, and on the UI thread, except
 /// <see cref="PasteboardProbe"/> and the text insertion's pasteboard functions, which run on its pasteboard thread
-/// (design D2 of add-macos-text-insertion).
+/// (design D2 of add-macos-text-insertion), and <see cref="ActivityBegin"/> and <see cref="ActivityEnd"/>, which are
+/// safe on any thread (design D6 of add-macos-dictation).
 /// </summary>
 internal static class PisumMac
 {
@@ -183,6 +184,30 @@ internal static class PisumMac
     [DllImport(Library, EntryPoint = "pisum_notify")]
     public static extern int Notify([MarshalAs(UnmanagedType.LPUTF8Str)] string title,
                                     [MarshalAs(UnmanagedType.LPUTF8Str)] string body);
+
+    /// <summary>
+    /// Makes the recording overlay a floating, click-through window that stays out of Mission Control and the window
+    /// cycle and shows over a full-screen app. Idempotent. Call it on the main thread.
+    /// </summary>
+    /// <param name="window">The overlay's <c>NSWindow</c> pointer.</param>
+    /// <returns>0 when applied, or 1 when <paramref name="window"/> is 0.</returns>
+    [DllImport(Library, EntryPoint = "pisum_overlay_configure")]
+    public static extern int OverlayConfigure(nint window);
+
+    /// <summary>
+    /// Begins a user-initiated activity, which keeps App Nap away while it runs. Safe on any thread.
+    /// </summary>
+    /// <param name="reason">The reason, which <c>pmset -g assertions</c> lists.</param>
+    /// <returns>The token for <see cref="ActivityEnd"/>.</returns>
+    [DllImport(Library, EntryPoint = "pisum_activity_begin")]
+    public static extern nint ActivityBegin([MarshalAs(UnmanagedType.LPUTF8Str)] string reason);
+
+    /// <summary>
+    /// Ends an activity from <see cref="ActivityBegin"/> and releases its token. Safe on any thread.
+    /// </summary>
+    /// <param name="token">The token.</param>
+    [DllImport(Library, EntryPoint = "pisum_activity_end")]
+    public static extern void ActivityEnd(nint token);
 
     /// <summary>
     /// The name of a process, from libc's <c>proc_name</c>.

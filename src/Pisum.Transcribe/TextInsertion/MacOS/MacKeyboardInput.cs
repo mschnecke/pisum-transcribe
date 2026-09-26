@@ -99,6 +99,12 @@ internal sealed class MacKeyboardInput : IKeyboardInput, IHostedService
     }
 
     /// <inheritdoc />
+    public bool CanPostEvents()
+    {
+        return _events.CanPost();
+    }
+
+    /// <inheritdoc />
     public bool AreModifiersDown(bool includePasteModifier)
     {
         var mask = ShiftFlag | ControlFlag | OptionFlag | (includePasteModifier ? CommandFlag : 0);

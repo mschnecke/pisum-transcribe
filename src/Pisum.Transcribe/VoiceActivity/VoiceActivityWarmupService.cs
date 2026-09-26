@@ -2,6 +2,7 @@ using System.Diagnostics;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.ML.OnnxRuntime;
+using Pisum.Transcribe.Hosting;
 
 namespace Pisum.Transcribe.VoiceActivity;
 
@@ -11,7 +12,13 @@ namespace Pisum.Transcribe.VoiceActivity;
 /// </summary>
 internal sealed class VoiceActivityWarmupService : IHostedService
 {
+    /// <summary>
+    /// The reason of the process activity that the warm-up runs in, as macOS lists it.
+    /// </summary>
+    public const string ActivityReason = "Warming up voice activity detection";
+
     private readonly IVoiceActivityDetector _detector;
+    private readonly IProcessActivity _processActivity;
     private readonly ILogger<VoiceActivityWarmupService> _logger;
     private Task _warmUp = Task.CompletedTask;
 
@@ -19,10 +26,14 @@ internal sealed class VoiceActivityWarmupService : IHostedService
     /// Initializes a new instance.
     /// </summary>
     /// <param name="detector">The voice activity detector.</param>
+    /// <param name="processActivity">Keeps macOS from throttling the warm-up through App Nap.</param>
     /// <param name="logger">The logger.</param>
-    public VoiceActivityWarmupService(IVoiceActivityDetector detector, ILogger<VoiceActivityWarmupService> logger)
+    public VoiceActivityWarmupService(IVoiceActivityDetector detector,
+                                      IProcessActivity processActivity,
+                                      ILogger<VoiceActivityWarmupService> logger)
     {
         _detector = detector;
+        _processActivity = processActivity;
         _logger = logger;
     }
 
@@ -49,6 +60,7 @@ internal sealed class VoiceActivityWarmupService : IHostedService
 
     private void WarmUp()
     {
+        using var activity = _processActivity.Begin(ActivityReason);
         var started = Stopwatch.GetTimestamp();
         try
         {

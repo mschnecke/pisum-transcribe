@@ -17,7 +17,7 @@ public sealed class MacNativeLibraryIntegrationTests
         var version = PisumMac.AbiVersion();
 
         // Assert
-        version.ShouldBe(3);
+        version.ShouldBe(4);
         version.ShouldBe(MacNativeLibrary.ExpectedAbiVersion);
     }
 
@@ -64,5 +64,41 @@ public sealed class MacNativeLibraryIntegrationTests
 
         // Assert
         behavior.ShouldBeInRange(-1, 3);
+    }
+
+    [Fact]
+    public void ActivityBegin_UntilEnded_IsListedByPmset()
+    {
+        // Arrange
+        var reason = $"Pisum Transcribe test {Guid.NewGuid():N}";
+
+        // Act
+        var token = PisumMac.ActivityBegin(reason);
+        string whileRunning;
+        try
+        {
+            whileRunning = Pmset.Assertions();
+        }
+        finally
+        {
+            PisumMac.ActivityEnd(token);
+        }
+
+        var afterEnd = Pmset.Assertions();
+
+        // Assert
+        token.ShouldNotBe(0);
+        whileRunning.ShouldContain(reason);
+        afterEnd.ShouldNotContain(reason);
+    }
+
+    [Fact]
+    public void OverlayConfigure_NullWindow_Returns1()
+    {
+        // Act
+        var status = PisumMac.OverlayConfigure(0);
+
+        // Assert
+        status.ShouldBe(1);
     }
 }

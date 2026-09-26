@@ -1,7 +1,10 @@
+using System.Diagnostics;
 using System.Runtime.InteropServices;
+using Avalonia;
 using Microsoft.Extensions.Logging.Abstractions;
 using Pisum.Transcribe.Hosting;
 using Pisum.Transcribe.Settings;
+using Pisum.Transcribe.Tests.Hosting;
 using Pisum.Transcribe.TextInsertion;
 using SharpHook;
 using SharpHook.Data;
@@ -40,6 +43,12 @@ public sealed class TextInserterMacHardwareTests : IAsyncLifetime
         _tracker = new MacForegroundWindowTracker(_reader);
         _sut = new TextInserter(_clipboard, _keyboard, _tracker, new MacSecureInput(), TimeProvider.System,
             NullLogger<TextInserter>.Instance, false);
+    }
+
+    private static bool IsSameWindow(Rect bounds, Rect frame)
+    {
+        return Math.Abs(bounds.Center.X - frame.Center.X) <= 1 && Math.Abs(bounds.Center.Y - frame.Center.Y) <= 1 &&
+               Math.Abs(bounds.Width - frame.Width) <= 8 && Math.Abs(bounds.Height - frame.Height) <= 8;
     }
 
     private static bool MayReadPasteboard => PisumMac.PasteboardAccessBehavior() is -1 or 2;
@@ -112,6 +121,67 @@ public sealed class TextInserterMacHardwareTests : IAsyncLifetime
         transcript.Length.ShouldBeGreaterThan(400);
         outcome.ShouldBe(InsertionOutcome.Inserted);
         text.ShouldBe(transcript);
+    }
+
+    [Fact(Explicit = true)]
+    public async Task CaptureForeground_TextEditDocument_ReadsTheFrameTheWindowServerReports()
+    {
+        // Arrange
+        using var document = await TextEditDocument.OpenAsync();
+
+        // Act
+        var target = _tracker.CaptureForeground();
+        var found = _tracker.TryGetFrame(target.Window, out var frame);
+
+        // Assert
+        // The AX frame is a few points larger than the window server's bounds on macOS 27 (146, 71, 656, 422 against
+        // 148, 72, 652, 420), in the same coordinate space and with the same center, which is what the placement uses.
+        found.ShouldBeTrue();
+        var windows = await WindowServer.WaitForWindowsAsync(target.ProcessId,
+            list => list.Any(window => window.Layer == 0 && IsSameWindow(window.Bounds, frame)));
+        windows.ShouldContain(window => window.Layer == 0 && IsSameWindow(window.Bounds, frame),
+            $"The frame was {frame}, and TextEdit's windows are {string.Join("; ", windows)}.");
+    }
+
+    [Fact(Explicit = true)]
+    public async Task FrontmostApplicationFind_TextEditDocumentInFront_ReturnsTextEdit()
+    {
+        // Arrange
+        using var document = await TextEditDocument.OpenAsync();
+
+        // Act
+        var processId = FrontmostApplication.Find();
+
+        // Assert
+        processId.ShouldNotBeNull();
+        PisumMac.ProcessName(processId.Value).ShouldBe("TextEdit");
+    }
+
+    [Fact(Explicit = true)]
+    public async Task CaptureForeground_VisualStudioCodeInFront_CapturesItsWindow()
+    {
+        // Arrange: an Electron app, for which macOS names no focused application until its accessibility is on.
+        const string VisualStudioCode = "/Applications/Visual Studio Code.app";
+        Assert.SkipUnless(Directory.Exists(VisualStudioCode), "Visual Studio Code isn't installed.");
+        using (var open = Process.Start("open", ["-a", VisualStudioCode]))
+        {
+            await open.WaitForExitAsync(TestContext.Current.CancellationToken);
+        }
+
+        // Act: VS Code takes a moment to come to the front.
+        var target = new InsertionTarget(0, 0, false);
+        var started = Stopwatch.StartNew();
+        while (started.Elapsed < InputTimeout &&
+               (target.Window == 0 || PisumMac.ProcessName(target.ProcessId) != "Code"))
+        {
+            await Task.Delay(100, TestContext.Current.CancellationToken);
+            target = _tracker.CaptureForeground();
+        }
+
+        // Assert
+        target.Window.ShouldNotBe(0);
+        PisumMac.ProcessName(target.ProcessId).ShouldBe("Code");
+        _tracker.IsForeground(target).ShouldBeTrue();
     }
 
     [Fact(Explicit = true)]

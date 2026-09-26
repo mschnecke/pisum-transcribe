@@ -27,6 +27,12 @@ internal enum InsertionOutcome
     SecureInputOn,
 
     /// <summary>
+    /// macOS didn't allow this process to send keystrokes right before them, because the Accessibility grant isn't in
+    /// effect.
+    /// </summary>
+    KeystrokesNotAllowed,
+
+    /// <summary>
     /// A modifier key that would change the keystrokes was still held after the wait.
     /// </summary>
     ModifierKeysHeld,

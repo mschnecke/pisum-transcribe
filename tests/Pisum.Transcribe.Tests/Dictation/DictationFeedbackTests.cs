@@ -16,6 +16,7 @@ public sealed class DictationFeedbackTests
     private readonly INotifier _notifier = A.Fake<INotifier>();
     private readonly ITranscriber _transcriber = A.Fake<ITranscriber>();
     private readonly IRecordingOverlay _overlay = A.Fake<IRecordingOverlay>();
+    private readonly FakeHotkeyAvailability _hotkeyAvailability = new();
     private readonly FakeTimeProvider _time = new();
     private readonly List<(TrayStatus Status, string ToolTip)> _statuses = [];
     private readonly DictationFeedback _sut;
@@ -26,7 +27,8 @@ public sealed class DictationFeedbackTests
         A.CallTo(() => _transcriber.ActiveBackend).Returns("Vulkan");
         A.CallTo(() => _trayIcon.SetStatus(A<TrayStatus>._, A<string>._))
             .Invokes((TrayStatus status, string toolTip) => _statuses.Add((status, toolTip)));
-        _sut = new DictationFeedback(_trayIcon, _notifier, new InlineUiDispatcher(), _transcriber, _time, () => _overlay);
+        _sut = new DictationFeedback(_trayIcon, _notifier, new InlineUiDispatcher(), _transcriber, _hotkeyAvailability,
+            new FakeOverlayPlatform(), _time, () => _overlay);
     }
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
@@ -69,6 +71,93 @@ public sealed class DictationFeedbackTests
 
         // Assert
         Status.ShouldBe((TrayStatus.Unavailable, "Pisum Transcribe – No model installed"));
+    }
+
+    [Theory]
+    [InlineData(nameof(HotkeyUnavailableReason.AccessibilityNotInEffect), "Accessibility access needed for the hotkey")]
+    [InlineData(nameof(HotkeyUnavailableReason.SecureInputOn), "Paused while secure input is on")]
+    public async Task StartAsync_EngineReadyHotkeyUnavailable_ShowsUnavailableWithHotkeyReason(string reason,
+        string expectedState)
+    {
+        // Arrange
+        _hotkeyAvailability.Reason = Enum.Parse<HotkeyUnavailableReason>(reason);
+
+        // Act
+        await _sut.StartAsync(Ct);
+
+        // Assert
+        Status.ShouldBe((TrayStatus.Unavailable, $"Pisum Transcribe – {expectedState}"));
+    }
+
+    [Theory]
+    [InlineData(nameof(TranscriberStatus.NotLoaded), "No model installed")]
+    [InlineData(nameof(TranscriberStatus.Loading), "Loading model…")]
+    [InlineData(nameof(TranscriberStatus.Failed), "Model failed to load")]
+    public async Task StartAsync_EngineNotReadyAndHotkeyUnavailable_ShowsEngineReason(string status,
+        string expectedState)
+    {
+        // Arrange
+        A.CallTo(() => _transcriber.Status).Returns(Enum.Parse<TranscriberStatus>(status));
+        A.CallTo(() => _transcriber.ActiveBackend).Returns(null);
+        _hotkeyAvailability.Reason = HotkeyUnavailableReason.AccessibilityNotInEffect;
+
+        // Act
+        await _sut.StartAsync(Ct);
+
+        // Assert
+        Status.ShouldBe((TrayStatus.Unavailable, $"Pisum Transcribe – {expectedState}"));
+    }
+
+    [Fact]
+    public async Task HotkeyAvailabilityChanged_SecureInputOnThenOff_ShowsPausedThenReady()
+    {
+        // Arrange
+        await _sut.StartAsync(Ct);
+
+        // Act
+        _hotkeyAvailability.Reason = HotkeyUnavailableReason.SecureInputOn;
+        var paused = Status;
+        _hotkeyAvailability.Reason = null;
+
+        // Assert
+        paused.ShouldBe((TrayStatus.Unavailable, "Pisum Transcribe – Paused while secure input is on"));
+        Status.ShouldBe((TrayStatus.Ready, "Pisum Transcribe – Ready (Vulkan)"));
+    }
+
+    [Fact]
+    public async Task HotkeyAvailabilityChanged_DuringDictation_KeepsPhaseThenShowsReasonWhenIdle()
+    {
+        // Arrange
+        await _sut.StartAsync(Ct);
+        _sut.ShowStarting(Target);
+        _sut.ShowRecording();
+
+        // Act
+        _hotkeyAvailability.Reason = HotkeyUnavailableReason.AccessibilityNotInEffect;
+        var whileRecording = Status;
+        _sut.ShowTranscribing();
+        var whileTranscribing = Status;
+        _sut.ShowIdle();
+
+        // Assert
+        whileRecording.ShouldBe((TrayStatus.Recording, "Pisum Transcribe – Recording…"));
+        whileTranscribing.ShouldBe((TrayStatus.Transcribing, "Pisum Transcribe – Transcribing…"));
+        Status.ShouldBe((TrayStatus.Unavailable, "Pisum Transcribe – Accessibility access needed for the hotkey"));
+    }
+
+    [Fact]
+    public async Task StopAsync_Always_UnsubscribesFromHotkeyAvailability()
+    {
+        // Arrange
+        await _sut.StartAsync(Ct);
+        var subscribedWhileRunning = _hotkeyAvailability.HasSubscribers;
+
+        // Act
+        await _sut.StopAsync(Ct);
+
+        // Assert
+        subscribedWhileRunning.ShouldBeTrue();
+        _hotkeyAvailability.HasSubscribers.ShouldBeFalse();
     }
 
     [Fact]

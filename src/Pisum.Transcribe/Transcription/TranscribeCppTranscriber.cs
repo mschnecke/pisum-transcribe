@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Threading.Channels;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Pisum.Transcribe.Hosting;
 using Pisum.Transcribe.SpeechModels;
 
 namespace Pisum.Transcribe.Transcription;
@@ -61,6 +62,16 @@ internal sealed class TranscribeCppTranscriber : ITranscriber, IHostedService
         "again. Details are in the log.";
 
     /// <summary>
+    /// The reason of the process activity that each load runs in, as macOS lists it.
+    /// </summary>
+    public const string LoadActivityReason = "Loading the speech model";
+
+    /// <summary>
+    /// The reason of the process activity that each transcription runs in, as macOS lists it.
+    /// </summary>
+    public const string RunActivityReason = "Transcription";
+
+    /// <summary>
     /// The maximum input duration while no model is loaded, or when the native engine reports none.
     /// </summary>
     public static readonly TimeSpan DefaultMaxInputDuration = TimeSpan.FromSeconds(400);
@@ -82,6 +93,7 @@ internal sealed class TranscribeCppTranscriber : ITranscriber, IHostedService
 
     private readonly INativeSpeechEngineFactory _engineFactory;
     private readonly IModelStore _modelStore;
+    private readonly IProcessActivity _processActivity;
     private readonly ILogger<TranscribeCppTranscriber> _logger;
 
     private readonly Channel<WorkItem> _workItems =
@@ -122,13 +134,16 @@ internal sealed class TranscribeCppTranscriber : ITranscriber, IHostedService
     /// </summary>
     /// <param name="engineFactory">Loads models into the native engine.</param>
     /// <param name="modelStore">Locates the model files.</param>
+    /// <param name="processActivity">Keeps macOS from throttling each load and run through App Nap.</param>
     /// <param name="logger">The logger.</param>
     public TranscribeCppTranscriber(INativeSpeechEngineFactory engineFactory,
                                     IModelStore modelStore,
+                                    IProcessActivity processActivity,
                                     ILogger<TranscribeCppTranscriber> logger)
     {
         _engineFactory = engineFactory;
         _modelStore = modelStore;
+        _processActivity = processActivity;
         _logger = logger;
 
         // A dedicated thread, so multi-second native calls do not tie up the thread pool.
@@ -359,6 +374,9 @@ internal sealed class TranscribeCppTranscriber : ITranscriber, IHostedService
                     continue;
                 }
 
+                // Loads and runs alike, so the load at start, a reload after a settings change and the return to the GPU
+                // backend are covered too (design D6 of add-macos-dictation).
+                using var activity = _processActivity.Begin(item is LoadWorkItem ? LoadActivityReason : RunActivityReason);
                 switch (item)
                 {
                     case LoadWorkItem load:

@@ -33,6 +33,24 @@ public sealed class RecordingOverlayWindowTests
     }
 
     [Fact]
+    public Task ShowStarting_Always_ConfiguresRightBeforeAndRightAfterShow()
+    {
+        return HeadlessUi.RunAsync(() =>
+        {
+            // Arrange
+            var platform = new FakeOverlayPlatform();
+            var sut = new RecordingOverlayWindow(platform);
+
+            // Act
+            ((IRecordingOverlay) sut).ShowStarting(0);
+
+            // Assert
+            platform.ConfiguredWhileVisible.ShouldBe([false, true]);
+            sut.Close();
+        });
+    }
+
+    [Fact]
     public Task ShowStarting_PrimaryMonitor_ShowsGreyDotWithoutText()
     {
         return HeadlessUi.RunAsync(() =>

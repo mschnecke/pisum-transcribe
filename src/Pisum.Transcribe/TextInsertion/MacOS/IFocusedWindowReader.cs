@@ -1,3 +1,5 @@
+using Avalonia;
+
 namespace Pisum.Transcribe.TextInsertion;
 
 /// <summary>
@@ -21,6 +23,15 @@ internal interface IFocusedWindowReader
     /// <param name="second">The second element.</param>
     /// <returns><see langword="true"/> for the same window.</returns>
     bool AreSameWindow(nint first, nint second);
+
+    /// <summary>
+    /// Reads a window's frame: its position and size in global points, with the origin at the top-left of the primary
+    /// screen.
+    /// </summary>
+    /// <param name="window">The window's element from <see cref="TryRead"/>.</param>
+    /// <param name="frame">The frame.</param>
+    /// <returns><see langword="false"/> when the frame could not be read in time.</returns>
+    bool TryReadFrame(nint window, out Rect frame);
 
     /// <summary>
     /// Releases an element from <see cref="TryRead"/>.
