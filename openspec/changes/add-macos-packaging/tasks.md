@@ -13,7 +13,7 @@ The order follows the dependencies: the bundle first, then the package and its g
 
 ## 3. The release workflow
 
-- [ ] 3.1 In `release.yml`, rename `build` to `build-windows`, add `build-macos` on `macos-latest` (test, temporary keychain from the secrets, `build-pkg.sh`, keychain deleted `always()`, artifact `pkg`), and make `release` need both and publish the `.pkg` (D5, D6). Verify: `actionlint` passes; a dry run of `build-macos` on a branch through a temporary `workflow_dispatch` input that skips publishing, or a pre-release tag on a fork, produces a `.pkg` signed with the project's certificate (the guard passes with the default leaf).
+- [x] 3.1 In `release.yml`, rename `build` to `build-windows`, add `build-macos` on `macos-latest` (test, temporary keychain from the secrets, `build-pkg.sh`, keychain deleted `always()`, artifact `pkg`), and make `release` need both and publish the `.pkg` (D5, D6). Verify: `actionlint` passes; a dry run of `build-macos` on a branch through a temporary `workflow_dispatch` input that skips publishing, or a pre-release tag on a fork, produces a `.pkg` signed with the project's certificate (the guard passes with the default leaf).
 
 ## 4. Open at login
 
