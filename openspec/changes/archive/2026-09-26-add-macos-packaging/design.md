@@ -128,7 +128,7 @@ The secrets reach only this job. `ci.yml` keeps signing ad hoc and needs no secr
   - it shows "Start with Windows" on Windows and "Open at login" on macOS, with one property and a platform label
   - with "requires approval", the option reads as off, and a hint says "Allow Pisum Transcribe in System Settings → General → Login Items."
   - `SettingsViewModel` already applies and re-reads the state when the window opens, so a change in System Settings shows the next time.
-- **Nothing else is needed for uninstalling:** macOS drops the login item of an app moved to the Trash. It is checked by hand.
+- **Uninstalling:** an app moved to the Trash isn't started at login any more, but macOS keeps its login item registered, pointing into the Trash, and still after the Trash is emptied (found in task 7.2 on macOS 27; the design first assumed macOS drops it). The README therefore says to turn off "Open at login" first.
 - **The development trap:** `SMAppService.mainApp` registers the bundle that runs. Turning the option on in the dev bundle from `bin/` makes macOS open the dev build at login. `CLAUDE.md` says so.
 
 *Rejected:* a LaunchAgent plist in `~/Library/LaunchAgents` (pisum-whisper's way). It would be a file to write, keep pointing at the right bundle, and remove on uninstall, while macOS 13 and later manages `SMAppService` login items itself and shows them in Login Items.
@@ -147,7 +147,7 @@ The secrets reach only this job. `ci.yml` keeps signing ad hoc and needs no secr
 
 - **[Apple changes Open Anyway for unsigned packages in a later macOS]** → There's no fix without a membership. A build from source still works. The rc.1 check shows the state on macOS 27, and the README describes the steps with their System Settings path.
 - **[The certificate is lost or leaks]** → Losing it means every user grants Accessibility and the microphone once more after the next update. The backup outside GitHub exists for that. A leak would let an app with the same bundle identifier inherit the grants. The key exists only in the secrets and the backup, never in a keychain in daily use.
-- **[`system.files.bundleAtPath` or `installation-check` behave differently than documented]** → The rc.1 to 1.4.0 upgrade and a deliberate downgrade from 1.4.0 to rc.1 are checked by hand before 1.4.0 is final.
+- **[`system.files.bundleAtPath` or `installation-check` behave differently than documented]** → The rc.1 to 1.4.0 upgrade is checked by hand, and a package of an older version (`1.3.9-dev.1` over `1.4.0`) was refused with the message in task 2.3. rc.1 over 1.4.0 isn't a downgrade under the same-version rule and passes the check (found during task 7.2, where the plan had wrongly expected a refusal).
 - **[`SIGTERM` reaches an app that hangs]** → `SIGKILL` after 6 s. The app's own watchdog ends it after 4.5 s anyway.
 - **[A login item survives the move to the Trash on some macOS]** → It's checked by hand. The README's complete removal also covers Login Items.
 - **[ReadyToRun or self-contained output doesn't run when signed]** → The publish spike showed a complete output. The rc.1 check runs the real release bundle, and the guard verifies the signature before packaging.

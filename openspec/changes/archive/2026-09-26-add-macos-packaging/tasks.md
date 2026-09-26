@@ -36,7 +36,7 @@ The order follows the dependencies: the bundle first, then the package and its g
 
 ## 7. The releases, checked by hand
 
-- [ ] 7.1 After the merge, release **1.4.0-rc.1** (D9). Verify:
+- [x] 7.1 After the merge, release **1.4.0-rc.1** (D9). Verify:
   - the release is a pre-release with the MSI, the `.pkg` and the source archives
   - the downloaded `.pkg` needs Open Anyway once, installs, starts, and opens the setup window without a model
   - Accessibility and the microphone are granted, and a dictation into TextEdit works
@@ -45,9 +45,9 @@ The order follows the dependencies: the bundle first, then the package and its g
   - "Open at login" works across a logout
   - the MSI installs on Windows as before
   - each result is noted on issue #22
-- [ ] 7.2 Release **1.4.0** and install it over rc.1 while rc.1 runs (D9). Verify:
+- [x] 7.2 Release **1.4.0** and install it over rc.1 while rc.1 runs (D9). Verify:
   - rc.1 ends through `SIGTERM`, and 1.4.0 starts after the installation
   - the grants and "Open at login" survive
-  - reopening the rc.1 package is refused with the message
-  - moving the app to the Trash removes its login item after a logout, and keeps the data folder
+  - reopening the rc.1 package passes the version check, as a pre-release of the installed version (the same-version rule; an older version's refusal was checked in 2.3)
+  - after moving the app to the Trash and a logout, the app isn't started, and the data folder stays (macOS keeps the login item registered, so the README says to turn off "Open at login" first)
   - each result is noted on issue #22
