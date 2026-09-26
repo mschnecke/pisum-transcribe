@@ -128,7 +128,7 @@ graph TD
 - **GitHub #19** is merged in pull request #34 and archived: paste with restore on macOS, typing when the pasteboard can't be read without asking, the nspasteboard.org markers and Universal Clipboard exclusion, and the secure-input outcome. Its checks by hand (4.3) moved to #20.
 - **GitHub #20** is merged in pull request #35 and archived: dictation on the Mac, with the overlay, the menu bar states and the hotkey's reasons for *unavailable*, App Nap activities, the relaunch waiting for a dictation, and the fallback when keystrokes aren't allowed.
 - **GitHub #21** is folded into #22, which brings "Open at login" with the first Mac release.
-- **GitHub #22** is being implemented as `add-macos-packaging`: the `.pkg`, the project's signing certificate "Pisum Transcribe", the release guard, lockstep releases, "Open at login" and the update notice's wording on macOS. 1.4.0-rc.1 comes first, then 1.4.0. The Homebrew tap is a later change.
+- **GitHub #22** is merged in pull request #37 and archived, and released as 1.4.0-rc.1 and then 1.4.0, the first lockstep release with the MSI and the `.pkg`: the project's signing certificate "Pisum Transcribe", the release guard, "Open at login" and the update notice's wording on macOS. The checks by hand passed and are on the issue. Two findings changed the docs: a release candidate installs over its release (the same-version rule, as for the MSI), and macOS keeps the login item after the app is moved to the Trash, so the README says to turn "Open at login" off first. The setup window without a model wasn't rechecked with the release. The Homebrew tap is a later change.
 - **GitHub #32** has no OpenSpec change yet.
 
 ### Releases
@@ -137,7 +137,7 @@ graph TD
 |---|---|---|
 | 1.2.0 | GitHub #10–#13 | MSI |
 | 1.3.0 | GitHub #14 | MSI |
-| 1.4.0 | GitHub #15–#22 | MSI and `.pkg`, the first lockstep release |
+| 1.4.0 | GitHub #15–#22 | MSI and `.pkg`, the first lockstep release, published on 2026-09-26 |
 
 - **Between 1.3.0 and 1.4.0,** the macOS steps land in `main`, and CI builds and tests the Mac target, but no macOS installer is released. Windows fixes ship as MSI-only patch releases.
 - **GitHub #18's settings migration** reaches Windows users with the first release that contains it.

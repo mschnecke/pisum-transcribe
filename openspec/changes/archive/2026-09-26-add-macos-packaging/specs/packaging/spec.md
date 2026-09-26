@@ -65,13 +65,17 @@ On macOS, the same SHALL hold for the package in `/Applications`: an older packa
 - **AND** `1.4.0` starts when the installation finishes, with the settings, the downloaded models, the "Open at login" setting and the permission grants as before
 
 #### Scenario: Older release refused on macOS
-- **WHEN** the macOS package of `1.4.0-rc.1` is opened while `1.4.0` is installed
+- **WHEN** a macOS package whose version without its pre-release suffix is lower than the installed one, such as `1.3.9`, is opened while `1.4.0` is installed
 - **THEN** the installer shows a message that a newer version is installed, and `1.4.0` stays installed
+
+#### Scenario: Release candidate of the installed version on macOS
+- **WHEN** the macOS package of `1.4.0-rc.1` is opened while `1.4.0` is installed
+- **THEN** the installer doesn't refuse it, because both versions are `1.4.0` without the pre-release suffix, and installing it replaces `1.4.0`, as the MSI's same-version rule does
 
 ### Requirement: Uninstalling
 Uninstalling the application through Windows' list of installed apps SHALL remove the application's program folder, its Start Menu shortcut, its "Start with Windows" entry, including an entry the user disabled in Task Manager, and its notification registration, the per-user registry key `HKCU\Software\Classes\AppUserModelId\Pisum.Transcribe`. It SHALL keep the per-user data folder `%LOCALAPPDATA%\Pisum Transcribe\` with the settings, the logs and the downloaded speech models. An upgrade SHALL NOT remove the "Start with Windows" entry or the notification registration. If the application is running, it SHALL end as it does when the user chooses **Exit** before its files are removed.
 
-On macOS, the application SHALL be uninstalled by moving `/Applications/Pisum Transcribe.app` to the Trash, which SHALL also end its "Open at login" item. The settings and downloaded speech models in `~/Library/Application Support/Pisum Transcribe/` and the logs in `~/Library/Logs/Pisum Transcribe/` SHALL stay. The project's README SHALL describe this, and how to also remove those folders, the installer's receipt and the permission grants.
+On macOS, the application SHALL be uninstalled by moving `/Applications/Pisum Transcribe.app` to the Trash, after which the application SHALL no longer be started at login. macOS keeps a login item registered after the move, even after the Trash is emptied, so the README SHALL say to turn off "Open at login" before moving the application to the Trash. The settings and downloaded speech models in `~/Library/Application Support/Pisum Transcribe/` and the logs in `~/Library/Logs/Pisum Transcribe/` SHALL stay. The project's README SHALL describe this, and how to also remove those folders, the installer's receipt and the permission grants.
 
 #### Scenario: Uninstall removes the program
 - **WHEN** the application is uninstalled
@@ -100,7 +104,7 @@ On macOS, the application SHALL be uninstalled by moving `/Applications/Pisum Tr
 
 #### Scenario: Moving the app to the Trash on macOS
 - **WHEN** "Open at login" is on, the user quits the application, moves `/Applications/Pisum Transcribe.app` to the Trash, and logs out and in again
-- **THEN** Pisum Transcribe isn't started, and *System Settings → General → Login Items* doesn't list it
+- **THEN** Pisum Transcribe isn't started
 - **AND** `~/Library/Application Support/Pisum Transcribe/` still holds the settings and the downloaded models
 
 ### Requirement: The installed application ships the license notices

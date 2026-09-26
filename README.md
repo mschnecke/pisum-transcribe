@@ -67,7 +67,7 @@ Open the package of a newer release, as for the first installation. The installe
 
 ### Uninstalling on a Mac
 
-Quit Pisum Transcribe from its menu, and move `/Applications/Pisum Transcribe.app` to the Trash. macOS removes its **Open at login** item with it. Your settings and speech models in `~/Library/Application Support/Pisum Transcribe/` and the logs in `~/Library/Logs/Pisum Transcribe/` stay, so a new installation picks them up again. To remove them too, and the installer's receipt and the permissions:
+If **Open at login** is on, turn it off in the settings first: macOS keeps the login item after the app is moved to the Trash, even after the Trash is emptied, although it can't start anything any more. Then quit Pisum Transcribe from its menu, and move `/Applications/Pisum Transcribe.app` to the Trash. Your settings and speech models in `~/Library/Application Support/Pisum Transcribe/` and the logs in `~/Library/Logs/Pisum Transcribe/` stay, so a new installation picks them up again. To remove them too, and the installer's receipt and the permissions:
 
 ```sh
 rm -rf ~/Library/Application\ Support/Pisum\ Transcribe ~/Library/Logs/Pisum\ Transcribe
