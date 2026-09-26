@@ -24,6 +24,9 @@ internal sealed class AccessibilityFocusedWindowReader : IFocusedWindowReader, I
     // kCFStringEncodingUTF8
     private const uint StringEncodingUtf8 = 0x08000100;
 
+    // kAXErrorNoValue
+    private const int NoValueError = -25212;
+
     // kAXValueCGPointType and kAXValueCGSizeType
     private const int CGPointType = 1;
     private const int CGSizeType = 2;
@@ -60,6 +63,17 @@ internal sealed class AccessibilityFocusedWindowReader : IFocusedWindowReader, I
         processId = 0;
         window = 0;
         var error = AXUIElementCopyAttributeValue(_systemWide, _focusedApplicationAttribute, out var application);
+
+        // macOS names no focused application for Electron apps until their accessibility is switched on, or while a
+        // menu is open. Their own element still answers (design D11 of add-macos-dictation).
+        if (error == NoValueError && FrontmostApplication.Find() is { } frontmost)
+        {
+            _logger.LogInformation("No focused application is named, so process {ProcessId} of the frontmost window is used",
+                frontmost);
+            application = AXUIElementCreateApplication(frontmost);
+            error = application == 0 ? NoValueError : 0;
+        }
+
         if (error != 0)
         {
             _logger.LogInformation("The focused application could not be read (AX error {Error})", error);
@@ -161,6 +175,9 @@ internal sealed class AccessibilityFocusedWindowReader : IFocusedWindowReader, I
 
     [DllImport(ApplicationServicesPath)]
     private static extern nint AXUIElementCreateSystemWide();
+
+    [DllImport(ApplicationServicesPath)]
+    private static extern nint AXUIElementCreateApplication(int processId);
 
     [DllImport(ApplicationServicesPath)]
     [return: MarshalAs(UnmanagedType.U1)]

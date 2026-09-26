@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using Avalonia;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -140,6 +141,47 @@ public sealed class TextInserterMacHardwareTests : IAsyncLifetime
             list => list.Any(window => window.Layer == 0 && IsSameWindow(window.Bounds, frame)));
         windows.ShouldContain(window => window.Layer == 0 && IsSameWindow(window.Bounds, frame),
             $"The frame was {frame}, and TextEdit's windows are {string.Join("; ", windows)}.");
+    }
+
+    [Fact(Explicit = true)]
+    public async Task FrontmostApplicationFind_TextEditDocumentInFront_ReturnsTextEdit()
+    {
+        // Arrange
+        using var document = await TextEditDocument.OpenAsync();
+
+        // Act
+        var processId = FrontmostApplication.Find();
+
+        // Assert
+        processId.ShouldNotBeNull();
+        PisumMac.ProcessName(processId.Value).ShouldBe("TextEdit");
+    }
+
+    [Fact(Explicit = true)]
+    public async Task CaptureForeground_VisualStudioCodeInFront_CapturesItsWindow()
+    {
+        // Arrange: an Electron app, for which macOS names no focused application until its accessibility is on.
+        const string VisualStudioCode = "/Applications/Visual Studio Code.app";
+        Assert.SkipUnless(Directory.Exists(VisualStudioCode), "Visual Studio Code isn't installed.");
+        using (var open = Process.Start("open", ["-a", VisualStudioCode]))
+        {
+            await open.WaitForExitAsync(TestContext.Current.CancellationToken);
+        }
+
+        // Act: VS Code takes a moment to come to the front.
+        var target = new InsertionTarget(0, 0, false);
+        var started = Stopwatch.StartNew();
+        while (started.Elapsed < InputTimeout &&
+               (target.Window == 0 || PisumMac.ProcessName(target.ProcessId) != "Code"))
+        {
+            await Task.Delay(100, TestContext.Current.CancellationToken);
+            target = _tracker.CaptureForeground();
+        }
+
+        // Assert
+        target.Window.ShouldNotBe(0);
+        PisumMac.ProcessName(target.ProcessId).ShouldBe("Code");
+        _tracker.IsForeground(target).ShouldBeTrue();
     }
 
     [Fact(Explicit = true)]

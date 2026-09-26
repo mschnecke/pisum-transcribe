@@ -15,6 +15,49 @@ On macOS, when the application isn't allowed to send keystrokes right before it 
 
 ## MODIFIED Requirements
 
+### Requirement: Target window captured at recording start
+The target of an insertion SHALL be the foreground window at the moment the recording started. Text SHALL be inserted only if that same window is still the foreground window immediately before the keystrokes are sent. If no window was in the foreground when the recording started, for example during a window switch, the text SHALL NOT be inserted; it SHALL be left on the clipboard, and the outcome SHALL report "target window changed".
+
+On macOS, the foreground window SHALL be the focused window of the focused application. When the frontmost application doesn't report its focused window within a short time, for example because it hangs, it SHALL count as no window, so the text is left on the clipboard instead of the insertion waiting for the application. When macOS names no focused application, as for Electron apps such as Visual Studio Code until their accessibility is switched on, the frontmost application SHALL be the owner of the frontmost normal window, and its focused window SHALL be the foreground window.
+
+#### Scenario: Focus unchanged
+- **WHEN** the user dictates into a text editor and the editor is still in the foreground after transcription
+- **THEN** the text is inserted into the editor
+
+#### Scenario: User switched windows during transcription
+- **WHEN** the recording started in a text editor and a browser is in the foreground when the transcript is ready
+- **THEN** no keystrokes are sent
+- **AND** the transcript is left on the clipboard
+- **AND** the outcome reports "target window changed"
+
+#### Scenario: No foreground window at recording start
+- **WHEN** no window was in the foreground when the recording started, and no window is in the foreground when the transcript is ready
+- **THEN** no keystrokes are sent
+- **AND** the transcript is left on the clipboard
+- **AND** the outcome reports "target window changed"
+
+#### Scenario: User switched windows while modifier keys were released
+- **WHEN** the recording started in a text editor, the application waits for the user to release Shift, and the user switches to a browser before releasing it
+- **THEN** no keystrokes are sent
+- **AND** the transcript is left on the clipboard
+- **AND** the outcome reports "target window changed"
+
+#### Scenario: Another window of the same application on macOS
+- **WHEN** the recording started in one TextEdit document on macOS, and another TextEdit document is focused when the transcript is ready
+- **THEN** no keystrokes are sent
+- **AND** the transcript is left on the clipboard
+- **AND** the outcome reports "target window changed"
+
+#### Scenario: Frontmost application doesn't answer on macOS
+- **WHEN** the frontmost application on macOS doesn't respond when the recording starts
+- **THEN** the dictation isn't held up waiting for it
+- **AND** the transcript is left on the clipboard
+- **AND** the outcome reports "target window changed"
+
+#### Scenario: Electron application on macOS
+- **WHEN** the user dictates into an editor tab of Visual Studio Code on macOS, started fresh, so macOS names no focused application
+- **THEN** the text is inserted into the editor tab
+
 ### Requirement: Insertion outcome
 Every insertion SHALL report one outcome: "inserted", "target window changed", "target window is elevated", "secure input is on", "keystrokes not allowed", "modifier keys held" or "clipboard unavailable". The outcomes "target window changed", "target window is elevated", "secure input is on", "keystrokes not allowed" and "modifier keys held" SHALL leave the transcript on the clipboard, where it SHALL remain and not be restored or excluded from history. When such a fallback cannot place the transcript on the clipboard, because the clipboard stays unavailable for about 1 second, the outcome SHALL be "clipboard unavailable" instead, the transcript is not delivered, and the original reason SHALL be logged. When the clipboard is unavailable but still holds the transcript that was set for a paste, the transcript is delivered: the outcome SHALL be the original reason, and the transcript MAY stay excluded from history.
 

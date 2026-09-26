@@ -20,6 +20,7 @@ Tracked in GitHub issue #20. The decisions come from the section "Decided for la
 - **The secure-input fallback notification:** a dictation that ran into secure input says that the text was copied to the clipboard because secure input is on.
 - **No silent loss after a revoke and a re-grant:** macOS lets only a new process send keystrokes after a new Accessibility grant, and a dropped keystroke gives no error. Right before the keystrokes, the insertion therefore checks whether it may send them. If not, the transcript is left on the clipboard with the new outcome "keystrokes not allowed" and a notification, instead of a paste that goes nowhere followed by a clipboard restore that erases the transcript.
 - **App Nap:** the model load and warm-up, each transcription, the voice activity warm-up and every dictation from the press until the insertion ends run inside a `ProcessInfo` activity, so macOS doesn't throttle them.
+- **The target of a dictation is found in Electron apps too,** such as Visual Studio Code: macOS names no focused application there, so the capture falls back to the owner of the frontmost normal window (found during the checks by hand).
 - **The relaunch after the Accessibility grant waits while a dictation is in progress,** so a re-grant during a transcription doesn't lose the transcript.
 - **macOS wording:**
   - the blocked-microphone notification names *System Settings → Privacy & Security → Microphone* (the text exists since #17)
@@ -40,6 +41,7 @@ Tracked in GitHub issue #20. The decisions come from the section "Decided for la
 
 ### Modified Capabilities
 - `text-insertion`:
+  - "Target window captured at recording start": the frontmost normal window's application when macOS names no focused application, as for Electron apps.
   - "Keystroke permission" (new, next to "Secure input"): no keystrokes while macOS doesn't allow the application to send them.
   - "Insertion outcome": the outcome "keystrokes not allowed".
 - `dictation`:

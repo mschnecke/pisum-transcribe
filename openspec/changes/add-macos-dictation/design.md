@@ -188,6 +188,21 @@ otherwise                       -> ready, "Ready (<backend>)"
 - **`IPermissions.IsAccessibilityInEffect` at the gate:** it would work, but `TextInsertion` would depend on the macOS-only Permissions feature. The preflight asks macOS the exact question: may this process post events now.
 - **Keeping it as a risk checked by hand:** the silent loss of a transcript is the one failure the insertion must never have (user decision).
 
+### D11: The capture finds Electron apps through the window list
+
+Found during the checks by hand (2026-09-26): every dictation into Visual Studio Code fell back to the clipboard. With VS Code in front, the system-wide `AXFocusedApplication`, which `AccessibilityFocusedWindowReader.TryRead` asks first, returns `kAXErrorNoValue` (-25212), while VS Code's own application element answers `AXFocusedWindow`. After `AXManualAccessibility` was set on VS Code, the system-wide query worked, so Electron apps, and probably Chromium apps until something switches their accessibility on, aren't named as the focused application. The same error appears while a menu is open at the press.
+
+- When the system-wide query fails with `kAXErrorNoValue`, `TryRead` takes the frontmost application from the window list: the owner of the first on-screen window in `CGWindowListCopyWindowInfo`'s front-to-back order at layer 0 with an alpha above 0, other than this process. It then asks that application's element (`AXUIElementCreateApplication`) for `AXFocusedWindow`, as today.
+- The window list is a C API that is safe on any thread, so the capture stays on the dictation's thread, and the helper and the ABI don't change.
+- The window list only picks the *application* by z-order. The *window* still comes from the Accessibility API, so #19's reason to reject the window list for the window doesn't apply. Layer 0 leaves out floating panels, the menu bar, notification banners and the overlay.
+- `IsForeground` reads through the same `TryRead`, so the final check before the keystrokes finds the same window.
+- With a menu open at the press, the capture now finds the application under the menu, and the text is pasted there once the menu has closed, instead of going to the clipboard.
+- The choice among the window list's entries is a pure function, `FrontmostApplication.Choose`, unit-tested without the window server.
+
+*Rejected:*
+- **`NSWorkspace.frontmostApplication` through the helper:** a new helper function, and it isn't documented as safe off the main thread, where the capture runs.
+- **Setting `AXManualAccessibility` on the frontmost app:** it makes Electron apps build their whole accessibility tree, a lasting cost to them, for a question their application element already answers.
+
 ## Risks / Trade-offs
 
 - **[`CGPreflightPostEventAccess` reports true while posting still fails]** → The spike only showed the opposite case (false after a grant in the same process). Posting can also fail for reasons the preflight doesn't know, and those stay undetectable, as they are today. The check by hand revokes and re-grants during a transcription and confirms the fallback.
@@ -196,6 +211,7 @@ otherwise                       -> ready, "Ready (<backend>)"
 - **[A second display with a negative origin]** → `ScreenFromPoint` works in the same global points as the AX frame, and negative coordinates are valid there. It is unchecked without hardware. The primary-screen fallback bounds the damage to "wrong screen".
 - **[A cancelled CPU run blocks the next dictation for up to 52 s on a 399 s clip]** → Only after a CPU fallback, the same trade-off as on Windows. Metal ran 399 s without failing, so the fallback is unlikely on the target Mac.
 - **[The secure-input poll wakes the app every 2 s]** → It is a cheap C call, it pauses during dictations, and it doesn't hold an activity, so App Nap still coalesces the timer when idle. Coalescing can delay the tray's update. The spec allows 3 s, and the check by hand measures it.
+- **[The frontmost normal window isn't the active application's]** → for example an always-on-top window of another app at layer 0. The fallback then captures that app's focused window, and the final check before the keystrokes compares against it, so the text goes to that window or, if the focus moves, to the clipboard. The fallback only runs when macOS names no focused application at all.
 - **[Nobody listens to `IDictationState` on Windows]** → The seam costs a field write per dictation.
 
 ## Migration Plan
