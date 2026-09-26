@@ -65,4 +65,4 @@ The order follows the dependencies. The shared seams come first, then the helper
     - the checkpoint after #18 done, with its numbers and the unchanged defaults
     - #18 and #19 merged
     - this change's status
-- [ ] 5.2 Run `openspec validate add-macos-dictation --strict`, then `dotnet build Pisum.Transcribe.slnx` and `dotnet test Pisum.Transcribe.slnx` on the Mac, and CI on Windows and macOS. Verify: all pass.
+- [x] 5.2 Run `openspec validate add-macos-dictation --strict`, then `dotnet build Pisum.Transcribe.slnx` and `dotnet test Pisum.Transcribe.slnx` on the Mac, and CI on Windows and macOS. Verify: all pass.
