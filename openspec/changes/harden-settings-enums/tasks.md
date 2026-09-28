@@ -25,4 +25,4 @@
   - `docs/roadmap.md`: GitHub #32 done, in place of "has no OpenSpec change yet"
 
   Verify: the two files mention the fallback, and no text still says that an unknown enum value makes the file corrupt (`grep -rn "corrupt" CLAUDE.md docs/`).
-- [ ] 2.2 Final check. Verify: `openspec validate harden-settings-enums --strict` passes, and `dotnet build Pisum.Transcribe.slnx` and `dotnet test Pisum.Transcribe.slnx` pass on Windows. CI passes on Windows and macOS on the PR, which references #32 without a closing keyword.
+- [x] 2.2 Final check. Verify: `openspec validate harden-settings-enums --strict` passes, and `dotnet build Pisum.Transcribe.slnx` and `dotnet test Pisum.Transcribe.slnx` pass on Windows. CI passes on Windows and macOS on the PR, which references #32 without a closing keyword.
