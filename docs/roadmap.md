@@ -129,7 +129,7 @@ graph TD
 - **GitHub #20** is merged in pull request #35 and archived: dictation on the Mac, with the overlay, the menu bar states and the hotkey's reasons for *unavailable*, App Nap activities, the relaunch waiting for a dictation, and the fallback when keystrokes aren't allowed.
 - **GitHub #21** is folded into #22, which brings "Open at login" with the first Mac release.
 - **GitHub #22** is merged in pull request #37 and archived, and released as 1.4.0-rc.1 and then 1.4.0, the first lockstep release with the MSI and the `.pkg`: the project's signing certificate "Pisum Transcribe", the release guard, "Open at login" and the update notice's wording on macOS. The checks by hand passed and are on the issue. Two findings changed the docs: a release candidate installs over its release (the same-version rule, as for the MSI), and macOS keeps the login item after the app is moved to the Trash, so the README says to turn "Open at login" off first. The setup window without a model wasn't rechecked with the release. The Homebrew tap is a later change.
-- **GitHub #32** is implemented in the change `harden-settings-enums` on its branch: an enum setting value that isn't one of its names, such as one from a newer build, takes that setting's default with a warning, and the other settings are kept. Builds up to 1.5.0 still reset every setting for such a value.
+- **GitHub #32** is implemented and archived in pull request #41, open for review: an enum setting value that isn't one of its names, such as one from a newer build, takes that setting's default with a warning, and the other settings are kept. Builds up to 1.5.0 still reset every setting for such a value.
 
 ### Releases
 
