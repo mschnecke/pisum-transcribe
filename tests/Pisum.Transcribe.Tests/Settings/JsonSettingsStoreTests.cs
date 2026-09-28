@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Pisum.Transcribe.Hosting;
 using Pisum.Transcribe.Recording;
@@ -481,10 +482,137 @@ public sealed class JsonSettingsStoreTests : IDisposable
     }
 
     [Theory]
-    [InlineData("""{ "schemaVersion": 1, "transcription": { "backend": "metal" } }""")]
-    [InlineData("""{ "schemaVersion": 3, "transcription": { "backend": "vulkan" } }""")]
+    [InlineData("""{ "schemaVersion": 1, "transcription": { "backend": "metal" } }""", 2)]
+    [InlineData("""{ "schemaVersion": 3, "transcription": { "backend": "vulkan" } }""", 3)]
+    public void Load_UnknownBackendOrNotMigrated_UsesDefaultBackendAndKeepsFile(string json, int expectedVersion)
+    {
+        // Arrange
+        File.WriteAllText(_settingsFile, json);
+
+        // Act
+        _sut.Load();
+
+        // Assert
+        _sut.Current.ShouldBe(new AppSettings {SchemaVersion = expectedVersion});
+        File.ReadAllText(_settingsFile).ShouldBe(json);
+        File.Exists(_settingsFile + ".corrupt").ShouldBeFalse();
+        A.CallTo(_logger)
+            .Where(call => call.Method.Name == nameof(ILogger.Log) && call.GetArgument<LogLevel>(0) == LogLevel.Warning)
+            .MustHaveHappenedOnceExactly();
+    }
+
+    [Theory]
+    [InlineData("transcription", "backend", "\"metal\"")]
+    [InlineData("transcription", "backend", "null")]
+    [InlineData("transcription", "backend", "1")]
+    [InlineData("transcription", "backend", "\"1\"")]
+    [InlineData("transcription", "backend", "true")]
+    [InlineData("transcription", "backend", "{}")]
+    [InlineData("transcription", "backend", "[]")]
+    [InlineData("transcription", "backend", "\"gpu, cpu\"")]
+    [InlineData("transcription", "task", "\"summarize\"")]
+    [InlineData("transcription", "task", "null")]
+    [InlineData("transcription", "task", "1")]
+    [InlineData("transcription", "task", "\"translate, transcribe\"")]
+    [InlineData("textInsertion", "method", "\"dragAndDrop\"")]
+    [InlineData("textInsertion", "method", "null")]
+    [InlineData("textInsertion", "method", "1")]
+    [InlineData("textInsertion", "method", "\"clipboardPaste, typeText\"")]
+    public void Load_UnknownEnumValue_UsesDefaultAndKeepsFile(string section, string property, string value)
+    {
+        // Arrange
+        var json = $$"""{ "{{section}}": { "{{property}}": {{value}} } }""";
+        File.WriteAllText(_settingsFile, json);
+
+        // Act
+        _sut.Load();
+
+        // Assert
+        _sut.Current.ShouldBe(new AppSettings());
+        File.ReadAllText(_settingsFile).ShouldBe(json);
+        File.Exists(_settingsFile + ".corrupt").ShouldBeFalse();
+    }
+
+    [Fact]
+    public void Load_UnknownBackendWithCustomValues_KeepsEveryOtherValue()
+    {
+        // Arrange
+        File.WriteAllText(_settingsFile, """
+            { "schemaVersion": 2,
+              "model": { "selectedModelId": "canary-180m-flash-q8_0" },
+              "transcription": { "backend": "metal", "task": "transcribe", "sourceLanguage": "en",
+                                 "targetLanguage": "de" },
+              "recording": { "hotkey": ["VcLeftControl", "VcLeftMeta"] },
+              "textInsertion": { "method": "typeText", "restoreClipboard": false },
+              "voiceActivity": { "enabled": false },
+              "updates": { "checkAutomatically": false } }
+            """);
+
+        // Act
+        _sut.Load();
+
+        // Assert
+        _sut.Current.Model.SelectedModelId.ShouldBe("canary-180m-flash-q8_0");
+        _sut.Current.Transcription.ShouldBe(new TranscriptionSettings(BackendPreference.Auto,
+            TranscriptionTask.Transcribe, "en", "de"));
+        _sut.Current.Recording.Hotkey.ShouldBe(["VcLeftControl", "VcLeftMeta"]);
+        _sut.Current.TextInsertion.ShouldBe(new TextInsertionSettings(InsertionMethod.TypeText, false));
+        _sut.Current.VoiceActivity.Enabled.ShouldBeFalse();
+        _sut.Current.Updates.CheckAutomatically.ShouldBeFalse();
+        File.Exists(_settingsFile + ".corrupt").ShouldBeFalse();
+    }
+
+    [Theory]
+    [InlineData("GPU", nameof(BackendPreference.Gpu))]
+    [InlineData("Cpu", nameof(BackendPreference.Cpu))]
+    public void Load_BackendNameInOtherCase_ReadsBackend(string name, string expected)
+    {
+        // Arrange
+        File.WriteAllText(_settingsFile, $$"""{ "transcription": { "backend": "{{name}}" } }""");
+
+        // Act
+        _sut.Load();
+
+        // Assert
+        _sut.Current.Transcription.Backend.ToString().ShouldBe(expected);
+    }
+
+    [Fact]
+    public void Load_UnknownEnumValue_LogsWarningWithSettingAndValue()
+    {
+        // Arrange
+        File.WriteAllText(_settingsFile, """{ "transcription": { "backend": "metal" } }""");
+        var logger = new CapturingLogger<JsonSettingsStore>();
+        var store = new JsonSettingsStore(new AppPaths(_root.Path), logger);
+
+        // Act
+        store.Load();
+
+        // Assert
+        var entry = logger.Entries.Where(e => e.Level == LogLevel.Warning).ShouldHaveSingleItem();
+        entry.Properties.ShouldContain(new KeyValuePair<string, object?>("Setting", "transcription.backend"));
+        entry.Properties.ShouldContain(new KeyValuePair<string, object?>("Value", "\"metal\""));
+    }
+
+    [Fact]
+    public async Task SaveAsync_AfterLoadingUnknownEnumValue_WritesDefault()
+    {
+        // Arrange
+        File.WriteAllText(_settingsFile, """{ "transcription": { "backend": "metal" } }""");
+        _sut.Load();
+
+        // Act
+        await _sut.SaveAsync(_sut.Current, TestContext.Current.CancellationToken);
+
+        // Assert
+        var json = await File.ReadAllTextAsync(_settingsFile, TestContext.Current.CancellationToken);
+        json.ShouldContain("\"backend\": \"auto\"");
+    }
+
+    [Theory]
     [InlineData("""{ "schemaVersion": "1", "transcription": { "backend": "vulkan" } }""")]
-    public void Load_UnknownBackendOrNotMigrated_RenamesFileAndUsesDefaults(string json)
+    [InlineData("""{ "transcription": 5 }""")]
+    public void Load_WrongKindOfValue_RenamesFileAndUsesDefaults(string json)
     {
         // Arrange
         File.WriteAllText(_settingsFile, json);
@@ -496,6 +624,26 @@ public sealed class JsonSettingsStoreTests : IDisposable
         _sut.Current.ShouldBe(new AppSettings());
         File.Exists(_settingsFile).ShouldBeFalse();
         File.ReadAllText(_settingsFile + ".corrupt").ShouldBe(json);
+    }
+
+    [Fact]
+    public void EnumSettings_ListsEveryEnumPropertyOfAppSettings()
+    {
+        // Arrange
+        var expected = typeof(AppSettings).GetProperties()
+            .Where(section => section.PropertyType.IsClass && section.PropertyType != typeof(string))
+            .SelectMany(section => section.PropertyType.GetProperties()
+                .Select(property => (Section: section, Property: property,
+                    EnumType: Nullable.GetUnderlyingType(property.PropertyType) ?? property.PropertyType))
+                .Where(setting => setting.EnumType.IsEnum))
+            .Select(setting => (JsonNamingPolicy.CamelCase.ConvertName(setting.Section.Name),
+                JsonNamingPolicy.CamelCase.ConvertName(setting.Property.Name), setting.EnumType));
+
+        // Act
+        var listed = JsonSettingsStore.EnumSettings;
+
+        // Assert
+        listed.ShouldBe(expected, true);
     }
 
     [Fact]

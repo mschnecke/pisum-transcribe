@@ -3,6 +3,8 @@ using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.Logging;
 using Pisum.Transcribe.Hosting;
+using Pisum.Transcribe.TextInsertion;
+using Pisum.Transcribe.Transcription;
 
 namespace Pisum.Transcribe.Settings;
 
@@ -16,8 +18,20 @@ internal sealed class JsonSettingsStore : ISettingsStore
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         UnmappedMemberHandling = JsonUnmappedMemberHandling.Skip,
         WriteIndented = true,
-        Converters = {new JsonStringEnumConverter(JsonNamingPolicy.CamelCase)},
+        Converters = {new JsonStringEnumConverter(JsonNamingPolicy.CamelCase, false)},
     };
+
+    /// <summary>
+    /// The settings whose values are enum names, as JSON section, JSON property and enum type. A value that isn't one
+    /// of the enum's names is dropped before the file is read, so the setting takes its default. A test checks that
+    /// every enum property of <see cref="AppSettings"/> is listed.
+    /// </summary>
+    internal static readonly IReadOnlyList<(string Section, string Property, Type EnumType)> EnumSettings =
+    [
+        ("transcription", "backend", typeof(BackendPreference)),
+        ("transcription", "task", typeof(TranscriptionTask)),
+        ("textInsertion", "method", typeof(InsertionMethod)),
+    ];
 
     private readonly string _settingsFile;
     private readonly ILogger<JsonSettingsStore> _logger;
@@ -90,6 +104,7 @@ internal sealed class JsonSettingsStore : ISettingsStore
                     fromVersion, AppSettings.CurrentSchemaVersion);
             }
 
+            DropUnknownEnumValues(root);
             return root.Deserialize<AppSettings>(SerializerOptions);
         }
         catch (JsonException exception)
@@ -136,5 +151,37 @@ internal sealed class JsonSettingsStore : ISettingsStore
 
         settings["schemaVersion"] = AppSettings.CurrentSchemaVersion;
         return true;
+    }
+
+    // Removes each enum setting whose value isn't one of the enum's names, so the setting takes its default instead of
+    // the whole file counting as corrupt. Runs after the migration, so a renamed value is kept. Like the deserializer,
+    // it ignores case; unlike it, it rejects numbers and comma lists. A section that isn't an object is left to the
+    // deserializer.
+    private void DropUnknownEnumValues(JsonNode? root)
+    {
+        if (root is not JsonObject settings)
+        {
+            return;
+        }
+
+        foreach (var (sectionName, propertyName, enumType) in EnumSettings)
+        {
+            if (settings[sectionName] is not JsonObject section
+                || !section.TryGetPropertyValue(propertyName, out var value))
+            {
+                continue;
+            }
+
+            if (value is JsonValue name
+                && name.TryGetValue(out string? text)
+                && Enum.GetNames(enumType).Contains(text, StringComparer.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            _logger.LogWarning("The setting {Setting} has the unknown value {Value} and uses its default",
+                $"{sectionName}.{propertyName}", value?.ToJsonString() ?? "null");
+            section.Remove(propertyName);
+        }
     }
 }
