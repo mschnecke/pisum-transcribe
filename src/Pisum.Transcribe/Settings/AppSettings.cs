@@ -31,9 +31,14 @@ namespace Pisum.Transcribe.Settings;
 /// <c>clipboardPaste</c>.
 /// </description></item>
 /// <item><description>
-/// <b>Renames:</b> an older file with a renamed enum value would count as corrupt, and one with a renamed property
-/// would lose its value, because unknown properties are skipped. Raise <see cref="CurrentSchemaVersion"/> and add the
-/// rename to the migration in <see cref="JsonSettingsStore"/>, with its tests.
+/// <b>Enums:</b> add every enum setting to <see cref="JsonSettingsStore.EnumSettings"/>, which a test checks. A value
+/// that isn't one of the enum's names, such as one written by a newer version, then takes the setting's default
+/// instead of making the whole file count as corrupt.
+/// </description></item>
+/// <item><description>
+/// <b>Renames:</b> an older file with a renamed enum value would lose its value to the default, and one with a renamed
+/// property would lose its value, because unknown properties are skipped. Raise <see cref="CurrentSchemaVersion"/> and
+/// add the rename to the migration in <see cref="JsonSettingsStore"/>, with its tests.
 /// </description></item>
 /// </list>
 /// </remarks>

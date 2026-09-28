@@ -116,7 +116,7 @@ graph TD
 | 27 | [GitHub #22](https://github.com/mschnecke/pisum-transcribe/issues/22) | `add-macos-packaging` | GitHub #20 | An unsigned `.pkg` with the project's own certificate, upgrades like the MSI's, Open at login, lockstep releases |
 | 28 | [GitHub #32](https://github.com/mschnecke/pisum-transcribe/issues/32) | `harden-settings-enums` | GitHub #18 | An unknown setting value falls back to its default, instead of resetting every setting, for example after a downgrade |
 
-**Planning state on 2026-09-26:**
+**Planning state on 2026-09-28:**
 - **Done:** GitHub #10–#13, merged in pull requests #24–#27. GitHub #13's registration was checked on Windows 11 only. The check on Windows 10 22H2 was skipped, so the shortcut fallback in its design D2 still applies if toasts don't show there.
 - **The spike** is done: the macOS half on 2026-09-22 and the Windows half on 2026-09-23, both go.
 - **GitHub #14** is merged in pull request #28 and released as 1.3.0. CI passed on Windows. Its archived tasks leave the regression pass by hand on Windows 11 and Windows 10 22H2 (8.2, 8.3), the `Hardware` tests (8.1) and the light and dark screenshots (3.6) unchecked.
@@ -129,7 +129,7 @@ graph TD
 - **GitHub #20** is merged in pull request #35 and archived: dictation on the Mac, with the overlay, the menu bar states and the hotkey's reasons for *unavailable*, App Nap activities, the relaunch waiting for a dictation, and the fallback when keystrokes aren't allowed.
 - **GitHub #21** is folded into #22, which brings "Open at login" with the first Mac release.
 - **GitHub #22** is merged in pull request #37 and archived, and released as 1.4.0-rc.1 and then 1.4.0, the first lockstep release with the MSI and the `.pkg`: the project's signing certificate "Pisum Transcribe", the release guard, "Open at login" and the update notice's wording on macOS. The checks by hand passed and are on the issue. Two findings changed the docs: a release candidate installs over its release (the same-version rule, as for the MSI), and macOS keeps the login item after the app is moved to the Trash, so the README says to turn "Open at login" off first. The setup window without a model wasn't rechecked with the release. The Homebrew tap is a later change.
-- **GitHub #32** has no OpenSpec change yet.
+- **GitHub #32** is implemented in the change `harden-settings-enums` on its branch: an enum setting value that isn't one of its names, such as one from a newer build, takes that setting's default with a warning, and the other settings are kept. Builds up to 1.5.0 still reset every setting for such a value.
 
 ### Releases
 
