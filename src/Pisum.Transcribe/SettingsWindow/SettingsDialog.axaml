@@ -253,6 +253,12 @@
                                   IsChecked="{Binding CheckForUpdates}" />
                         <TextBlock Classes="hint"
                                    Text="Asks GitHub once a day whether a new version of Pisum Transcribe exists. Nothing else is sent." />
+
+                        <!-- Selectable, so the version can be copied into a bug report. -->
+                        <SelectableTextBlock x:Name="VersionText" Margin="0,16,0,0" TextWrapping="Wrap"
+                                             Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"
+                                             Text="{Binding VersionText}"
+                                             IsVisible="{Binding VersionText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                     </StackPanel>
                 </Panel>
             </Panel>
