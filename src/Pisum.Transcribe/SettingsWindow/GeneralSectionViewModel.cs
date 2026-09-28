@@ -5,7 +5,7 @@ namespace Pisum.Transcribe.SettingsWindow;
 
 /// <summary>
 /// The general section of the settings window: starting at sign-in, as "Start with Windows" on Windows and "Open at
-/// login" on macOS, and the update check.
+/// login" on macOS, the update check and the version of the running application.
 /// </summary>
 internal sealed partial class GeneralSectionViewModel : ObservableObject
 {
@@ -45,15 +45,18 @@ internal sealed partial class GeneralSectionViewModel : ObservableObject
     /// <param name="startAtSignIn">Whether the platform starts the application at sign-in now.</param>
     /// <param name="requiresApproval">Whether the platform needs the user's approval first.</param>
     /// <param name="updates">The saved update check settings.</param>
+    /// <param name="version">The version of the running application without build metadata.</param>
     public GeneralSectionViewModel(bool isStartAtSignInAvailable,
                                    bool startAtSignIn,
                                    bool requiresApproval,
-                                   UpdateSettings updates)
+                                   UpdateSettings updates,
+                                   string? version)
     {
         IsStartAtSignInAvailable = isStartAtSignInAvailable;
         StartAtSignIn = startAtSignIn;
         RequiresApproval = requiresApproval;
         CheckForUpdates = updates.CheckAutomatically;
+        VersionText = version is null ? null : $"Version {version}";
     }
 
     /// <summary>
@@ -79,6 +82,12 @@ internal sealed partial class GeneralSectionViewModel : ObservableObject
     /// </summary>
     [ObservableProperty]
     public partial bool CheckForUpdates { get; set; }
+
+    /// <summary>
+    /// The line that shows the version of the running application, such as <c>Version 1.5.0</c>, or
+    /// <see langword="null"/> without a version, which hides the line.
+    /// </summary>
+    public string? VersionText { get; }
 
     /// <summary>
     /// Takes the newly saved update check setting, unless the user has edited it.

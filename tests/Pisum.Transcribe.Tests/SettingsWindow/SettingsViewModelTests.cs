@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
+using Pisum.Transcribe.Hosting;
 using Pisum.Transcribe.Recording;
 using Pisum.Transcribe.Settings;
 using Pisum.Transcribe.SettingsWindow;
@@ -238,6 +239,17 @@ public sealed class SettingsViewModelTests
         // Assert
         sut.General.CheckForUpdates.ShouldBeTrue();
         sut.HasChanges.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void Constructor_RunningApplication_ShowsItsVersionWithSaveDisabled()
+    {
+        // Act
+        var sut = CreateSut();
+
+        // Assert
+        sut.General.VersionText.ShouldBe($"Version {AppVersion.Current}");
+        sut.SaveCommand.CanExecute(null).ShouldBeFalse();
     }
 
     [Fact]

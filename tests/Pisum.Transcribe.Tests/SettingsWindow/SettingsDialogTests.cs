@@ -6,6 +6,7 @@ using Avalonia.Threading;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
 using Pisum.Transcribe.Dialogs;
+using Pisum.Transcribe.Hosting;
 using Pisum.Transcribe.Recording;
 using Pisum.Transcribe.Settings;
 using Pisum.Transcribe.SettingsWindow;
@@ -75,6 +76,28 @@ public sealed class SettingsDialogTests : IDisposable
             sut.CanMaximize.ShouldBeFalse();
             sut.CanMinimize.ShouldBeTrue();
             sut.SizeToContent.ShouldBe(SizeToContent.WidthAndHeight);
+        });
+    }
+
+    [Fact]
+    public Task Constructor_GeneralSection_ShowsTheVersionAsSelectableText()
+    {
+        return HeadlessUi.RunAsync(() =>
+        {
+            // Arrange
+            var viewModel = CreateViewModel(new FakeSettingsStore(new AppSettings()), null, CreateModelStore());
+
+            // Act
+            var sut = new SettingsDialog(viewModel);
+            sut.Show();
+            sut.Navigation.SelectedIndex = GeneralSection;
+            sut.UpdateLayout();
+
+            // Assert
+            sut.VersionText.ShouldBeOfType<SelectableTextBlock>();
+            sut.VersionText.IsEffectivelyVisible.ShouldBeTrue();
+            sut.VersionText.Text.ShouldBe($"Version {AppVersion.Current}");
+            sut.Close();
         });
     }
 

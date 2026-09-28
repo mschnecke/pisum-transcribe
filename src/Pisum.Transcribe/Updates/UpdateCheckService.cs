@@ -1,7 +1,6 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.Net.Http;
-using System.Reflection;
 using System.Text.Json;
 using System.Threading.Channels;
 using Microsoft.Extensions.Hosting;
@@ -124,10 +123,9 @@ internal sealed class UpdateCheckService : BackgroundService
         // behind one IP address don't all ask at the same moment.
         _firstDelay = firstDelay ?? TimeSpan.FromMinutes(1 + Random.Shared.NextDouble() * 9);
 
-        // Without the build metadata, the commit after the +.
-        _runningVersionText = (runningVersion ?? typeof(UpdateCheckService).Assembly
-                .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion)
-            ?.Split('+', 2)[0];
+        _runningVersionText = runningVersion is null
+            ? AppVersion.Current
+            : AppVersion.WithoutBuildMetadata(runningVersion);
         _runningVersion = ReleaseVersion.ParseOwn(_runningVersionText);
         _openUrl = openUrl ?? (url => Process.Start(new ProcessStartInfo(url) {UseShellExecute = true})?.Dispose());
     }

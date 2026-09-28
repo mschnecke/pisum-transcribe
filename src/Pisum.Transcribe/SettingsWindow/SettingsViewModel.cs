@@ -84,7 +84,7 @@ internal sealed partial class SettingsViewModel : ObservableObject
         Dictation = new DictationSectionViewModel(_baseline, Model.SelectedModel, hotkey, uiDispatcher);
         TextInsertion = new TextInsertionSectionViewModel(_baseline.TextInsertion);
         General = new GeneralSectionViewModel(startupRegistration is not null, _startsAtSignIn,
-            startupRegistration?.RequiresApproval() ?? false, _baseline.Updates);
+            startupRegistration?.RequiresApproval() ?? false, _baseline.Updates, AppVersion.Current);
 
         Model.PropertyChanged += OnSectionChanged;
         Dictation.PropertyChanged += OnSectionChanged;
