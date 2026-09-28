@@ -33,8 +33,8 @@ public sealed class ModelSetupHostedServiceTests
             .ReturnsLazily((Permission permission) => _permissionStates[permission]);
         A.CallTo(() => _permissions.GetNotificationsStateAsync()).Returns(PermissionState.Granted);
         A.CallTo(() => _permissions.IsAccessibilityInEffect).Returns(true);
-        A.CallTo(() => _trayIcon.AddMenuItem(A<string>._, A<Action>._, A<Func<bool>?>._))
-            .Invokes((string header, Action _, Func<bool>? isVisible) => _menuItems.Add((header, isVisible!)));
+        A.CallTo(() => _trayIcon.AddMenuItem(A<string>._, A<Action>._, A<Func<bool>?>._, A<Func<bool>?>._))
+            .Invokes((string header, Action _, Func<bool>? isVisible, Func<bool>? _) => _menuItems.Add((header, isVisible!)));
     }
 
     [Fact]

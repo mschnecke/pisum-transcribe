@@ -214,6 +214,24 @@ public sealed class SettingsViewModelTests
     }
 
     [Fact]
+    public async Task SettingsSavedElsewhere_TaskSwitchedInTrayMenu_ShowsSavedTask()
+    {
+        // Arrange
+        var sut = CreateSut();
+        var current = _settingsStore.Current;
+
+        // Act
+        await _settingsStore.SaveAsync(
+            current with {Transcription = current.Transcription with {Task = TranscriptionTask.Transcribe}},
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        sut.Dictation.Task.ShouldBe(TranscriptionTask.Transcribe);
+        sut.Dictation.IsTranscribe.ShouldBeTrue();
+        sut.HasChanges.ShouldBeFalse();
+    }
+
+    [Fact]
     public async Task SettingsSavedElsewhere_TrimSilenceEdited_KeepsTheEdit()
     {
         // Arrange

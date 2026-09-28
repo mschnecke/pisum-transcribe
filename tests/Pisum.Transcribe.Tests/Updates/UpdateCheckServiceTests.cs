@@ -52,8 +52,8 @@ public sealed class UpdateCheckServiceTests : IAsyncDisposable
         services.AddHttpClient(UpdateCheckService.HttpClientName).ConfigurePrimaryHttpMessageHandler(() => _handler);
         _services = services.BuildServiceProvider();
 
-        A.CallTo(() => _trayIcon.AddMenuItem(A<Func<string>>._, A<Action>._, A<Func<bool>?>._))
-            .Invokes((Func<string> header, Action onClick, Func<bool>? isVisible) =>
+        A.CallTo(() => _trayIcon.AddMenuItem(A<Func<string>>._, A<Action>._, A<Func<bool>?>._, A<Func<bool>?>._))
+            .Invokes((Func<string> header, Action onClick, Func<bool>? isVisible, Func<bool>? _) =>
             {
                 _itemHeader = header;
                 _itemClick = onClick;

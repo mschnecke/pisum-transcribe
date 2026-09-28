@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Hosting;
 using Pisum.Transcribe.Hosting;
 using Pisum.Transcribe.Notifications;
+using Pisum.Transcribe.Settings;
 using Pisum.Transcribe.TextInsertion;
 using Pisum.Transcribe.Transcription;
 using Pisum.Transcribe.Tray;
@@ -11,8 +12,9 @@ namespace Pisum.Transcribe.Dictation;
 /// Shows the dictation on the UI thread: the recording overlay, the tray icon with its tooltip, and notifications.
 /// </summary>
 /// <remarks>
-/// This is the only writer of the tray icon and tooltip. One <see cref="Render"/> combines three inputs: the dictation
-/// phase, set by the <c>Show*</c> calls, the engine status, and the hotkey's availability. While a dictation runs, the
+/// This is the only writer of the tray icon and tooltip. One <see cref="Render"/> combines four inputs: the dictation
+/// phase, set by the <c>Show*</c> calls, the engine status, the hotkey's availability, and the saved task and languages,
+/// which the tooltip's second line names in every state. While a dictation runs, the
 /// tray shows its phase; otherwise it shows the engine status, including a status that changed during the dictation,
 /// and with a ready engine, why the hotkey can't work, if it can't. Stopping hides the
 /// overlay in any phase and leaves the tray alone: at <b>Exit</b> the shutdown has already removed the tray icon,
@@ -33,6 +35,7 @@ internal sealed class DictationFeedback : IDictationFeedback, IHostedService
     private readonly INotifier _notifier;
     private readonly IUiDispatcher _uiDispatcher;
     private readonly ITranscriber _transcriber;
+    private readonly ISettingsStore _settingsStore;
     private readonly IHotkeyAvailability _hotkeyAvailability;
     private readonly IOverlayPlatform _overlayPlatform;
     private readonly TimeProvider _timeProvider;
@@ -54,6 +57,7 @@ internal sealed class DictationFeedback : IDictationFeedback, IHostedService
     /// <param name="notifier">Shows the notifications.</param>
     /// <param name="uiDispatcher">Reaches the UI thread.</param>
     /// <param name="transcriber">The transcription engine, whose status the tray shows between dictations.</param>
+    /// <param name="settingsStore">The settings store, whose task and languages the tooltip names.</param>
     /// <param name="hotkeyAvailability">Why the hotkey can't work, which the tray shows between dictations.</param>
     /// <param name="overlayPlatform">The overlay's placement and native window settings.</param>
     /// <param name="timeProvider">The time provider for short overlay messages.</param>
@@ -65,6 +69,7 @@ internal sealed class DictationFeedback : IDictationFeedback, IHostedService
                              INotifier notifier,
                              IUiDispatcher uiDispatcher,
                              ITranscriber transcriber,
+                             ISettingsStore settingsStore,
                              IHotkeyAvailability hotkeyAvailability,
                              IOverlayPlatform overlayPlatform,
                              TimeProvider timeProvider,
@@ -74,6 +79,7 @@ internal sealed class DictationFeedback : IDictationFeedback, IHostedService
         _notifier = notifier;
         _uiDispatcher = uiDispatcher;
         _transcriber = transcriber;
+        _settingsStore = settingsStore;
         _hotkeyAvailability = hotkeyAvailability;
         _overlayPlatform = overlayPlatform;
         _timeProvider = timeProvider;
@@ -96,6 +102,7 @@ internal sealed class DictationFeedback : IDictationFeedback, IHostedService
     public Task StartAsync(CancellationToken cancellationToken)
     {
         _transcriber.StatusChanged += OnStatusChanged;
+        _settingsStore.Changed += OnSettingsChanged;
         _ = _uiDispatcher.InvokeAsync(() =>
         {
             _hotkeyAvailability.Changed += OnHotkeyAvailabilityChanged;
@@ -118,6 +125,7 @@ internal sealed class DictationFeedback : IDictationFeedback, IHostedService
     public Task StopAsync(CancellationToken cancellationToken)
     {
         _transcriber.StatusChanged -= OnStatusChanged;
+        _settingsStore.Changed -= OnSettingsChanged;
         _ = _uiDispatcher.InvokeAsync(() =>
         {
             _hotkeyAvailability.Changed -= OnHotkeyAvailabilityChanged;
@@ -206,6 +214,12 @@ internal sealed class DictationFeedback : IDictationFeedback, IHostedService
         });
     }
 
+    private void OnSettingsChanged(object? sender, SettingsChangedEventArgs e)
+    {
+        // Raised on the thread that saved. Render reads the newest settings.
+        _ = _uiDispatcher.InvokeAsync(Render);
+    }
+
     private void OnHotkeyAvailabilityChanged(object? sender, EventArgs e)
     {
         // Raised on the UI thread.
@@ -240,7 +254,8 @@ internal sealed class DictationFeedback : IDictationFeedback, IHostedService
                 _ => (TrayStatus.Unavailable, DictationMessages.NoModelState),
             },
         };
-        _trayIcon.SetStatus(trayStatus, DictationMessages.ToolTip(state));
+        _trayIcon.SetStatus(trayStatus,
+            DictationMessages.ToolTip(state, DictationMessages.ModeLine(_settingsStore.Current.Transcription)));
     }
 
     private void ShowMessage(string text)

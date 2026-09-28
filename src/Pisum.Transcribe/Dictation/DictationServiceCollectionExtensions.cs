@@ -36,6 +36,8 @@ internal static class DictationServiceCollectionExtensions
         services.AddSingleton<IOverlayPlatform>(provider => new MacOverlayPlatform(
             provider.GetRequiredService<MacForegroundWindowTracker>(), provider.GetRequiredService<MacNativeLibrary>()));
 #endif
+        // Registered before the feedback, so the task switch comes first among the dictation's tray menu items.
+        services.AddHostedService<TaskMenu>();
         services.AddSingleton<DictationFeedback>();
         services.AddSingleton<IDictationFeedback>(provider => provider.GetRequiredService<DictationFeedback>());
 

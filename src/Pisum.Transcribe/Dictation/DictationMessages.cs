@@ -1,3 +1,7 @@
+using System.Globalization;
+using Pisum.Transcribe.Settings;
+using Pisum.Transcribe.Transcription;
+
 namespace Pisum.Transcribe.Dictation;
 
 /// <summary>
@@ -34,6 +38,16 @@ internal static class DictationMessages
     /// The tray menu item that cancels the dictation being transcribed.
     /// </summary>
     public const string CancelTranscriptionMenuItem = "Cancel transcription";
+
+    /// <summary>
+    /// The notification title when the tray menu could not change the task.
+    /// </summary>
+    public const string TaskSwitchFailedTitle = "Mode not changed";
+
+    /// <summary>
+    /// The notification text when the tray menu could not change the task.
+    /// </summary>
+    public const string TaskSwitchFailedMessage = "The settings could not be saved. Details are in the log.";
 
     /// <summary>
     /// The tray state while recording.
@@ -188,13 +202,64 @@ internal static class DictationMessages
     }
 
     /// <summary>
+    /// Names a language as the settings window's language pickers do.
+    /// </summary>
+    /// <param name="code">The ISO 639-1 code, such as <c>de</c>.</param>
+    /// <returns>The English name, such as "German", or <paramref name="code"/> for an unknown language.</returns>
+    public static string LanguageName(string code)
+    {
+        try
+        {
+            return CultureInfo.GetCultureInfo(code).EnglishName;
+        }
+        catch (CultureNotFoundException)
+        {
+            return code;
+        }
+    }
+
+    /// <summary>
+    /// Builds the tray menu item that switches to <see cref="TranscriptionTask.Transcribe"/>.
+    /// </summary>
+    /// <param name="sourceLanguage">The source language as an ISO 639-1 code.</param>
+    /// <returns>The text, such as "Transcribe (German)".</returns>
+    public static string TranscribeMenuItem(string sourceLanguage)
+    {
+        return $"Transcribe ({LanguageName(sourceLanguage)})";
+    }
+
+    /// <summary>
+    /// Builds the tray menu item that switches to <see cref="TranscriptionTask.Translate"/>.
+    /// </summary>
+    /// <param name="sourceLanguage">The source language as an ISO 639-1 code.</param>
+    /// <param name="targetLanguage">The target language as an ISO 639-1 code.</param>
+    /// <returns>The text, such as "Translate (German → English)".</returns>
+    public static string TranslateMenuItem(string sourceLanguage, string targetLanguage)
+    {
+        return $"Translate ({LanguageName(sourceLanguage)} → {LanguageName(targetLanguage)})";
+    }
+
+    /// <summary>
+    /// Builds the tray tooltip's line that names the task and its languages.
+    /// </summary>
+    /// <param name="settings">The transcription settings.</param>
+    /// <returns>The line, such as "Translate: German → English" or "Transcribe: German".</returns>
+    public static string ModeLine(TranscriptionSettings settings)
+    {
+        return settings.Task == TranscriptionTask.Transcribe
+            ? $"Transcribe: {LanguageName(settings.SourceLanguage)}"
+            : $"Translate: {LanguageName(settings.SourceLanguage)} → {LanguageName(settings.TargetLanguage)}";
+    }
+
+    /// <summary>
     /// Builds a tray tooltip, which always contains the product name.
     /// </summary>
     /// <param name="state">The state, such as <see cref="RecordingState"/>.</param>
-    /// <returns>The tooltip, such as "Pisum Transcribe – Recording…".</returns>
-    public static string ToolTip(string state)
+    /// <param name="modeLine">The second line, from <see cref="ModeLine"/>.</param>
+    /// <returns>The tooltip, such as "Pisum Transcribe – Recording…" and "Translate: German → English".</returns>
+    public static string ToolTip(string state, string modeLine)
     {
-        return $"{ProductName} – {state}";
+        return $"{ProductName} – {state}\n{modeLine}";
     }
 
     /// <summary>

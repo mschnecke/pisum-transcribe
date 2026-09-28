@@ -36,6 +36,9 @@ internal sealed class JsonSettingsStore : ISettingsStore
     private readonly string _settingsFile;
     private readonly ILogger<JsonSettingsStore> _logger;
 
+    // The tray menu and the settings window can save at the same time, and both write the same temporary file.
+    private readonly SemaphoreSlim _saveLock = new(1, 1);
+
     /// <summary>
     /// Initializes a new instance.
     /// </summary>
@@ -73,18 +76,26 @@ internal sealed class JsonSettingsStore : ISettingsStore
     /// <inheritdoc />
     public async Task SaveAsync(AppSettings settings, CancellationToken cancellationToken)
     {
-        var tempFile = _settingsFile + ".tmp";
-        await using (var stream = new FileStream(tempFile, FileMode.Create, FileAccess.Write, FileShare.None))
+        await _saveLock.WaitAsync(cancellationToken);
+        try
         {
-            await JsonSerializer.SerializeAsync(stream, settings, SerializerOptions, cancellationToken);
-            stream.Flush(true);
-        }
+            var tempFile = _settingsFile + ".tmp";
+            await using (var stream = new FileStream(tempFile, FileMode.Create, FileAccess.Write, FileShare.None))
+            {
+                await JsonSerializer.SerializeAsync(stream, settings, SerializerOptions, cancellationToken);
+                stream.Flush(true);
+            }
 
-        // Replaces the file in one step, so a crash leaves either the previous or the new complete file.
-        File.Move(tempFile, _settingsFile, true);
-        var previous = Current;
-        Current = settings;
-        Changed?.Invoke(this, new SettingsChangedEventArgs(previous, settings));
+            // Replaces the file in one step, so a crash leaves either the previous or the new complete file.
+            File.Move(tempFile, _settingsFile, true);
+            var previous = Current;
+            Current = settings;
+            Changed?.Invoke(this, new SettingsChangedEventArgs(previous, settings));
+        }
+        finally
+        {
+            _saveLock.Release();
+        }
     }
 
     private AppSettings? Read()
