@@ -25,8 +25,8 @@ public sealed class UpdateCheckServiceGitHubTests
         var trayIcon = A.Fake<ITrayIconService>();
         var notifier = A.Fake<INotifier>();
         Func<string>? header = null;
-        A.CallTo(() => trayIcon.AddMenuItem(A<Func<string>>._, A<Action>._, A<Func<bool>?>._))
-            .Invokes((Func<string> itemHeader, Action _, Func<bool>? _) => header = itemHeader);
+        A.CallTo(() => trayIcon.AddMenuItem(A<Func<string>>._, A<Action>._, A<Func<bool>?>._, A<Func<bool>?>._))
+            .Invokes((Func<string> itemHeader, Action _, Func<bool>? _, Func<bool>? _) => header = itemHeader);
         var logger = new CapturingLogger<UpdateCheckService>();
         using var sut = new UpdateCheckService(provider.GetRequiredService<IHttpClientFactory>(),
             new FakeSettingsStore(new AppSettings()), trayIcon, notifier, new InlineUiDispatcher(), TimeProvider.System,

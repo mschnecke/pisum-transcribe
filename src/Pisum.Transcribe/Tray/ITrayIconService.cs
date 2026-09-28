@@ -31,7 +31,11 @@ internal interface ITrayIconService
     /// Runs on the UI thread each time the menu opens and decides whether the item is shown. Keep it cheap.
     /// <see langword="null"/> shows the item always.
     /// </param>
-    void AddMenuItem(string header, Action onClick, Func<bool>? isVisible = null);
+    /// <param name="isChecked">
+    /// Runs on the UI thread each time the menu opens, while the item is shown, and decides whether it is checked. Keep
+    /// it cheap. An item with it is a radio item; <see langword="null"/> makes a plain item.
+    /// </param>
+    void AddMenuItem(string header, Action onClick, Func<bool>? isVisible = null, Func<bool>? isChecked = null);
 
     /// <summary>
     /// Adds a menu item above <b>Exit</b> whose text is read each time the menu opens.
@@ -44,7 +48,12 @@ internal interface ITrayIconService
     /// Runs on the UI thread each time the menu opens and decides whether the item is shown. Keep it cheap.
     /// <see langword="null"/> shows the item always.
     /// </param>
-    void AddMenuItem(Func<string> header, Action onClick, Func<bool>? isVisible = null);
+    /// <param name="isChecked">
+    /// Runs on the UI thread each time the menu opens, while the item is shown, and decides whether it is checked. Keep
+    /// it cheap. An item with it is a radio item; <see langword="null"/> makes a plain item.
+    /// </param>
+    void AddMenuItem(Func<string> header, Action onClick, Func<bool>? isVisible = null,
+        Func<bool>? isChecked = null);
 
     /// <summary>
     /// Changes the icon to the one of a status, and its tooltip.

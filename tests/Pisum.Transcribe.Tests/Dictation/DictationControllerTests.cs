@@ -224,6 +224,31 @@ public sealed class DictationControllerTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Pressed_TaskSavedAfterPreviousDictation_UsesSavedTask()
+    {
+        // Arrange
+        await DictateAsync(HoldDuration);
+        A.CallTo(() => _settingsStore.Current).Returns(PressSettings with
+        {
+            Transcription = PressSettings.Transcription with {Task = TranscriptionTask.Transcribe},
+        });
+        var idles = _feedback.Count(FakeDictationFeedback.Idle);
+
+        // Act
+        await RecordAsync();
+        _time.Advance(HoldDuration);
+        Release();
+        await WaitForAsync(FakeDictationFeedback.Idle, idles + 1);
+
+        // Assert
+        A.CallTo(() => _transcriber.TranscribeAsync(A<float[]>._, PressOptions, A<CancellationToken>._))
+            .MustHaveHappenedOnceExactly();
+        A.CallTo(() => _transcriber.TranscribeAsync(A<float[]>._,
+                new TranscriptionOptions(TranscriptionTask.Transcribe, "de", "en"), A<CancellationToken>._))
+            .MustHaveHappenedOnceExactly();
+    }
+
+    [Fact]
     public async Task Released_VoiceActivityDisabled_TranscribesFullRecordingWithoutDetection()
     {
         // Arrange

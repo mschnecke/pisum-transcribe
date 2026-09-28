@@ -44,7 +44,8 @@ internal sealed class TrayIconService : ITrayIconService
     private readonly NativeMenu _menu = new();
     private readonly NativeMenuItem _exitItem = new(ExitHeader);
     private readonly NativeMenuItemSeparator _exitSeparator = new();
-    private readonly List<(NativeMenuItem Item, Func<string> Header, Func<bool>? IsVisible)> _menuItems = [];
+    private readonly List<(NativeMenuItem Item, Func<string> Header, Func<bool>? IsVisible, Func<bool>? IsChecked)>
+        _menuItems = [];
 #if WINDOWS
     private readonly IDisposable _menuOpenedHandler;
 #endif
@@ -139,18 +140,22 @@ internal sealed class TrayIconService : ITrayIconService
     }
 
     /// <inheritdoc />
-    public void AddMenuItem(string header, Action onClick, Func<bool>? isVisible = null)
+    public void AddMenuItem(string header, Action onClick, Func<bool>? isVisible = null, Func<bool>? isChecked = null)
     {
-        AddMenuItem(() => header, onClick, isVisible);
+        AddMenuItem(() => header, onClick, isVisible, isChecked);
     }
 
     /// <inheritdoc />
-    public void AddMenuItem(Func<string> header, Action onClick, Func<bool>? isVisible = null)
+    public void AddMenuItem(Func<string> header, Action onClick, Func<bool>? isVisible = null,
+                            Func<bool>? isChecked = null)
     {
-        // The header is set when the menu opens.
-        var item = new NativeMenuItem();
+        // The header and the check state are set when the menu opens.
+        var item = new NativeMenuItem
+        {
+            ToggleType = isChecked is null ? MenuItemToggleType.None : MenuItemToggleType.Radio,
+        };
         item.Click += (_, _) => onClick();
-        _menuItems.Add((item, header, isVisible));
+        _menuItems.Add((item, header, isVisible, isChecked));
 
         if (_menu.Items.IndexOf(_exitItem) == 0)
         {
@@ -191,17 +196,23 @@ internal sealed class TrayIconService : ITrayIconService
     }
 
     /// <summary>
-    /// Shows or hides each added item and sets the text of the shown ones. Runs when the menu opens.
+    /// Shows or hides each added item and sets the text and the check state of the shown ones. Runs when the menu opens.
     /// </summary>
     internal void UpdateMenuItems()
     {
         var anyVisible = false;
-        foreach (var (item, header, isVisible) in _menuItems)
+        foreach (var (item, header, isVisible, isChecked) in _menuItems)
         {
             var visible = isVisible?.Invoke() ?? true;
             if (visible)
             {
                 item.Header = header();
+
+                // Also resets a radio item that a click checked, which the menu does on its own on Windows.
+                if (isChecked is not null)
+                {
+                    item.IsChecked = isChecked();
+                }
             }
 
             item.IsVisible = visible;

@@ -24,7 +24,8 @@ internal interface ISettingsStore
 
     /// <summary>
     /// Saves the settings and makes them <see cref="Current"/>. The settings file always holds either the previous or
-    /// the new complete settings, even if the process ends during the save.
+    /// the new complete settings, even if the process ends during the save. Saves run one at a time: a save that starts
+    /// while another runs waits for it.
     /// </summary>
     /// <param name="settings">The settings to save.</param>
     /// <param name="cancellationToken">A token to cancel the save.</param>

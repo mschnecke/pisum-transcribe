@@ -220,6 +220,33 @@ public sealed class JsonSettingsStoreTests : IDisposable
     }
 
     [Fact]
+    public async Task SaveAsync_ConcurrentSaves_AllSucceedAndFileMatchesCurrent()
+    {
+        // Arrange
+        var changes = 0;
+        _sut.Changed += (_, _) => Interlocked.Increment(ref changes);
+        var settings = Enumerable.Range(0, 20)
+            .Select(i => new AppSettings
+            {
+                Transcription = new TranscriptionSettings(
+                    Task: i % 2 == 0 ? TranscriptionTask.Transcribe : TranscriptionTask.Translate,
+                    SourceLanguage: i % 2 == 0 ? "de" : "fr"),
+            })
+            .ToList();
+
+        // Act
+        await Task.WhenAll(settings.Select(s =>
+            Task.Run(() => _sut.SaveAsync(s, TestContext.Current.CancellationToken),
+                TestContext.Current.CancellationToken)));
+        var otherStore = new JsonSettingsStore(new AppPaths(_root.Path), _logger);
+        otherStore.Load();
+
+        // Assert
+        changes.ShouldBe(20);
+        otherStore.Current.ShouldBe(_sut.Current);
+    }
+
+    [Fact]
     public async Task SaveAsync_VoiceActivityDisabled_RoundTripsAsVoiceActivitySection()
     {
         // Arrange

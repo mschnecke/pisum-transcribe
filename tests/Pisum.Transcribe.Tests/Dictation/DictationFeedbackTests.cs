@@ -1,6 +1,8 @@
 using Microsoft.Extensions.Time.Testing;
 using Pisum.Transcribe.Dictation;
 using Pisum.Transcribe.Notifications;
+using Pisum.Transcribe.Settings;
+using Pisum.Transcribe.Tests.SettingsWindow;
 using Pisum.Transcribe.TextInsertion;
 using Pisum.Transcribe.Transcription;
 using Pisum.Transcribe.Tray;
@@ -18,7 +20,11 @@ public sealed class DictationFeedbackTests
     private readonly IRecordingOverlay _overlay = A.Fake<IRecordingOverlay>();
     private readonly FakeHotkeyAvailability _hotkeyAvailability = new();
     private readonly FakeTimeProvider _time = new();
+    private readonly FakeSettingsStore _settingsStore = new(new AppSettings());
+
+    // The state line, the first line of the tooltip, with the icon; _toolTips holds the whole tooltips.
     private readonly List<(TrayStatus Status, string ToolTip)> _statuses = [];
+    private readonly List<string> _toolTips = [];
     private readonly DictationFeedback _sut;
 
     public DictationFeedbackTests()
@@ -26,9 +32,13 @@ public sealed class DictationFeedbackTests
         A.CallTo(() => _transcriber.Status).Returns(TranscriberStatus.Ready);
         A.CallTo(() => _transcriber.ActiveBackend).Returns("Vulkan");
         A.CallTo(() => _trayIcon.SetStatus(A<TrayStatus>._, A<string>._))
-            .Invokes((TrayStatus status, string toolTip) => _statuses.Add((status, toolTip)));
-        _sut = new DictationFeedback(_trayIcon, _notifier, new InlineUiDispatcher(), _transcriber, _hotkeyAvailability,
-            new FakeOverlayPlatform(), _time, () => _overlay);
+            .Invokes((TrayStatus status, string toolTip) =>
+            {
+                _statuses.Add((status, toolTip.Split('\n')[0]));
+                _toolTips.Add(toolTip);
+            });
+        _sut = new DictationFeedback(_trayIcon, _notifier, new InlineUiDispatcher(), _transcriber, _settingsStore,
+            _hotkeyAvailability, new FakeOverlayPlatform(), _time, () => _overlay);
     }
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
@@ -43,6 +53,82 @@ public sealed class DictationFeedbackTests
 
         // Assert
         Status.ShouldBe((TrayStatus.Ready, "Pisum Transcribe – Ready (Vulkan)"));
+    }
+
+    [Fact]
+    public async Task StartAsync_TranslateGermanToEnglish_ToolTipNamesModeOnSecondLine()
+    {
+        // Act
+        await _sut.StartAsync(Ct);
+
+        // Assert
+        _toolTips[^1].ShouldBe("Pisum Transcribe – Ready (Vulkan)\nTranslate: German → English");
+    }
+
+    [Fact]
+    public async Task SettingsChanged_TaskSwitched_ToolTipFollows()
+    {
+        // Arrange
+        await _sut.StartAsync(Ct);
+        var current = _settingsStore.Current;
+
+        // Act
+        await _settingsStore.SaveAsync(
+            current with {Transcription = current.Transcription with {Task = TranscriptionTask.Transcribe}}, Ct);
+
+        // Assert
+        _toolTips[^1].ShouldBe("Pisum Transcribe – Ready (Vulkan)\nTranscribe: German");
+    }
+
+    [Fact]
+    public async Task SettingsChanged_SourceLanguageSavedInSettingsWindow_ToolTipFollows()
+    {
+        // Arrange
+        await _sut.StartAsync(Ct);
+
+        // Act
+        await _settingsStore.SaveAsync(new AppSettings
+        {
+            Transcription = new TranscriptionSettings(Task: TranscriptionTask.Transcribe, SourceLanguage: "fr"),
+        }, Ct);
+
+        // Assert
+        _toolTips[^1].ShouldEndWith("\nTranscribe: French");
+    }
+
+    [Fact]
+    public async Task SettingsChanged_WhileRecording_KeepsRecordingStateAndNamesNewMode()
+    {
+        // Arrange
+        await _sut.StartAsync(Ct);
+        _sut.ShowRecording();
+        var current = _settingsStore.Current;
+
+        // Act
+        await _settingsStore.SaveAsync(
+            current with {Transcription = current.Transcription with {Task = TranscriptionTask.Transcribe}}, Ct);
+
+        // Assert
+        _toolTips[^1].ShouldBe("Pisum Transcribe – Recording…\nTranscribe: German");
+        Status.Status.ShouldBe(TrayStatus.Recording);
+    }
+
+    [Fact]
+    public async Task StopAsync_ThenSettingsChanged_DoesNotRender()
+    {
+        // Arrange
+        await _sut.StartAsync(Ct);
+        await _sut.StopAsync(Ct);
+        var renders = _toolTips.Count;
+
+        // Act
+        await _settingsStore.SaveAsync(new AppSettings
+        {
+            Transcription = new TranscriptionSettings(Task: TranscriptionTask.Transcribe),
+        }, Ct);
+
+        // Assert
+        _toolTips.Count.ShouldBe(renders);
     }
 
     [Fact]
@@ -503,8 +589,8 @@ public sealed class DictationFeedbackTests
     {
         Action? onClick = null;
         Func<bool>? isVisible = null;
-        A.CallTo(() => _trayIcon.AddMenuItem("Cancel transcription", A<Action>._, A<Func<bool>?>._))
-            .Invokes((string _, Action click, Func<bool>? visible) =>
+        A.CallTo(() => _trayIcon.AddMenuItem("Cancel transcription", A<Action>._, A<Func<bool>?>._, A<Func<bool>?>._))
+            .Invokes((string _, Action click, Func<bool>? visible, Func<bool>? _) =>
             {
                 onClick = click;
                 isVisible = visible;

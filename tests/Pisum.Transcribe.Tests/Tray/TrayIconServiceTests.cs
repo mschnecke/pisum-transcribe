@@ -178,6 +178,56 @@ public sealed class TrayIconServiceTests
     }
 
     [Fact]
+    public Task UpdateMenuItems_CheckFunctions_MakeRadioItemsThatFollowTheFunction()
+    {
+        return HeadlessUi.RunAsync(() =>
+        {
+            // Arrange
+            var translate = true;
+            var sut = CreateSut();
+            sut.AddMenuItem("Transcribe (German)", () => { }, isChecked: () => !translate);
+            sut.AddMenuItem("Translate (German → English)", () => { }, isChecked: () => translate);
+            var transcribeItem = (NativeMenuItem) sut.Menu.Items[0];
+            var translateItem = (NativeMenuItem) sut.Menu.Items[1];
+
+            // Act
+            sut.UpdateMenuItems();
+            var first = (transcribeItem.IsChecked, translateItem.IsChecked);
+            translate = false;
+            translateItem.IsChecked = true;
+            sut.UpdateMenuItems();
+
+            // Assert
+            transcribeItem.ToggleType.ShouldBe(MenuItemToggleType.Radio);
+            translateItem.ToggleType.ShouldBe(MenuItemToggleType.Radio);
+            first.ShouldBe((false, true));
+            transcribeItem.IsChecked.ShouldBeTrue();
+            translateItem.IsChecked.ShouldBeFalse();
+            sut.Remove();
+        });
+    }
+
+    [Fact]
+    public Task AddMenuItem_WithoutCheckFunction_IsPlainItem()
+    {
+        return HeadlessUi.RunAsync(() =>
+        {
+            // Arrange
+            var sut = CreateSut();
+            sut.AddMenuItem("Settings…", () => { });
+            var item = (NativeMenuItem) sut.Menu.Items[0];
+
+            // Act
+            sut.UpdateMenuItems();
+
+            // Assert
+            item.ToggleType.ShouldBe(MenuItemToggleType.None);
+            item.IsChecked.ShouldBeFalse();
+            sut.Remove();
+        });
+    }
+
+    [Fact]
     public Task Remove_ThenOtherCalls_HaveNoEffect()
     {
         return HeadlessUi.RunAsync(() =>

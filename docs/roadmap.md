@@ -89,6 +89,7 @@ graph TD
     G15 --> G18["GitHub #18 add-metal-backend"]
     G18 --> G32["GitHub #32 harden-settings-enums"]
     G39["GitHub #39 add-settings-version-info"]
+    G40["GitHub #40 add-tray-task-switch"]
     G15 --> G21["GitHub #21 Open at login, folded into #22"]
     G17 --> G19["GitHub #19 add-macos-text-insertion"]
     G16 --> G20["GitHub #20 add-macos-dictation"]
@@ -117,6 +118,7 @@ graph TD
 | 27 | [GitHub #22](https://github.com/mschnecke/pisum-transcribe/issues/22) | `add-macos-packaging` | GitHub #20 | An unsigned `.pkg` with the project's own certificate, upgrades like the MSI's, Open at login, lockstep releases |
 | 28 | [GitHub #32](https://github.com/mschnecke/pisum-transcribe/issues/32) | `harden-settings-enums` | GitHub #18 | An unknown setting value falls back to its default, instead of resetting every setting, for example after a downgrade |
 | 29 | [GitHub #39](https://github.com/mschnecke/pisum-transcribe/issues/39) | `add-settings-version-info` | – | The running version in the general section of the settings, as selectable text |
+| 30 | [GitHub #40](https://github.com/mschnecke/pisum-transcribe/issues/40) | `add-tray-task-switch` | – | Transcribe or translate from the tray menu, and the mode on the tooltip's second line |
 
 **Planning state on 2026-09-28:**
 - **Done:** GitHub #10–#13, merged in pull requests #24–#27. GitHub #13's registration was checked on Windows 11 only. The check on Windows 10 22H2 was skipped, so the shortcut fallback in its design D2 still applies if toasts don't show there.
@@ -133,6 +135,7 @@ graph TD
 - **GitHub #22** is merged in pull request #37 and archived, and released as 1.4.0-rc.1 and then 1.4.0, the first lockstep release with the MSI and the `.pkg`: the project's signing certificate "Pisum Transcribe", the release guard, "Open at login" and the update notice's wording on macOS. The checks by hand passed and are on the issue. Two findings changed the docs: a release candidate installs over its release (the same-version rule, as for the MSI), and macOS keeps the login item after the app is moved to the Trash, so the README says to turn "Open at login" off first. The setup window without a model wasn't rechecked with the release. The Homebrew tap is a later change.
 - **GitHub #32** is implemented and archived in pull request #41, open for review: an enum setting value that isn't one of its names, such as one from a newer build, takes that setting's default with a warning, and the other settings are kept. Builds up to 1.5.0 still reset every setting for such a value.
 - **GitHub #39** is implemented in `add-settings-version-info`: the general section of the settings shows `Version <version>` without the commit, below "Check for updates automatically", and the update check reads the version through the same code.
+- **GitHub #40** is implemented and archived in pull request #43, open for review: the tray menu shows **Transcribe (<source>)** and **Translate (<source> → <target>)** as radio items, choosing one saves the task, and the tooltip names the mode on a second line. The settings store saves one at a time, so the tray and the settings window can't collide.
 
 ### Releases
 
@@ -166,6 +169,7 @@ The swap from WPF to Avalonia, checked against the existing specs. It ships as 1
 - After #15, #16 setup comes first, followed by #17 recording and #19 text insertion. #17 builds on #16's permission checks, its microphone status and its relaunch after the Accessibility grant. #18 Metal runs in parallel with them.
 - #21, "Open at login", was folded into #22.
 - #39 depends on nothing: the settings window is shared by both platforms.
+- #40 depends on nothing: the tray menu and the task setting are shared by both platforms.
 - #32 depends only on #18, whose settings format version and migration it builds on. It hardens the settings on both platforms and doesn't block the Mac MVP.
 - #20 joins the tracks into the Mac MVP.
 
